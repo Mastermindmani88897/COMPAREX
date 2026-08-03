@@ -53,9 +53,15 @@ class ProductListing(Base):
         index=True,
     )
 
+    # Marketplace specific identifiers
+    marketplace_product_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, index=True
+    )
+
     # Price data
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     original_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    discount_percent: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     currency: Mapped[str] = mapped_column(String(10), default="INR", nullable=False)
 
     # Listing metadata
@@ -63,6 +69,8 @@ class ProductListing(Base):
     seller_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_prime: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    stock_status: Mapped[str] = mapped_column(String(50), default="IN_STOCK", nullable=False)
+    delivery_estimate: Mapped[str | None] = mapped_column(String(255), nullable=True)
     rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 1), nullable=True)
     review_count: Mapped[int | None] = mapped_column(nullable=True)
 

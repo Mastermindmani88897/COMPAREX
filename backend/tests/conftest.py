@@ -11,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
 from app.api.deps import get_db
+from app.core.config import settings
 from app.db.base import Base
 from app.main import app
 
@@ -25,6 +26,8 @@ def anyio_backend():
 @pytest.fixture(scope="session", autouse=True)
 async def setup_test_db():
     """Configure in-memory SQLite engine and override get_db dependency."""
+    settings.ENVIRONMENT = "testing"
+
     test_engine = create_async_engine(
         TEST_DATABASE_URL,
         connect_args={"check_same_thread": False},

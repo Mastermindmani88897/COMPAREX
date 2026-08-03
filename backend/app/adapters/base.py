@@ -2,7 +2,7 @@
 COMPAREX Backend – Marketplace Adapter Abstract Base Class
 
 Defines the contract/interface that all future marketplace adapters
-(e.g., Amazon, Flipkart, Myntra) must implement for price scraping and API integration.
+must implement for price scraping, normalization, and API integration.
 """
 
 from abc import ABC, abstractmethod
@@ -12,8 +12,8 @@ from typing import Any
 class BaseMarketplaceAdapter(ABC):
     """Abstract interface for Marketplace Adapters."""
 
-    def __init__(self, marketplace_name: str, base_url: str) -> None:
-        self.marketplace_name = marketplace_name
+    def __init__(self, marketplace_slug: str, base_url: str) -> None:
+        self.marketplace_slug = marketplace_slug
         self.base_url = base_url
 
     @abstractmethod
@@ -44,5 +44,15 @@ class BaseMarketplaceAdapter(ABC):
 
         :param listing_url: Full URL of the product listing
         :return: Dict containing 'price', 'currency', 'is_available'
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def normalize_listing(self, raw_data: dict[str, Any]) -> dict[str, Any]:
+        """
+        Transform raw marketplace data payload into standardized COMPAREX format.
+
+        :param raw_data: Dict payload from marketplace crawler or mock API
+        :return: Standardized listing dict
         """
         raise NotImplementedError

@@ -56,6 +56,30 @@ export interface AuthState {
   isLoading: boolean;
 }
 
+// ── Brand & Specification Types ───────────────────────────────────────────────
+export interface Brand {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url?: string | null;
+  website_url?: string | null;
+}
+
+export interface ProductSpecification {
+  id?: string;
+  key: string;
+  value: string;
+  group?: string | null;
+  unit?: string | null;
+}
+
+export interface ProductImage {
+  id?: string;
+  url: string;
+  alt_text?: string | null;
+  is_primary?: boolean;
+}
+
 // ── Category Types ────────────────────────────────────────────────────────────
 export interface Category {
   id: string;
@@ -75,10 +99,13 @@ export interface Product {
   description?: string | null;
   category_id?: string | null;
   category?: string | null;
+  brand_id?: string | null;
   brand?: string | null;
   image_url?: string | null;
   ean?: string | null;
   base_price?: number | null;
+  specifications?: ProductSpecification[];
+  images?: ProductImage[];
   created_at: string;
   updated_at: string;
 }
@@ -109,14 +136,19 @@ export interface ProductListing {
   marketplace_id: string;
   price: number;
   original_price?: number | null;
+  discount_percent?: number | null;
   currency: string;
   listing_url: string;
+  marketplace_product_id?: string | null;
   seller_name?: string | null;
   is_available: boolean;
   is_prime: boolean;
+  stock_status?: string | null;
+  delivery_estimate?: string | null;
   rating?: number | null;
   review_count?: number | null;
   marketplace?: MarketplaceSummary | null;
+  badges?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -125,10 +157,36 @@ export interface PriceCompareResult {
   product_id: string;
   product_name: string;
   listings: ProductListing[];
+  total_listings?: number;
   lowest_price?: number | null;
   highest_price?: number | null;
   average_price?: number | null;
+  price_spread?: number | null;
+  max_savings?: number | null;
   best_listing_id?: string | null;
+}
+
+export interface PriceHistoryPoint {
+  id: string;
+  price: number;
+  currency: string;
+  timestamp: string;
+}
+
+export interface ListingPriceHistory {
+  listing_id: string;
+  marketplace_name: string;
+  current_price: number;
+  history: PriceHistoryPoint[];
+}
+
+export interface MatchingResult {
+  is_duplicate: boolean;
+  confidence_score: number;
+  title_similarity?: number;
+  brand_match?: boolean;
+  spec_score?: number;
+  match_reason: string;
 }
 
 // ── Navigation & UI Types ─────────────────────────────────────────────────────

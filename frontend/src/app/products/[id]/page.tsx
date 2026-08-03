@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   XCircle,
   Award,
+  GitCompare,
 } from "lucide-react";
 import apiClient from "@/services/api";
 import type { Product, PriceCompareResult } from "@/types";
@@ -43,7 +44,7 @@ export default function ProductDetailPage() {
         try {
           const compRes = await apiClient.get(`/products/${productId}/compare`);
           if (isMounted) {
-            setCompareData(compRes.data.data);
+            setCompareData(compRes.data);
           }
         } catch {
           // Listings comparison might be empty
@@ -104,13 +105,22 @@ export default function ProductDetailPage() {
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8" style={{ background: "var(--background)", paddingTop: "88px" }}>
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Back Link */}
-        <Link
-          href="/products"
-          className="inline-flex items-center gap-2 text-sm font-medium hover:text-indigo-400 transition-colors"
-          style={{ color: "var(--foreground-muted)" }}
-        >
-          <ChevronLeft className="h-4 w-4" /> Back to Products
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link
+            href="/products"
+            className="inline-flex items-center gap-2 text-sm font-medium hover:text-indigo-400 transition-colors"
+            style={{ color: "var(--foreground-muted)" }}
+          >
+            <ChevronLeft className="h-4 w-4" /> Back to Products
+          </Link>
+
+          <Link
+            href={`/compare/${product.id}`}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold gradient-bg text-white shadow-md"
+          >
+            <GitCompare className="h-4 w-4" /> Full Comparison View
+          </Link>
+        </div>
 
         {/* Product Overview Card */}
         <div className="rounded-2xl p-6 sm:p-8 border grid grid-cols-1 md:grid-cols-3 gap-8" style={{ background: "var(--card)", borderColor: "var(--border)" }}>

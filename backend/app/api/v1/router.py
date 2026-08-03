@@ -10,6 +10,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth,
     categories,
+    comparison,
     health,
     listings,
     marketplaces,
@@ -39,3 +40,6 @@ v1_router.include_router(marketplaces.router)
 
 # Price Listings
 v1_router.include_router(listings.router)
+
+# Comparison & Matching Engine
+v1_router.include_router(comparison.router)

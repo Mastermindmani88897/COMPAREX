@@ -33,8 +33,9 @@
 
 COMPAREX is a production-quality AI Shopping Intelligence Platform that aggregates product pricing from multiple marketplaces, applies AI-driven analysis, and delivers personalized shopping insights.
 
-**Phase 1**: Completed project foundation (Frontend shell, FastAPI backend, Docker, GitHub Actions).  
-**Phase 2**: Complete backend domain models & marketplace foundation architecture, full frontend authentication integration (Login/Register APIs, session persistence, automatic token refresh, Remember Me architecture), professional interactive dashboard widgets, full Product module (Catalog, Details, Search UI, Pagination, State management), and 100% clean CI/CD linters.
+**Phase 1**: Project foundation (Frontend shell, FastAPI backend, Docker, GitHub Actions).  
+**Phase 2**: Core authentication, JWT state management, Remember Me, protected routes, interactive dashboard widgets, product catalog & price comparison matrix.  
+**Phase 3**: Marketplace Intelligence Core — complete normalized domain models (`Product`, `Marketplace`, `ProductListing`, `PriceHistory`, `Category`, `Brand`, `ProductSpecification`, `ProductImage`), Marketplace Abstraction Layer & `MarketplaceFactory`, Comparison Engine, non-AI Product Matching Engine, dedicated Compare UI (`/compare/[id]`), and 100% clean CI linters.
 
 ---
 
@@ -60,11 +61,71 @@ COMPAREX is a production-quality AI Shopping Intelligence Platform that aggregat
 | **Pytest** | Async unit & integration test suite |
 | **PostgreSQL** | Primary database |
 
-### Infrastructure
-| Technology | Purpose |
-|---|---|
-| **Docker + Compose** | Containerization |
-| **GitHub Actions** | CI/CD pipeline |
+---
+
+## 🗄 Entity-Relationship (ER) Architecture
+
+```mermaid
+erDiagram
+    CATEGORY ||--o{ PRODUCT : contains
+    BRAND ||--o{ PRODUCT : manufactures
+    PRODUCT ||--o{ PRODUCT_LISTING : listed_on
+    PRODUCT ||--o{ PRODUCT_SPECIFICATION : has_specs
+    PRODUCT ||--o{ PRODUCT_IMAGE : has_images
+    MARKETPLACE ||--o{ PRODUCT_LISTING : hosts
+    PRODUCT_LISTING ||--o{ PRICE_HISTORY : tracks_prices
+
+    PRODUCT {
+        uuid id PK
+        string name
+        text description
+        uuid category_id FK
+        uuid brand_id FK
+        string ean
+        decimal base_price
+    }
+
+    BRAND {
+        uuid id PK
+        string name
+        string slug
+        text logo_url
+    }
+
+    MARKETPLACE {
+        uuid id PK
+        string name
+        string slug
+        text base_url
+    }
+
+    PRODUCT_LISTING {
+        uuid id PK
+        uuid product_id FK
+        uuid marketplace_id FK
+        string marketplace_product_id
+        decimal price
+        decimal original_price
+        decimal discount_percent
+        string currency
+        text listing_url
+        string seller_name
+        boolean is_available
+        boolean is_prime
+        string stock_status
+        string delivery_estimate
+        decimal rating
+        integer review_count
+    }
+
+    PRICE_HISTORY {
+        uuid id PK
+        uuid listing_id FK
+        decimal price
+        string currency
+        timestamp timestamp
+    }
+```
 
 ---
 
@@ -78,38 +139,33 @@ COMPAREX/
 ├── frontend/
 │   ├── src/
 │   │   ├── app/                     # Next.js App Router pages
-│   │   │   ├── login/               # Connected Login page
-│   │   │   ├── register/            # Connected Register page
-│   │   │   ├── dashboard/           # Professional Dashboard & Products management
-│   │   │   ├── products/            # Public Product Catalog & Product Details [id]
-│   │   │   ├── layout.tsx           # Root layout with AuthProvider
-│   │   │   └── page.tsx             # Landing page
+│   │   │   ├── compare/[id]/        # Dedicated Product Compare Page
+│   │   │   ├── dashboard/           # Dashboard & Product Index Management
+│   │   │   ├── products/            # Product Catalog & Detail View [id]
+│   │   │   ├── login/ & register/   # Auth Pages
+│   │   │   └── page.tsx             # Landing Page
 │   │   ├── components/
 │   │   │   ├── layout/              # Navbar, Footer
-│   │   │   └── shared/              # AuthGuard, ThemeToggle, LoadingSkeleton
+│   │   │   └── shared/              # MarketplaceBadge, AuthGuard, ThemeToggle
 │   │   ├── context/
-│   │   │   └── AuthContext.tsx      # Auth State, Login, Register, Refresh Session
+│   │   │   └── AuthContext.tsx      # Auth State Provider
 │   │   ├── services/
-│   │   │   └── api.ts               # Axios client with 401 auto-refresh & token persistence
+│   │   │   └── api.ts               # Axios client with auto 401 refresh
 │   │   └── types/
 │   │       └── index.ts             # TypeScript type definitions
-│   ├── Dockerfile
 │   └── next.config.ts
 ├── backend/
 │   ├── app/
-│   │   ├── adapters/                # BaseMarketplaceAdapter abstract interface
-│   │   ├── api/v1/endpoints/        # auth, users, products, categories, marketplaces, listings
-│   │   ├── core/                    # config, logging, security, redis (with test fallback)
+│   │   ├── adapters/                # BaseMarketplaceAdapter & MarketplaceFactory
+│   │   ├── api/v1/endpoints/        # comparison, products, listings, marketplaces, auth, users
+│   │   ├── core/                    # config, security, redis
 │   │   ├── db/                      # base, session
-│   │   ├── models/                  # User, Product, Category, Marketplace, ProductListing, PriceHistory
-│   │   ├── repositories/            # Base, User, Product, Category, Marketplace, ProductListing
-│   │   ├── schemas/                 # Auth, User, Product, Category, Marketplace, ProductListing
-│   │   └── services/                # AuthService, UserService, ProductService, CategoryService, MarketplaceService, ProductListingService
-│   ├── tests/                       # Pytest test suite with in-memory DB override
-│   ├── .flake8                      # Flake8 lint configuration (100 char limit)
-│   ├── Dockerfile
-│   └── pyproject.toml
-├── docker-compose.yml
+│   │   ├── models/                  # Product, Marketplace, ProductListing, PriceHistory, Category, Brand, ProductSpecification, ProductImage
+│   │   ├── repositories/            # Product, Marketplace, ProductListing, PriceHistory, Brand, Category
+│   │   ├── schemas/                 # Product, Marketplace, ProductListing, Brand, Comparison
+│   │   └── services/                # ComparisonEngineService, ProductMatchingEngine, MarketplaceService, ProductService
+│   ├── tests/                       # Pytest integration & unit tests
+│   └── .flake8                      # Flake8 lint configuration
 └── README.md
 ```
 
@@ -117,46 +173,32 @@ COMPAREX/
 
 ## ⚡ Quick Start
 
-### 1. Clone the Repository
 ```bash
-git clone https://github.com/Mastermindmani88897/COMPAREX.git
-cd COMPAREX
-```
-
-### 2. Frontend Setup
-```bash
+# Frontend
 cd frontend
 npm install
 npm run dev
-```
-Frontend runs at: **http://localhost:3000**
 
-### 3. Backend Setup
-```bash
+# Backend
 cd backend
 pip install -r requirements.txt
 python -m app.main
 ```
-Backend runs at: **http://localhost:8000**  
-Swagger docs at: **http://localhost:8000/docs**
 
 ---
 
 ## 🧪 Testing & Verification
 
-### Frontend Verification
 ```bash
-cd frontend
-npm run lint      # ESLint (0 errors)
-npm run build     # Production build check
-```
-
-### Backend Verification
-```bash
+# Backend Verification
 cd backend
 flake8 app/       # Flake8 lint check (0 errors)
 pytest            # Pytest test suite (100% pass)
-python -c "from app.main import app; print('✓ FastAPI app created successfully')"
+
+# Frontend Verification
+cd frontend
+npm run lint      # ESLint (0 errors)
+npm run build     # Production build check
 ```
 
 ---
@@ -168,17 +210,13 @@ python -c "from app.main import app; print('✓ FastAPI app created successfully
 | `GET` | `/api/v1/health` | Health check endpoint | No |
 | `POST` | `/api/v1/auth/register` | User registration | No |
 | `POST` | `/api/v1/auth/login` | Authenticate user & issue JWT tokens | No |
-| `POST` | `/api/v1/auth/refresh` | Refresh access token | No |
-| `POST` | `/api/v1/auth/logout` | Revoke active access token | Yes |
-| `GET` | `/api/v1/users/me` | Fetch authenticated user profile | Yes |
-| `PATCH` | `/api/v1/users/me` | Update current user profile | Yes |
 | `GET` | `/api/v1/products` | Search & list indexed products | No |
-| `GET` | `/api/v1/products/{id}` | Get product details by ID | No |
-| `GET` | `/api/v1/products/{id}/compare` | Compare product prices across marketplaces | No |
-| `POST` | `/api/v1/products` | Add new product to index | Yes |
-| `GET` | `/api/v1/categories` | List product categories | No |
+| `GET` | `/api/v1/products/{id}` | Get canonical product details | No |
+| `GET` | `/api/v1/products/{id}/compare` | Get comprehensive price comparison matrix | No |
+| `GET` | `/api/v1/products/{id}/history` | Get historical price timeline points | No |
+| `POST` | `/api/v1/products/match` | Evaluate non-AI product duplicate matching | No |
 | `GET` | `/api/v1/marketplaces` | List supported marketplaces | No |
-| `POST` | `/api/v1/listings` | Upsert product price listing | Yes |
+| `POST` | `/api/v1/listings` | Upsert product listing entry | Yes |
 
 ---
 
@@ -188,15 +226,14 @@ python -c "from app.main import app; print('✓ FastAPI app created successfully
 - Landing page, layout structure, FastAPI & Docker setup.
 
 ### ✅ Phase 2 – Backend Completion & Frontend Integration
-- Full JWT authentication, state management, session persistence, automatic token refresh, Remember Me support, protected routes.
-- Professional Dashboard with Recent Searches, Wishlist, Saved Products, Saved Comparisons, Price Alerts widgets.
-- Complete Product Catalog & Details module with real-time price comparison matrix.
-- Domain models (`Product`, `Marketplace`, `ProductListing`, `PriceHistory`, `Category`) & Marketplace adapter foundation architecture.
-- 100% passing CI linters & test suites.
+- JWT auth, session persistence, Remember Me, protected routes, interactive dashboard widgets, product catalog & detail views.
 
-### 🔜 Phase 3 – Marketplace Engine & Scraper Integrations
-- Implementation of concrete marketplace adapters (Amazon, Flipkart, Myntra).
-- Automated background price fetching & historical price tracking.
+### ✅ Phase 3 – Marketplace Intelligence Core
+- Complete normalized domain models (`Brand`, `ProductSpecification`, `ProductImage`, `ProductListing`, `PriceHistory`).
+- `BaseMarketplaceAdapter` & `MarketplaceFactory` pattern.
+- `ComparisonEngineService` (deal scores, price spread, max savings).
+- `ProductMatchingEngine` (fuzzy string matching, spec matching, duplicate detection without AI).
+- Dedicated Compare Page (`/compare/[id]`) with `MarketplaceBadge` components and responsive layout.
 
 ### 🔜 Phase 4 – AI Features & Advanced Extensions
 - AI Shopping Assistant (LLM integration) & image search.
