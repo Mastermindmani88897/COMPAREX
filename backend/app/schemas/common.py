@@ -4,7 +4,7 @@ COMPAREX Backend – Common/Shared Pydantic Schemas
 Reusable response envelope schemas used across all endpoints.
 """
 
-from typing import Any, Generic, Optional, TypeVar
+from typing import Generic, Optional, TypeVar
 
 from pydantic import BaseModel, Field
 

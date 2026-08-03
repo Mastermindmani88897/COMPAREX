@@ -6,9 +6,10 @@ All configuration is centralized here — no magic strings elsewhere.
 """
 
 from functools import lru_cache
+import re
 from typing import List, Optional
 
-from pydantic import AnyHttpUrl, Field
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,7 +27,10 @@ class Settings(BaseSettings):
     APP_NAME: str = "COMPAREX"
     APP_VERSION: str = "1.0.0"
     APP_DESCRIPTION: str = "AI Shopping Intelligence Platform API"
-    ENVIRONMENT: str = Field(default="development", pattern="^(development|staging|production)$")
+    ENVIRONMENT: str = Field(
+        default="development",
+        pattern="^(development|staging|production)$",
+    )
     DEBUG: bool = True
 
     # ── Server ────────────────────────────────────────────────────
@@ -47,19 +51,43 @@ class Settings(BaseSettings):
     ALLOWED_HEADERS: List[str] = ["*"]
 
     # ── Database ──────────────────────────────────────────────────
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/comparex"
+    DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/comparex"
     DATABASE_ECHO: bool = False
+
+    @property
+    def ASYNC_DATABASE_URL(self) -> str:
+        """Ensure database URL uses postgresql+asyncpg protocol and asyncpg SSL parameters."""
+        url = self.DATABASE_URL
+        if url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        elif url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+
+        url = url.replace("sslmode=require", "ssl=require").replace(
+            "sslmode=prefer", "ssl=prefer"
+        )
+        if "channel_binding=" in url:
+            url = re.sub(r"&?channel_binding=[^&]+", "", url)
+        return url
 
     # ── Auth (JWT) ────────────────────────────────────────────────
     SECRET_KEY: str = "change-this-secret-key-in-production"
+    JWT_SECRET: Optional[str] = None
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # ── Redis (Phase 2) ───────────────────────────────────────────
-    REDIS_URL: Optional[str] = None
+    @property
+    def EFFECTIVE_JWT_SECRET(self) -> str:
+        """Use JWT_SECRET if defined, otherwise fallback to SECRET_KEY."""
+        return self.JWT_SECRET or self.SECRET_KEY
 
-    # ── Email (Phase 2) ───────────────────────────────────────────
+    # ── Upstash Redis ─────────────────────────────────────────────
+    REDIS_URL: Optional[str] = None
+    UPSTASH_REDIS_REST_URL: Optional[str] = None
+    UPSTASH_REDIS_REST_TOKEN: Optional[str] = None
+
+    # ── Email ──────────────────────────────────────────────────────
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: Optional[int] = None
     SMTP_USER: Optional[str] = None
@@ -67,7 +95,7 @@ class Settings(BaseSettings):
 
     # ── Logging ───────────────────────────────────────────────────
     LOG_LEVEL: str = "INFO"
-    LOG_FORMAT: str = "json"  # "json" | "text"
+    LOG_FORMAT: str = "text"  # "json" | "text"
 
 
 @lru_cache

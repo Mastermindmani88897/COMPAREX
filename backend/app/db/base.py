@@ -4,7 +4,7 @@ COMPAREX Backend – Database Base & Models Registry
 Defines the SQLAlchemy declarative base that all models inherit from.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -32,7 +32,3 @@ class Base(DeclarativeBase):
             col.name: getattr(self, col.name)
             for col in self.__table__.columns
         }
-
-
-# Import all models here so Alembic can discover them for migrations
-# (import order matters — referenced tables must be imported before dependents)

@@ -2,22 +2,42 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Mail, Lock, Zap, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, Zap, ArrowRight, AlertCircle, Loader2 } from "lucide-react";
 import type { LoginFormData } from "@/types";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { login } = useAuth();
   const [formData, setFormData] = useState<LoginFormData>({
     email: "",
     password: "",
     rememberMe: false,
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Auth logic in Phase 2
-    console.log("Login submitted:", formData);
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      await login(formData.email, formData.password, formData.rememberMe);
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { detail?: string; message?: string } } };
+      const msg =
+        axiosErr?.response?.data?.detail ||
+        axiosErr?.response?.data?.message ||
+        "Invalid email or password. Please try again.";
+      setError(msg);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -66,6 +86,23 @@ export default function LoginPage() {
             </p>
           </div>
 
+          {/* Error Banner */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-start gap-3 rounded-xl px-4 py-3 mb-5 text-sm"
+              style={{
+                background: "rgba(239,68,68,0.1)",
+                border: "1px solid rgba(239,68,68,0.3)",
+                color: "#f87171",
+              }}
+            >
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>{error}</span>
+            </motion.div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5" id="login-form">
             {/* Email */}
             <div>
@@ -95,6 +132,7 @@ export default function LoginPage() {
                     border: "1px solid var(--border)",
                     color: "var(--foreground)",
                   }}
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -136,6 +174,7 @@ export default function LoginPage() {
                     border: "1px solid var(--border)",
                     color: "var(--foreground)",
                   }}
+                  disabled={isLoading}
                 />
                 <button
                   type="button"
@@ -170,15 +209,25 @@ export default function LoginPage() {
 
             {/* Submit */}
             <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
+              whileHover={{ scale: isLoading ? 1 : 1.01 }}
+              whileTap={{ scale: isLoading ? 1 : 0.99 }}
               type="submit"
               id="login-submit"
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white gradient-bg text-sm"
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white gradient-bg text-sm disabled:opacity-70 disabled:cursor-not-allowed"
               style={{ boxShadow: "0 4px 15px rgba(99,102,241,0.3)" }}
             >
-              Sign in
-              <ArrowRight className="h-4 w-4" />
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Signing in…
+                </>
+              ) : (
+                <>
+                  Sign in
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
             </motion.button>
           </form>
 

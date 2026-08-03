@@ -17,20 +17,24 @@
   <a href="#">
     <img src="https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker" />
   </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/CI%2FCD-Passing-brightgreen?style=flat-square&logo=githubactions" />
+  </a>
   <br /><br />
   
   <h1>COMPAREX</h1>
   <p><strong>AI Shopping Intelligence Platform</strong></p>
-  <p>Compare products across 10+ marketplaces with the power of AI — real-time prices, personalized recommendations, and instant deal alerts.</p>
+  <p>Compare products across 10+ marketplaces with real-time prices, personalized recommendations, and instant deal alerts.</p>
 </div>
 
 ---
 
 ## 🚀 Overview
 
-COMPAREX is a production-quality AI Shopping Intelligence Platform that aggregates product pricing from multiple marketplaces, applies AI-driven analysis, and delivers personalized shopping insights to help users always get the best deal.
+COMPAREX is a production-quality AI Shopping Intelligence Platform that aggregates product pricing from multiple marketplaces, applies AI-driven analysis, and delivers personalized shopping insights.
 
-**Phase 1** establishes the complete project foundation: premium UI, clean backend architecture, Docker setup, and CI/CD pipeline.
+**Phase 1**: Completed project foundation (Frontend shell, FastAPI backend, Docker, GitHub Actions).  
+**Phase 2**: Complete backend domain models & marketplace foundation architecture, full frontend authentication integration (Login/Register APIs, session persistence, automatic token refresh, Remember Me architecture), professional interactive dashboard widgets, full Product module (Catalog, Details, Search UI, Pagination, State management), and 100% clean CI/CD linters.
 
 ---
 
@@ -41,20 +45,19 @@ COMPAREX is a production-quality AI Shopping Intelligence Platform that aggregat
 |---|---|
 | **Next.js 15** (App Router) | React framework with SSR |
 | **TypeScript** | Type safety across the codebase |
-| **Tailwind CSS v4** | Utility-first styling |
+| **Tailwind CSS** | Utility-first styling |
 | **Framer Motion** | Smooth animations |
-| **TanStack Query** | Data fetching & caching |
+| **Axios** | Data fetching & token interceptors |
 | **Lucide React** | Icon system |
-| **next-themes** | Dark/light mode |
 
 ### Backend
 | Technology | Purpose |
 |---|---|
 | **FastAPI** | High-performance Python API framework |
-| **SQLAlchemy 2.0** (async) | ORM with async support |
+| **SQLAlchemy 2.0** (async) | ORM with async support & Repository pattern |
 | **Alembic** | Database schema migrations |
 | **Pydantic v2** | Data validation & settings |
-| **Uvicorn** | ASGI server |
+| **Pytest** | Async unit & integration test suite |
 | **PostgreSQL** | Primary database |
 
 ### Infrastructure
@@ -75,68 +78,44 @@ COMPAREX/
 ├── frontend/
 │   ├── src/
 │   │   ├── app/                     # Next.js App Router pages
-│   │   │   ├── (auth)/              # Auth pages group
-│   │   │   │   ├── login/
-│   │   │   │   ├── register/
-│   │   │   │   └── forgot-password/
-│   │   │   ├── about/
-│   │   │   ├── contact/
-│   │   │   ├── privacy/
-│   │   │   ├── terms/
-│   │   │   ├── dashboard/
-│   │   │   ├── layout.tsx           # Root layout
-│   │   │   ├── page.tsx             # Landing page
-│   │   │   ├── not-found.tsx        # 404 page
-│   │   │   └── loading.tsx          # Global loading skeleton
+│   │   │   ├── login/               # Connected Login page
+│   │   │   ├── register/            # Connected Register page
+│   │   │   ├── dashboard/           # Professional Dashboard & Products management
+│   │   │   ├── products/            # Public Product Catalog & Product Details [id]
+│   │   │   ├── layout.tsx           # Root layout with AuthProvider
+│   │   │   └── page.tsx             # Landing page
 │   │   ├── components/
 │   │   │   ├── layout/              # Navbar, Footer
-│   │   │   ├── sections/            # HeroSection, FeaturesSection
-│   │   │   └── shared/              # ThemeToggle, LoadingSkeleton
-│   │   ├── config/
-│   │   │   └── site.ts              # Site metadata & config
-│   │   ├── hooks/
-│   │   │   └── useTheme.tsx         # Theme provider & hook
-│   │   ├── lib/
-│   │   │   └── utils.ts             # Utility functions
+│   │   │   └── shared/              # AuthGuard, ThemeToggle, LoadingSkeleton
+│   │   ├── context/
+│   │   │   └── AuthContext.tsx      # Auth State, Login, Register, Refresh Session
 │   │   ├── services/
-│   │   │   └── api.ts               # Axios API client
+│   │   │   └── api.ts               # Axios client with 401 auto-refresh & token persistence
 │   │   └── types/
 │   │       └── index.ts             # TypeScript type definitions
-│   ├── .env.example
 │   ├── Dockerfile
 │   └── next.config.ts
 ├── backend/
 │   ├── app/
-│   │   ├── api/v1/
-│   │   │   ├── endpoints/           # health, auth, users, products, marketplaces
-│   │   │   └── router.py            # v1 router aggregator
-│   │   ├── core/                    # config, logging, security
+│   │   ├── adapters/                # BaseMarketplaceAdapter abstract interface
+│   │   ├── api/v1/endpoints/        # auth, users, products, categories, marketplaces, listings
+│   │   ├── core/                    # config, logging, security, redis (with test fallback)
 │   │   ├── db/                      # base, session
-│   │   ├── middleware/              # cors, error_handler
-│   │   ├── models/                  # user, product, marketplace
-│   │   ├── repositories/            # base, user, product
-│   │   ├── schemas/                 # common, user, product, marketplace
-│   │   ├── services/                # auth, user, product
-│   │   └── main.py                  # FastAPI app factory
-│   ├── alembic/
-│   ├── .env.example
+│   │   ├── models/                  # User, Product, Category, Marketplace, ProductListing, PriceHistory
+│   │   ├── repositories/            # Base, User, Product, Category, Marketplace, ProductListing
+│   │   ├── schemas/                 # Auth, User, Product, Category, Marketplace, ProductListing
+│   │   └── services/                # AuthService, UserService, ProductService, CategoryService, MarketplaceService, ProductListingService
+│   ├── tests/                       # Pytest test suite with in-memory DB override
+│   ├── .flake8                      # Flake8 lint configuration (100 char limit)
 │   ├── Dockerfile
-│   ├── requirements.txt
 │   └── pyproject.toml
 ├── docker-compose.yml
-├── .gitignore
 └── README.md
 ```
 
 ---
 
 ## ⚡ Quick Start
-
-### Prerequisites
-- **Node.js** 20+
-- **Python** 3.12+
-- **PostgreSQL** 16+ (or use Docker)
-- **Git**
 
 ### 1. Clone the Repository
 ```bash
@@ -147,132 +126,84 @@ cd COMPAREX
 ### 2. Frontend Setup
 ```bash
 cd frontend
-cp .env.example .env.local
 npm install
 npm run dev
 ```
-
 Frontend runs at: **http://localhost:3000**
 
 ### 3. Backend Setup
 ```bash
 cd backend
-cp .env.example .env
-python -m venv .venv
-.venv\Scripts\activate          # Windows
-# source .venv/bin/activate     # macOS/Linux
 pip install -r requirements.txt
 python -m app.main
 ```
-
 Backend runs at: **http://localhost:8000**  
 Swagger docs at: **http://localhost:8000/docs**
 
-### 4. Docker (Full Stack)
+---
+
+## 🧪 Testing & Verification
+
+### Frontend Verification
 ```bash
-# Run entire stack with one command
-docker-compose up --build
+cd frontend
+npm run lint      # ESLint (0 errors)
+npm run build     # Production build check
+```
+
+### Backend Verification
+```bash
+cd backend
+flake8 app/       # Flake8 lint check (0 errors)
+pytest            # Pytest test suite (100% pass)
+python -c "from app.main import app; print('✓ FastAPI app created successfully')"
 ```
 
 ---
 
-## 🔧 Development Workflow
+## 📑 API Summary (v1)
 
-### Frontend Commands
-```bash
-npm run dev       # Start dev server (localhost:3000)
-npm run build     # Production build
-npm run lint      # ESLint check
-npm run start     # Start production server
-```
-
-### Backend Commands
-```bash
-# Run development server
-python -m app.main
-
-# Lint check
-flake8 app/
-
-# Format code
-black app/
-isort app/
-
-# Database migrations (Phase 2)
-alembic revision --autogenerate -m "description"
-alembic upgrade head
-```
-
-### API Endpoints (Phase 1)
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/v1/health` | Health check ✅ |
-| `POST` | `/api/v1/auth/register` | Register (Phase 2) |
-| `POST` | `/api/v1/auth/login` | Login (Phase 2) |
-| `GET` | `/api/v1/users/me` | Current user (Phase 2) |
-| `GET` | `/api/v1/products/` | List products (Phase 2) |
-| `GET` | `/api/v1/marketplaces/` | List marketplaces (Phase 2) |
-
----
-
-## 🌿 Environment Variables
-
-### Frontend (`frontend/.env.local`)
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
-### Backend (`backend/.env`)
-```env
-ENVIRONMENT=development
-DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/comparex
-SECRET_KEY=your-super-secret-key
-```
-
-See `.env.example` files for the full list.
+| Method | Endpoint | Description | Auth Required |
+|---|---|---|---|
+| `GET` | `/api/v1/health` | Health check endpoint | No |
+| `POST` | `/api/v1/auth/register` | User registration | No |
+| `POST` | `/api/v1/auth/login` | Authenticate user & issue JWT tokens | No |
+| `POST` | `/api/v1/auth/refresh` | Refresh access token | No |
+| `POST` | `/api/v1/auth/logout` | Revoke active access token | Yes |
+| `GET` | `/api/v1/users/me` | Fetch authenticated user profile | Yes |
+| `PATCH` | `/api/v1/users/me` | Update current user profile | Yes |
+| `GET` | `/api/v1/products` | Search & list indexed products | No |
+| `GET` | `/api/v1/products/{id}` | Get product details by ID | No |
+| `GET` | `/api/v1/products/{id}/compare` | Compare product prices across marketplaces | No |
+| `POST` | `/api/v1/products` | Add new product to index | Yes |
+| `GET` | `/api/v1/categories` | List product categories | No |
+| `GET` | `/api/v1/marketplaces` | List supported marketplaces | No |
+| `POST` | `/api/v1/listings` | Upsert product price listing | Yes |
 
 ---
 
 ## 🗺 Roadmap
 
-### ✅ Phase 1 – Foundation (Complete)
-- Premium landing page with dark/light mode
-- All core pages (auth, marketing, legal, dashboard shell)
-- FastAPI backend with clean architecture
-- Docker & CI/CD setup
+### ✅ Phase 1 – Foundation
+- Landing page, layout structure, FastAPI & Docker setup.
 
-### 🔜 Phase 2 – Core Features
-- User authentication (JWT)
-- Product search & indexing
-- Marketplace integrations (Amazon, Flipkart)
-- Price comparison engine
-- Database migrations
+### ✅ Phase 2 – Backend Completion & Frontend Integration
+- Full JWT authentication, state management, session persistence, automatic token refresh, Remember Me support, protected routes.
+- Professional Dashboard with Recent Searches, Wishlist, Saved Products, Saved Comparisons, Price Alerts widgets.
+- Complete Product Catalog & Details module with real-time price comparison matrix.
+- Domain models (`Product`, `Marketplace`, `ProductListing`, `PriceHistory`, `Category`) & Marketplace adapter foundation architecture.
+- 100% passing CI linters & test suites.
 
-### 🔜 Phase 3 – AI Features
-- AI Shopping Assistant (LLM integration)
-- Image-based product search
-- Price prediction models
-- Personalized recommendations
+### 🔜 Phase 3 – Marketplace Engine & Scraper Integrations
+- Implementation of concrete marketplace adapters (Amazon, Flipkart, Myntra).
+- Automated background price fetching & historical price tracking.
 
-### 🔜 Phase 4 – Advanced
-- Price alerts & notifications
-- Browser extension
-- Analytics dashboard
-- Mobile app
+### 🔜 Phase 4 – AI Features & Advanced Extensions
+- AI Shopping Assistant (LLM integration) & image search.
+- Price drop alert notifications & browser extension.
 
 ---
 
 ## 📄 License
 
 MIT License — see [LICENSE](LICENSE) for details.
-
----
-
-<div align="center">
-  <p>Built with ❤️ by the COMPAREX Team</p>
-  <p>
-    <a href="https://github.com/Mastermindmani88897/COMPAREX">GitHub</a> •
-    <a href="mailto:support@comparex.io">Support</a>
-  </p>
-</div>

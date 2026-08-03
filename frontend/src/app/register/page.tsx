@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Mail, Lock, User, Zap, Check, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Zap, Check, ArrowRight, AlertCircle, Loader2 } from "lucide-react";
 import type { RegisterFormData } from "@/types";
+import { useAuth } from "@/context/AuthContext";
 
 const passwordStrengthLevels = [
   { label: "Weak", color: "#ef4444" },
@@ -23,6 +25,8 @@ function getPasswordStrength(password: string): number {
 }
 
 export default function RegisterPage() {
+  const router = useRouter();
+  const { register } = useAuth();
   const [formData, setFormData] = useState<RegisterFormData>({
     name: "",
     email: "",
@@ -31,13 +35,34 @@ export default function RegisterPage() {
     agreeToTerms: false,
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const passwordStrength = getPasswordStrength(formData.password);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Auth logic in Phase 2
-    console.log("Register submitted:", formData);
+    setError(null);
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await register(formData.name, formData.email, formData.password, formData.confirmPassword);
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { detail?: string; message?: string } } };
+      const msg =
+        axiosErr?.response?.data?.detail ||
+        axiosErr?.response?.data?.message ||
+        "Registration failed. Please try again.";
+      setError(msg);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -83,6 +108,23 @@ export default function RegisterPage() {
             </p>
           </div>
 
+          {/* Error Banner */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-start gap-3 rounded-xl px-4 py-3 mb-5 text-sm"
+              style={{
+                background: "rgba(239,68,68,0.1)",
+                border: "1px solid rgba(239,68,68,0.3)",
+                color: "#f87171",
+              }}
+            >
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>{error}</span>
+            </motion.div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4" id="register-form">
             {/* Name */}
             <div>
@@ -101,6 +143,7 @@ export default function RegisterPage() {
                   placeholder="John Doe"
                   className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg"
                   style={{ background: "var(--background)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -122,6 +165,7 @@ export default function RegisterPage() {
                   placeholder="you@example.com"
                   className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg"
                   style={{ background: "var(--background)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -143,6 +187,7 @@ export default function RegisterPage() {
                   placeholder="Min. 8 characters"
                   className="w-full pl-10 pr-10 py-2.5 text-sm rounded-lg"
                   style={{ background: "var(--background)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+                  disabled={isLoading}
                 />
                 <button
                   type="button"
@@ -204,6 +249,7 @@ export default function RegisterPage() {
                     }`,
                     color: "var(--foreground)",
                   }}
+                  disabled={isLoading}
                 />
                 {formData.confirmPassword && formData.password === formData.confirmPassword && (
                   <Check className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-400" />
@@ -231,15 +277,25 @@ export default function RegisterPage() {
             </div>
 
             <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
+              whileHover={{ scale: isLoading ? 1 : 1.01 }}
+              whileTap={{ scale: isLoading ? 1 : 0.99 }}
               type="submit"
               id="register-submit"
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white gradient-bg text-sm"
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white gradient-bg text-sm disabled:opacity-70 disabled:cursor-not-allowed"
               style={{ boxShadow: "0 4px 15px rgba(99,102,241,0.3)" }}
             >
-              Create account
-              <ArrowRight className="h-4 w-4" />
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creating account…
+                </>
+              ) : (
+                <>
+                  Create account
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
             </motion.button>
           </form>
 

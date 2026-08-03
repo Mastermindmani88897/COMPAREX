@@ -7,7 +7,15 @@ that is mounted at /api/v1 in main.py.
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, health, marketplaces, products, users
+from app.api.v1.endpoints import (
+    auth,
+    categories,
+    health,
+    listings,
+    marketplaces,
+    products,
+    users,
+)
 
 v1_router = APIRouter()
 
@@ -20,8 +28,14 @@ v1_router.include_router(auth.router)
 # Users
 v1_router.include_router(users.router)
 
+# Categories
+v1_router.include_router(categories.router)
+
 # Products
 v1_router.include_router(products.router)
 
 # Marketplaces
 v1_router.include_router(marketplaces.router)
+
+# Price Listings
+v1_router.include_router(listings.router)

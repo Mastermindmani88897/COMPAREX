@@ -18,12 +18,13 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Async engine
+# Async engine with connection pooling
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    settings.ASYNC_DATABASE_URL,
     echo=settings.DATABASE_ECHO,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=5,
+    max_overflow=10,
+    pool_recycle=300,
     pool_pre_ping=True,  # Detect stale connections
 )
 

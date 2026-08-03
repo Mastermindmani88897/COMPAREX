@@ -17,11 +17,13 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str = Field(min_length=8, max_length=128)
     confirm_password: str
+    role: Optional[str] = Field(default="user", pattern="^(user|admin)$")
 
 
 class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     avatar_url: Optional[str] = None
+    role: Optional[str] = Field(None, pattern="^(user|admin)$")
 
 
 class UserPublic(UserBase):
@@ -29,6 +31,7 @@ class UserPublic(UserBase):
 
     id: uuid.UUID
     avatar_url: Optional[str] = None
+    role: str = "user"
     is_active: bool
     is_verified: bool
     created_at: datetime

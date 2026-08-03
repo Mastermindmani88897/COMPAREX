@@ -1,15 +1,20 @@
 """
-COMPAREX Backend – Product ORM Model (Placeholder for Phase 2)
+COMPAREX Backend – Product ORM Model
 """
 
 import uuid
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Numeric, String, Text
+from sqlalchemy import ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.models.category import Category
+    from app.models.product_listing import ProductListing
 
 
 class Product(Base):
@@ -25,10 +30,24 @@ class Product(Base):
     )
     name: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    category_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("categories.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     category: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    brand: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    brand: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ean: Mapped[str | None] = mapped_column(String(50), nullable=True, unique=True)
+    ean: Mapped[str | None] = mapped_column(String(50), nullable=True, unique=True, index=True)
+    base_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+
+    category_rel: Mapped["Category | None"] = relationship("Category", backref="products")
+    listings: Mapped[list["ProductListing"]] = relationship(
+        "ProductListing",
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<Product id={self.id} name={self.name!r}>"
