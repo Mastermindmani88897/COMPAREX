@@ -1,0 +1,77 @@
+name: COMPAREX CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # ── Frontend CI ─────────────────────────────────────────────
+  frontend-ci:
+    name: Frontend – Lint & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+  # ── Backend CI ──────────────────────────────────────────────
+  backend-ci:
+    name: Backend – Lint & Startup Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Install production dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install dev dependencies (linting)
+        run: pip install -r requirements-dev.txt
+
+      - name: Run flake8 lint check
+        run: flake8 app/
+
+      - name: Verify application imports and startup
+        run: |
+          python -c "from app.main import app; print('✓ FastAPI app created successfully')"
+        env:
+          ENVIRONMENT: development
+          DEBUG: "True"
+          DATABASE_URL: "postgresql+asyncpg://postgres:password@localhost:5432/comparex"
+          SECRET_KEY: "ci-test-secret-key"
+          LOG_LEVEL: "INFO"
