@@ -26,6 +26,7 @@ from app.api.v1.endpoints import (
     marketplaces,
     memory,
     persona,
+    planner,
     price_history,
     privacy,
     products,
@@ -107,3 +108,6 @@ v1_router.include_router(analytics.router)
 
 # Smart Privacy Center
 v1_router.include_router(privacy.router)
+
+# Flagship AI Marketplace Planner
+v1_router.include_router(planner.router)
