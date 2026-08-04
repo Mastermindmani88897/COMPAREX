@@ -1,4 +1,4 @@
-﻿// Global TypeScript types for COMPAREX
+// Global TypeScript types for COMPAREX
 
 // ── API Response Envelopes ────────────────────────────────────────────────────
 export interface ApiResponse<T> {
@@ -111,6 +111,15 @@ export interface Product {
 }
 
 // ── Marketplace & Connector Types (Phase 4) ──────────────────────────────────
+export interface ExtensionStatusResponse {
+  status: string;
+  environment: string;
+  api_version: string;
+  min_supported_extension_version: string;
+  active_connectors_count: number;
+  supported_marketplaces: string[];
+}
+
 export interface Marketplace {
   id: string;
   name: string;

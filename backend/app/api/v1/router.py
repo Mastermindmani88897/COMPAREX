@@ -12,6 +12,7 @@ from app.api.v1.endpoints import (
     brands,
     categories,
     comparison,
+    extension,
     health,
     listings,
     marketplaces,
@@ -23,6 +24,9 @@ v1_router = APIRouter()
 
 # Health
 v1_router.include_router(health.router)
+
+# Extension Gateway
+v1_router.include_router(extension.router)
 
 # Auth
 v1_router.include_router(auth.router)

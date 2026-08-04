@@ -1,0 +1,56 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>COMPAREX Assistant</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="brand">
+        <span class="logo-icon">⚡</span>
+        <span class="brand-name">COMPAREX</span>
+      </div>
+      <div class="status-badge" id="status-badge">
+        <span class="status-dot"></span>
+        <span id="status-text">Checking…</span>
+      </div>
+    </header>
+
+    <!-- Content Card -->
+    <main class="popup-body">
+      <div class="card" id="product-card">
+        <div class="card-label">CURRENTLY DETECTED ITEM</div>
+        <h3 id="product-title" class="product-title">No product detected on active tab</h3>
+        <div id="price-row" class="price-row" style="display: none;">
+          <span className="price-tag" id="product-price">₹0</span>
+          <span className="store-badge" id="marketplace-name">Store</span>
+        </div>
+      </div>
+
+      <div class="card savings-card" id="savings-card" style="display: none;">
+        <span class="savings-title">💰 Savings Alert</span>
+        <span class="savings-amount" id="savings-amount">Save ₹0</span>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="quick-compare-btn">Quick Compare</button>
+        <a href="http://localhost:3000/compare" target="_blank" class="btn btn-secondary">Open COMPAREX App</a>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="popup-footer">
+      <span>v1.0.0</span>
+      <a href="#" id="open-options">Settings</a>
+    </footer>
+  </div>
+
+  <script src="../shared/constants.js"></script>
+  <script src="../messaging/bus.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
