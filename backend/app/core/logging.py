@@ -30,9 +30,7 @@ class JSONFormatter(logging.Formatter):
         }
 
         if record.exc_info:
-            log_data["exception"] = traceback.format_exception(
-                *record.exc_info
-            )
+            log_data["exception"] = traceback.format_exception(*record.exc_info)
 
         if hasattr(record, "request_id"):
             log_data["request_id"] = record.request_id

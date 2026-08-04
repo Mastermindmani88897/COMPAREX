@@ -6,6 +6,7 @@ Review Intelligence, Deal Analysis, and Spec Comparison.
 """
 
 from typing import Any
+
 from fastapi import APIRouter
 
 from app.ai.schemas.ai_schemas import (
@@ -39,10 +40,10 @@ router = APIRouter(prefix="/ai", tags=["AI Shopping Intelligence"])
     "/chat",
     response_model=SuccessResponse[AIChatResponse],
     summary="AI Shopping Assistant Chat",
-    description="Conversational AI assistant that parses intents, queries connectors, and recommends deals.",
+    description="Conversational AI assistant that parses intents and recommends deals.",
 )
 async def ai_chat(payload: AIChatRequest) -> Any:
-    """Process natural language shopping prompt and aggregate live connector recommendations."""
+    """Process natural language shopping prompt and aggregate connector recommendations."""
     res = await AIShoppingService.process_chat_query(payload)
     return SuccessResponse(message="AI shopping request processed", data=res)
 
@@ -92,7 +93,7 @@ async def ai_image_search(payload: AIImageSearchRequest) -> Any:
     "/review-summary",
     response_model=SuccessResponse[AIReviewSummaryResponse],
     summary="AI Review Intelligence",
-    description="Summarizes customer reviews into Pros, Cons, Buying Verdict, and Confidence Score.",
+    description="Summarizes customer reviews into Pros, Cons, Buying Verdict, and Confidence.",
 )
 async def ai_review_summary(payload: AIReviewSummaryRequest) -> Any:
     """Summarize customer reviews into structured intelligence."""
@@ -104,7 +105,7 @@ async def ai_review_summary(payload: AIReviewSummaryRequest) -> Any:
     "/deal-analysis",
     response_model=SuccessResponse[AIDealAnalysisResponse],
     summary="Shopping Decision Engine & Deal Score AI",
-    description="Computes 0-10 Deal Score, decision verdict (BUY_NOW, GREAT_DEAL, WAIT), and smart alternatives.",
+    description="Computes 0-10 Deal Score, decision verdict, and smart alternatives.",
 )
 async def ai_deal_analysis(payload: AIDealAnalysisRequest) -> Any:
     """Evaluate deal score and generate buying decision verdict."""

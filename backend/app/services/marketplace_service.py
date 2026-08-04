@@ -25,9 +25,7 @@ class MarketplaceService:
         self.db = db
         self.repo = MarketplaceRepository(db)
 
-    async def list_marketplaces(
-        self, skip: int = 0, limit: int = 100
-    ) -> list[MarketplacePublic]:
+    async def list_marketplaces(self, skip: int = 0, limit: int = 100) -> list[MarketplacePublic]:
         """List all marketplaces."""
         marketplaces = await self.repo.get_all(skip=skip, limit=limit)
         return [MarketplacePublic.model_validate(m) for m in marketplaces]
@@ -51,9 +49,7 @@ class MarketplaceService:
             )
 
         marketplace = await self.repo.create(req.model_dump())
-        logger.info(
-            "Marketplace created: %s (%s)", marketplace.name, marketplace.id
-        )
+        logger.info("Marketplace created: %s (%s)", marketplace.name, marketplace.id)
         return MarketplacePublic.model_validate(marketplace)
 
     async def update_marketplace(

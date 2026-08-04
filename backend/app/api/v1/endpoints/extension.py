@@ -6,6 +6,7 @@ and version compatibility validation for the Browser Extension Ecosystem.
 """
 
 from typing import Any
+
 from fastapi import APIRouter, Query
 
 from app.adapters.registry import ConnectorRegistry
@@ -73,7 +74,7 @@ async def check_extension_version(
 @router.post(
     "/product",
     summary="Ingest Extension Product & Compare",
-    description="Accepts detected product info from content script and returns live marketplace comparison matrix.",
+    description="Accepts detected product info from content script and returns comparison matrix.",
 )
 async def ingest_extension_product(payload: ExtensionProductPayload) -> Any:
     """Ingest extracted product details and aggregate comparison matrix across connectors."""
@@ -89,7 +90,8 @@ async def ingest_extension_product(payload: ExtensionProductPayload) -> Any:
     listings = agg_res.get("listings", [])
 
     better_deals = [
-        item for item in listings
+        item
+        for item in listings
         if float(item.get("price", 0.0)) < curr_price and item.get("is_available", True)
     ]
     lowest_overall = agg_res.get("lowest_price")

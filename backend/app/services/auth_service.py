@@ -103,9 +103,7 @@ class AuthService:
                         f"token_blacklist:{token}", "1", expire_seconds=remaining
                     )
             else:
-                await redis_client.set(
-                    f"token_blacklist:{token}", "1", expire_seconds=86400
-                )
+                await redis_client.set(f"token_blacklist:{token}", "1", expire_seconds=86400)
         except JWTError:
             pass
 
@@ -135,9 +133,7 @@ class AuthService:
             )
 
         new_access_token = create_access_token(subject=str(user.id), role=user.role)
-        new_refresh_token = create_refresh_token(
-            subject=str(user.id), role=user.role
-        )
+        new_refresh_token = create_refresh_token(subject=str(user.id), role=user.role)
 
         return TokenResponse(
             access_token=new_access_token,

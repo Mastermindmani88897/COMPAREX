@@ -21,9 +21,7 @@ from app.repositories.user_repository import UserRepository
 
 logger = get_logger(__name__)
 
-oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=f"{settings.API_V1_PREFIX}/auth/login"
-)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_PREFIX}/auth/login")
 
 
 async def get_current_user(

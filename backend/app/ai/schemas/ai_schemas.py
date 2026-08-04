@@ -3,6 +3,7 @@ COMPAREX Backend - AI Module Schemas
 """
 
 from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -96,7 +97,9 @@ class AIDealAnalysisRequest(BaseModel):
 class AIDealAnalysisResponse(BaseModel):
     product_name: str
     deal_score: float = Field(ge=0.0, le=10.0)
-    decision: str = Field(pattern="^(BUY_NOW|GREAT_DEAL|FAIR_PRICE|PREMIUM_CHOICE|WAIT_FOR_PRICE_DROP)$")
+    decision: str = Field(
+        pattern="^(BUY_NOW|GREAT_DEAL|FAIR_PRICE|PREMIUM_CHOICE|WAIT_FOR_PRICE_DROP)$"
+    )
     decision_label: str
     score_breakdown: Dict[str, float]
     detailed_explanation: str

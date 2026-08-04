@@ -32,9 +32,7 @@ class BaseRepository(Generic[ModelType]):
 
     async def get_by_id(self, record_id: UUID) -> Optional[ModelType]:
         """Fetch a single record by UUID primary key."""
-        result = await self.db.execute(
-            select(self.model).where(self.model.id == record_id)
-        )
+        result = await self.db.execute(select(self.model).where(self.model.id == record_id))
         return result.scalar_one_or_none()
 
     async def get_all(
@@ -44,9 +42,7 @@ class BaseRepository(Generic[ModelType]):
         limit: int = 100,
     ) -> list[ModelType]:
         """Fetch a paginated list of all records."""
-        result = await self.db.execute(
-            select(self.model).offset(skip).limit(limit)
-        )
+        result = await self.db.execute(select(self.model).offset(skip).limit(limit))
         return list(result.scalars().all())
 
     async def create(self, obj_in: dict[str, Any]) -> ModelType:
@@ -80,7 +76,5 @@ class BaseRepository(Generic[ModelType]):
         """Count total records in the table."""
         from sqlalchemy import func, select
 
-        result = await self.db.execute(
-            select(func.count()).select_from(self.model)
-        )
+        result = await self.db.execute(select(func.count()).select_from(self.model))
         return result.scalar_one()

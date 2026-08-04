@@ -28,7 +28,4 @@ class Base(DeclarativeBase):
 
     def to_dict(self) -> dict:
         """Serialize model to a plain dict (utility method)."""
-        return {
-            col.name: getattr(self, col.name)
-            for col in self.__table__.columns
-        }
+        return {col.name: getattr(self, col.name) for col in self.__table__.columns}

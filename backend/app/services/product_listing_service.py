@@ -55,37 +55,41 @@ class ProductListingService:
         raw_listings = []
         for lst in listings:
             m = lst.marketplace
-            raw_listings.append({
-                "id": str(lst.id),
-                "product_id": str(lst.product_id),
-                "marketplace_id": str(lst.marketplace_id),
-                "price": float(lst.price),
-                "original_price": float(lst.original_price) if lst.original_price else None,
-                "discount_percent": float(lst.discount_percent) if lst.discount_percent else None,
-                "currency": lst.currency,
-                "listing_url": lst.listing_url,
-                "marketplace_product_id": lst.marketplace_product_id,
-                "seller_name": lst.seller_name,
-                "is_available": lst.is_available,
-                "is_prime": lst.is_prime,
-                "stock_status": lst.stock_status,
-                "delivery_estimate": lst.delivery_estimate,
-                "rating": float(lst.rating) if lst.rating else None,
-                "review_count": lst.review_count,
-                "marketplace": (
-                    {
-                        "id": str(m.id),
-                        "name": m.name,
-                        "slug": m.slug,
-                        "logo_url": m.logo_url,
-                        "base_url": m.base_url,
-                    }
-                    if m
-                    else None
-                ),
-                "created_at": lst.created_at,
-                "updated_at": lst.updated_at,
-            })
+            raw_listings.append(
+                {
+                    "id": str(lst.id),
+                    "product_id": str(lst.product_id),
+                    "marketplace_id": str(lst.marketplace_id),
+                    "price": float(lst.price),
+                    "original_price": float(lst.original_price) if lst.original_price else None,
+                    "discount_percent": (
+                        float(lst.discount_percent) if lst.discount_percent else None
+                    ),
+                    "currency": lst.currency,
+                    "listing_url": lst.listing_url,
+                    "marketplace_product_id": lst.marketplace_product_id,
+                    "seller_name": lst.seller_name,
+                    "is_available": lst.is_available,
+                    "is_prime": lst.is_prime,
+                    "stock_status": lst.stock_status,
+                    "delivery_estimate": lst.delivery_estimate,
+                    "rating": float(lst.rating) if lst.rating else None,
+                    "review_count": lst.review_count,
+                    "marketplace": (
+                        {
+                            "id": str(m.id),
+                            "name": m.name,
+                            "slug": m.slug,
+                            "logo_url": m.logo_url,
+                            "base_url": m.base_url,
+                        }
+                        if m
+                        else None
+                    ),
+                    "created_at": lst.created_at,
+                    "updated_at": lst.updated_at,
+                }
+            )
 
         matrix = ComparisonEngineService.calculate_comparison_matrix(
             product_id=str(product.id),
@@ -94,16 +98,16 @@ class ProductListingService:
         )
         return PriceCompareResult(**matrix)
 
-    async def _record_price_history(
-        self, listing_id: UUID, price: Decimal, currency: str
-    ) -> None:
+    async def _record_price_history(self, listing_id: UUID, price: Decimal, currency: str) -> None:
         """Write a PriceHistory record if we have a new price point."""
         try:
-            await self.history_repo.create({
-                "listing_id": listing_id,
-                "price": price,
-                "currency": currency,
-            })
+            await self.history_repo.create(
+                {
+                    "listing_id": listing_id,
+                    "price": price,
+                    "currency": currency,
+                }
+            )
         except Exception as exc:
             # Non-critical: log and continue — do not let history write fail the listing op
             logger.warning("Failed to write price history for listing %s: %s", listing_id, exc)

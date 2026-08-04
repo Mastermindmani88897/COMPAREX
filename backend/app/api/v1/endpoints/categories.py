@@ -3,6 +3,7 @@ COMPAREX Backend – Category Management API Endpoints
 """
 
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 

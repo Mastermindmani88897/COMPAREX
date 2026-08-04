@@ -25,8 +25,12 @@ router = APIRouter()
 )
 async def aggregate_marketplace_prices(
     q: str = Query(..., description="Search keyword, title, or EAN"),
-    category: Optional[str] = Query(None, description="Category filter (e.g. electronics, fashion, beauty)"),
-    sort_by: str = Query("price", description="Sort order: price, price_desc, rating, discount, deal_score"),
+    category: Optional[str] = Query(
+        None, description="Category filter (e.g. electronics, fashion, beauty)"
+    ),
+    sort_by: str = Query(
+        "price", description="Sort order: price, price_desc, rating, discount, deal_score"
+    ),
     min_price: Optional[float] = Query(None, ge=0),
     max_price: Optional[float] = Query(None, ge=0),
     in_stock_only: bool = Query(False, description="Filter only in-stock listings"),

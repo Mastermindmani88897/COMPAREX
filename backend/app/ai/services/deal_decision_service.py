@@ -4,6 +4,7 @@ Combines price, rating, seller, discount, delivery to produce a 0-10 Deal Score 
 """
 
 from typing import Any, Dict, List
+
 from app.ai.prompts.templates import SYSTEM_DEAL_ANALYSIS
 from app.ai.providers.factory import AIProviderFactory
 from app.ai.schemas.ai_schemas import AIDealAnalysisRequest, AIDealAnalysisResponse
@@ -36,7 +37,10 @@ class DealDecisionService:
 
         # Weighted Final Deal Score (0.0 to 10.0)
         deal_score = round(
-            (price_score * 0.35) + (rating_score * 0.25) + (delivery_score * 0.20) + (marketplace_score * 0.20),
+            (price_score * 0.35)
+            + (rating_score * 0.25)
+            + (delivery_score * 0.20)
+            + (marketplace_score * 0.20),
             1,
         )
 
@@ -72,15 +76,16 @@ class DealDecisionService:
 
         provider = AIProviderFactory.get_provider()
         prompt = (
-            f"Product '{request.product_name}' at ₹{price:,} with rating {rating}/5 on {request.marketplace_slug}. "
-            f"Deal Score: {deal_score}/10."
+            f"Product '{request.product_name}' at ₹{price:,} with rating {rating}/5 on "
+            f"{request.marketplace_slug}. Deal Score: {deal_score}/10."
         )
         ai_explanation = await provider.generate_text(prompt, system_prompt=SYSTEM_DEAL_ANALYSIS)
 
         detailed_explanation = (
             f"COMPAREX Decision Engine evaluated '{request.product_name}' at ₹{price:,} on "
-            f"{request.marketplace_slug.upper()}. With a {round(discount_ratio * 100)}% discount and {rating}/5.0 "
-            f"satisfaction rating, it scored {deal_score}/10. {ai_explanation}"
+            f"{request.marketplace_slug.upper()}. With a {round(discount_ratio * 100)}% "
+            f"discount and {rating}/5.0 satisfaction rating, it scored {deal_score}/10. "
+            f"{ai_explanation}"
         )
 
         return AIDealAnalysisResponse(

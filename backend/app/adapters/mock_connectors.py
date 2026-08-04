@@ -6,6 +6,7 @@ Amazon, Flipkart, Croma, Reliance Digital, Vijay Sales, Myntra, Ajio, Meesho, Ny
 """
 
 from typing import Any, Dict, List
+
 from app.adapters.base import BaseMarketplaceAdapter
 from app.adapters.factory import MarketplaceFactory
 from app.adapters.registry import ConnectorMetadata, ConnectorRegistry
@@ -46,7 +47,11 @@ class BaseMockMarketplaceConnector(BaseMarketplaceAdapter):
         title_str = query.title() + " (" + self.badge_label + " Edition)"
         url_str = self.base_url + "/product/" + slug_url + "-01"
         prod_id = self.marketplace_slug.upper() + "-PROD-01"
-        eta_str = "Express Delivery Tomorrow" if self.express_delivery else "Standard Delivery in 2-3 Days"
+        eta_str = (
+            "Express Delivery Tomorrow"
+            if self.express_delivery
+            else "Standard Delivery in 2-3 Days"
+        )
 
         items: List[Dict[str, Any]] = [
             {
@@ -104,8 +109,12 @@ class BaseMockMarketplaceConnector(BaseMarketplaceAdapter):
     def normalize_listing(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "price": float(raw_data.get("price", 0.0)),
-            "original_price": float(raw_data["original_price"]) if raw_data.get("original_price") else None,
-            "discount_percent": float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None,
+            "original_price": (
+                float(raw_data["original_price"]) if raw_data.get("original_price") else None
+            ),
+            "discount_percent": (
+                float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None
+            ),
             "currency": raw_data.get("currency", "INR"),
             "listing_url": raw_data.get("listing_url", ""),
             "seller_name": raw_data.get("seller_name", self.seller_default),
@@ -119,6 +128,7 @@ class BaseMockMarketplaceConnector(BaseMarketplaceAdapter):
 
 
 # ── Specific Connector Implementations ───────────────────────────────────────
+
 
 class AmazonMockConnector(BaseMockMarketplaceConnector):
     multiplier = 0.96

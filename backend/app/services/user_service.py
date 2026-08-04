@@ -25,9 +25,7 @@ class UserService:
         """Get profile for current user."""
         return UserPublic.model_validate(user)
 
-    async def update_profile(
-        self, user: User, update_data: UserUpdate
-    ) -> UserPublic:
+    async def update_profile(self, user: User, update_data: UserUpdate) -> UserPublic:
         """Update current user profile information."""
         fields_to_update = update_data.model_dump(exclude_unset=True)
         if not fields_to_update:

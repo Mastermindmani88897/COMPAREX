@@ -1,4 +1,4 @@
-﻿"""
+"""
 COMPAREX Backend - Phase 4 Automated Unit & Integration Tests
 
 Tests:
@@ -10,18 +10,7 @@ Tests:
 
 import pytest
 
-from app.adapters.factory import MarketplaceFactory
-from app.adapters.mock_connectors import (
-    AjioMockConnector,
-    AmazonMockConnector,
-    CromaMockConnector,
-    FlipkartMockConnector,
-    MeeshoMockConnector,
-    MyntraMockConnector,
-    NykaaMockConnector,
-    RelianceDigitalMockConnector,
-    VijaySalesMockConnector,
-)
+from app.adapters.mock_connectors import AmazonMockConnector, NykaaMockConnector
 from app.adapters.registry import CategoryCapabilityRegistry, ConnectorRegistry
 from app.services.aggregator_service import MarketplaceAggregatorService
 
@@ -109,7 +98,7 @@ async def test_marketplace_aggregator_service():
     assert len(listings) >= 3
 
     # Check sorting: lowest price first
-    prices = [l["price"] for l in listings]
+    prices = [item["price"] for item in listings]
     assert prices == sorted(prices)
 
     # Check deal scores and badges

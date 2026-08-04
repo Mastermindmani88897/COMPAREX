@@ -13,7 +13,8 @@ to determine if they represent the EXACT same canonical product model.
 """
 
 SYSTEM_REVIEW_INTELLIGENCE = """You are a product review summarization engine.
-Synthesize customer feedback into structured Pros, Cons, a clear Summary, and a final Buying Verdict.
+Synthesize customer feedback into structured Pros, Cons, a clear Summary,
+and a final Buying Verdict.
 """
 
 SYSTEM_DEAL_ANALYSIS = """You are a quantitative shopping decision engine.

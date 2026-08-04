@@ -3,6 +3,7 @@ COMPAREX Backend – Authentication Pydantic Schemas
 """
 
 from typing import Optional
+
 from pydantic import BaseModel, EmailStr, Field
 
 from app.schemas.user import UserPublic

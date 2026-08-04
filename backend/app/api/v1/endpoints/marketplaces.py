@@ -1,4 +1,4 @@
-﻿"""
+"""
 COMPAREX Backend – Marketplace Management & Connector Endpoints
 """
 
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/marketplaces", tags=["Marketplaces"])
 @router.get(
     "/connectors",
     summary="List Registered Connectors",
-    description="Retrieve all registered marketplace connectors, status, priority, and capabilities.",
+    description="Retrieve registered marketplace connectors, status, priority, and capabilities.",
 )
 async def list_registered_connectors(
     category: Optional[str] = Query(None, description="Filter by category capability"),

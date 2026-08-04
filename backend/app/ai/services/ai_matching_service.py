@@ -4,6 +4,7 @@ Enhances non-AI matching engine with multi-attribute AI verification and confide
 """
 
 from typing import List
+
 from app.ai.prompts.templates import SYSTEM_PRODUCT_MATCHING
 from app.ai.providers.factory import AIProviderFactory
 from app.ai.schemas.ai_schemas import AIMatchRequest, AIMatchResponse
@@ -17,7 +18,9 @@ class AIMatchingService:
     async def match_products(cls, request: AIMatchRequest) -> AIMatchResponse:
         """Compare titles and specifications to compute AI match confidence score."""
         # Non-AI string similarity score as baseline
-        baseline_sim = ProductMatchingEngine.calculate_title_similarity(request.title_a, request.title_b)
+        baseline_sim = ProductMatchingEngine.calculate_title_similarity(
+            request.title_a, request.title_b
+        )
 
         matched_attrs: List[str] = []
         discrepancies: List[str] = []

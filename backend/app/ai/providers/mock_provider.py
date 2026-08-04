@@ -1,4 +1,4 @@
-﻿"""
+"""
 COMPAREX Backend - Mock AI Provider (Fallback & Testing)
 """
 
@@ -22,9 +22,15 @@ class MockAIProvider(BaseAIProvider):
         max_tokens: int = 1000,
     ) -> str:
         if "laptop" in prompt.lower():
-            return "Based on your criteria, we recommend gaming laptops with high performance GPUs and 16GB RAM."
+            return (
+                "Based on your criteria, we recommend gaming laptops "
+                "with high performance GPUs and 16GB RAM."
+            )
         if "phone" in prompt.lower() or "camera" in prompt.lower():
-            return "For photography, devices with optical image stabilization and large sensor sizes are recommended."
+            return (
+                "For photography, devices with optical image stabilization "
+                "and large sensor sizes are recommended."
+            )
         return f"[Mock AI Intelligence Analysis] Processed request: {prompt[:80]}..."
 
     async def analyze_image(

@@ -5,8 +5,10 @@ Tests Health Check, Authentication, User Profile, Category, Product, and Marketp
 """
 
 import uuid
+
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
+
 from app.main import app
 
 
@@ -98,10 +100,18 @@ async def test_category_crud():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         # Register user for auth header
         email = f"cat_user_{cid}@comparex.io"
-        await ac.post("/api/v1/auth/register", json={
-            "email": email, "name": "Cat User", "password": "Password123!", "confirm_password": "Password123!"
-        })
-        login_res = await ac.post("/api/v1/auth/login", json={"email": email, "password": "Password123!"})
+        await ac.post(
+            "/api/v1/auth/register",
+            json={
+                "email": email,
+                "name": "Cat User",
+                "password": "Password123!",
+                "confirm_password": "Password123!",
+            },
+        )
+        login_res = await ac.post(
+            "/api/v1/auth/login", json={"email": email, "password": "Password123!"}
+        )
         token = login_res.json()["data"]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -126,7 +136,9 @@ async def test_category_crud():
         assert get_res.json()["data"]["slug"] == f"electronics-{cid}"
 
         # Update Category
-        up_res = await ac.put(f"/api/v1/categories/{cat_id}", json={"name": f"Tech_{cid}"}, headers=headers)
+        up_res = await ac.put(
+            f"/api/v1/categories/{cat_id}", json={"name": f"Tech_{cid}"}, headers=headers
+        )
         assert up_res.status_code == 200
         assert up_res.json()["data"]["name"] == f"Tech_{cid}"
 
@@ -142,10 +154,18 @@ async def test_product_crud():
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         email = f"prod_user_{pid}@comparex.io"
-        await ac.post("/api/v1/auth/register", json={
-            "email": email, "name": "Prod User", "password": "Password123!", "confirm_password": "Password123!"
-        })
-        login_res = await ac.post("/api/v1/auth/login", json={"email": email, "password": "Password123!"})
+        await ac.post(
+            "/api/v1/auth/register",
+            json={
+                "email": email,
+                "name": "Prod User",
+                "password": "Password123!",
+                "confirm_password": "Password123!",
+            },
+        )
+        login_res = await ac.post(
+            "/api/v1/auth/login", json={"email": email, "password": "Password123!"}
+        )
         token = login_res.json()["data"]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -182,10 +202,18 @@ async def test_marketplace_crud():
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         email = f"market_user_{mid}@comparex.io"
-        await ac.post("/api/v1/auth/register", json={
-            "email": email, "name": "Market User", "password": "Password123!", "confirm_password": "Password123!"
-        })
-        login_res = await ac.post("/api/v1/auth/login", json={"email": email, "password": "Password123!"})
+        await ac.post(
+            "/api/v1/auth/register",
+            json={
+                "email": email,
+                "name": "Market User",
+                "password": "Password123!",
+                "confirm_password": "Password123!",
+            },
+        )
+        login_res = await ac.post(
+            "/api/v1/auth/login", json={"email": email, "password": "Password123!"}
+        )
         token = login_res.json()["data"]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 

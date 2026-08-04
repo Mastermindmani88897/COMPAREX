@@ -20,7 +20,9 @@ class AIProviderFactory:
 
     @classmethod
     def get_provider(cls, name: Optional[str] = None) -> BaseAIProvider:
-        target_name = (name or settings.AI_PROVIDER if hasattr(settings, "AI_PROVIDER") else "mock").lower()
+        target_name = (
+            name or settings.AI_PROVIDER if hasattr(settings, "AI_PROVIDER") else "mock"
+        ).lower()
 
         if target_name in cls._providers:
             return cls._providers[target_name]

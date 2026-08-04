@@ -11,7 +11,6 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
 from app.api.deps import get_db
-from app.core.config import settings
 from app.db.base import Base
 from app.main import app
 
@@ -35,9 +34,7 @@ async def setup_test_db():
         poolclass=StaticPool,
     )
 
-    async_session = async_sessionmaker(
-        test_engine, class_=AsyncSession, expire_on_commit=False
-    )
+    async_session = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
 
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -13,9 +13,11 @@ class VisionService:
 
     @classmethod
     async def process_image_search(cls, request: AIImageSearchRequest) -> AIImageSearchResponse:
-        """Extract product characteristics from uploaded image and query live marketplace connectors."""
+        """Extract product characteristics from uploaded image and query live connector APIs."""
         provider = AIProviderFactory.get_provider()
-        image_src = request.image_url or (request.image_base64[:50] if request.image_base64 else "image_upload")
+        image_src = request.image_url or (
+            request.image_base64[:50] if request.image_base64 else "image_upload"
+        )
 
         # Step 1: Vision Model Feature Extraction
         vision_result = await provider.analyze_image(

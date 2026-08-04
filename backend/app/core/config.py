@@ -5,8 +5,8 @@ Loads all settings from environment variables using Pydantic BaseSettings.
 All configuration is centralized here — no magic strings elsewhere.
 """
 
-from functools import lru_cache
 import re
+from functools import lru_cache
 from typing import List, Optional
 
 from pydantic import Field
@@ -63,9 +63,7 @@ class Settings(BaseSettings):
         elif url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql+asyncpg://", 1)
 
-        url = url.replace("sslmode=require", "ssl=require").replace(
-            "sslmode=prefer", "ssl=prefer"
-        )
+        url = url.replace("sslmode=require", "ssl=require").replace("sslmode=prefer", "ssl=prefer")
         if "channel_binding=" in url:
             url = re.sub(r"&?channel_binding=[^&]+", "", url)
         return url

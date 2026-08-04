@@ -4,6 +4,7 @@ Ingests product reviews and generates Pros, Cons, Summary, Verdict, and Confiden
 """
 
 from typing import List
+
 from app.ai.prompts.templates import SYSTEM_REVIEW_INTELLIGENCE
 from app.ai.providers.factory import AIProviderFactory
 from app.ai.schemas.ai_schemas import AIReviewSummaryRequest, AIReviewSummaryResponse
@@ -31,7 +32,11 @@ class AIReviewService:
             pros.append("Premium build quality and aesthetic finish")
 
         if not pros:
-            pros = ["Strong overall performance", "High customer satisfaction rating", "Great value in class"]
+            pros = [
+                "Strong overall performance",
+                "High customer satisfaction rating",
+                "Great value in class",
+            ]
 
         if "heating" in full_text or "warm" in full_text:
             cons.append("Slight thermal throttling under heavy gaming loads")
@@ -41,8 +46,13 @@ class AIReviewService:
         if not cons:
             cons = ["Premium price point relative to entry-level alternatives"]
 
-        prompt = f"Summarize customer feedback for product: {request.product_name}. Reviews count: {len(reviews)}."
-        summary_text = await provider.generate_text(prompt, system_prompt=SYSTEM_REVIEW_INTELLIGENCE)
+        prompt = (
+            f"Summarize customer feedback for product: {request.product_name}. "
+            f"Reviews count: {len(reviews)}."
+        )
+        summary_text = await provider.generate_text(
+            prompt, system_prompt=SYSTEM_REVIEW_INTELLIGENCE
+        )
 
         verdict = (
             f"Highly Recommended: {request.product_name} delivers excellent performance "

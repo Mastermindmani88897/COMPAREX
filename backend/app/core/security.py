@@ -57,9 +57,7 @@ def create_access_token(
     if extra_claims:
         payload.update(extra_claims)
 
-    return jwt.encode(
-        payload, settings.EFFECTIVE_JWT_SECRET, algorithm=settings.ALGORITHM
-    )
+    return jwt.encode(payload, settings.EFFECTIVE_JWT_SECRET, algorithm=settings.ALGORITHM)
 
 
 def create_refresh_token(
@@ -82,9 +80,7 @@ def create_refresh_token(
         "exp": expire,
     }
 
-    return jwt.encode(
-        payload, settings.EFFECTIVE_JWT_SECRET, algorithm=settings.ALGORITHM
-    )
+    return jwt.encode(payload, settings.EFFECTIVE_JWT_SECRET, algorithm=settings.ALGORITHM)
 
 
 def decode_token(token: str) -> dict[str, Any]:
@@ -92,6 +88,4 @@ def decode_token(token: str) -> dict[str, Any]:
     Decode and verify a JWT token.
     Raises JWTError if invalid or expired.
     """
-    return jwt.decode(
-        token, settings.EFFECTIVE_JWT_SECRET, algorithms=[settings.ALGORITHM]
-    )
+    return jwt.decode(token, settings.EFFECTIVE_JWT_SECRET, algorithms=[settings.ALGORITHM])

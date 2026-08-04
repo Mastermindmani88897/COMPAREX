@@ -21,9 +21,7 @@ class CategoryService:
         self.db = db
         self.repo = CategoryRepository(db)
 
-    async def list_categories(
-        self, skip: int = 0, limit: int = 100
-    ) -> list[CategoryPublic]:
+    async def list_categories(self, skip: int = 0, limit: int = 100) -> list[CategoryPublic]:
         """Fetch all categories with pagination."""
         categories = await self.repo.get_all(skip=skip, limit=limit)
         return [CategoryPublic.model_validate(c) for c in categories]
@@ -56,9 +54,7 @@ class CategoryService:
         logger.info("Category created: %s (%s)", category.name, category.id)
         return CategoryPublic.model_validate(category)
 
-    async def update_category(
-        self, category_id: UUID, req: CategoryUpdate
-    ) -> CategoryPublic:
+    async def update_category(self, category_id: UUID, req: CategoryUpdate) -> CategoryPublic:
         """Update an existing category."""
         category = await self.repo.get_by_id(category_id)
         if not category:

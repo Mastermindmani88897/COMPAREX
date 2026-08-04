@@ -3,6 +3,7 @@ COMPAREX Backend - Extension Pydantic Schemas
 """
 
 from typing import List, Optional
+
 from pydantic import BaseModel, Field
 
 

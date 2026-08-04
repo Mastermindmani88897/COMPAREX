@@ -124,7 +124,13 @@ async def test_ai_deal_analysis_endpoint():
         assert res.status_code == 200
         data = res.json()["data"]
         assert data["deal_score"] >= 7.0
-        assert data["decision"] in ["BUY_NOW", "GREAT_DEAL", "FAIR_PRICE", "PREMIUM_CHOICE", "WAIT_FOR_PRICE_DROP"]
+        assert data["decision"] in [
+            "BUY_NOW",
+            "GREAT_DEAL",
+            "FAIR_PRICE",
+            "PREMIUM_CHOICE",
+            "WAIT_FOR_PRICE_DROP",
+        ]
         assert len(data["alternatives_suggested"]) > 0
 
 

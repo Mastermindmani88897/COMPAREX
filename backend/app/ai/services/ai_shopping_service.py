@@ -28,9 +28,24 @@ class AIShoppingService:
         """Feature 7: Universal Search Intelligence - Map query to supported category."""
         msg = user_message.lower()
 
-        if any(w in msg for w in ["laptop", "phone", "iphone", "macbook", "headphone", "airpods", "tv", "camera"]):
+        if any(
+            w in msg
+            for w in [
+                "laptop",
+                "phone",
+                "iphone",
+                "macbook",
+                "headphone",
+                "airpods",
+                "tv",
+                "camera",
+            ]
+        ):
             return "electronics"
-        if any(w in msg for w in ["shoes", "sneakers", "shirt", "jeans", "dress", "jacket", "hoodie", "nike"]):
+        if any(
+            w in msg
+            for w in ["shoes", "sneakers", "shirt", "jeans", "dress", "jacket", "hoodie", "nike"]
+        ):
             return "fashion"
         if any(w in msg for w in ["lipstick", "serum", "cream", "shampoo", "perfume", "makeup"]):
             return "beauty"
@@ -96,19 +111,26 @@ class AIShoppingService:
             )
 
         provider = AIProviderFactory.get_provider()
-        prompt = f"User query: {request.message}. Found {len(recommendations)} matching product listings."
-        reasoning_text = await provider.generate_text(prompt, system_prompt=SYSTEM_SHOPPING_ASSISTANT)
+        prompt = (
+            f"User query: {request.message}. "
+            f"Found {len(recommendations)} matching product listings."
+        )
+        reasoning_text = await provider.generate_text(
+            prompt, system_prompt=SYSTEM_SHOPPING_ASSISTANT
+        )
 
         category_label = category.capitalize() if category else "All Categories"
         supported_connectors = (
             CategoryCapabilityRegistry.get_supported_connectors(category)
-            if category else ["Amazon", "Flipkart", "Croma"]
+            if category
+            else ["Amazon", "Flipkart", "Croma"]
         )
 
         num_conn = len(supported_connectors)
         response_summary = (
-            f"We analyzed your search for '{request.message}' across {num_conn} {category_label} connectors. "
-            "Here are the top recommended deals that match your budget and criteria."
+            f"We analyzed your search for '{request.message}' across {num_conn} "
+            f"{category_label} connectors. Here are the top recommended deals that match your "
+            "budget and criteria."
         )
 
         return AIChatResponse(
@@ -120,7 +142,9 @@ class AIShoppingService:
         )
 
     @classmethod
-    async def compare_specifications(cls, request: AISpecComparisonRequest) -> AISpecComparisonResponse:
+    async def compare_specifications(
+        cls, request: AISpecComparisonRequest
+    ) -> AISpecComparisonResponse:
         """Feature 10: Specification Intelligence comparison."""
         diffs: List[Dict[str, str]] = []
         all_keys = set(request.product_a_specs.keys()).union(set(request.product_b_specs.keys()))
@@ -132,16 +156,21 @@ class AIShoppingService:
                 attr_name = k.replace("_", " ").title()
                 p_a = request.product_a_name
                 p_b = request.product_b_name
-                diffs.append({
-                    "attribute": attr_name,
-                    "product_a": val_a,
-                    "product_b": val_b,
-                    "insight": f"{p_a} offers {val_a} vs {p_b} {val_b}",
-                })
+                diffs.append(
+                    {
+                        "attribute": attr_name,
+                        "product_a": val_a,
+                        "product_b": val_b,
+                        "insight": f"{p_a} offers {val_a} vs {p_b} {val_b}",
+                    }
+                )
 
         p_a = request.product_a_name
         p_b = request.product_b_name
-        verdict = f"{p_a} stands out for performance specs, while {p_b} provides superior value for money."
+        verdict = (
+            f"{p_a} stands out for performance specs, "
+            f"while {p_b} provides superior value for money."
+        )
 
         return AISpecComparisonResponse(
             product_a_name=request.product_a_name,

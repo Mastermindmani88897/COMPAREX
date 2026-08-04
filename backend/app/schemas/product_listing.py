@@ -31,9 +31,7 @@ class ProductListingBase(BaseModel):
         None, ge=0, le=100, description="Calculated discount percentage"
     )
     currency: str = Field(default="INR", max_length=10)
-    listing_url: str = Field(
-        description="Direct URL to the product listing on marketplace"
-    )
+    listing_url: str = Field(description="Direct URL to the product listing on marketplace")
     marketplace_product_id: Optional[str] = Field(
         None, max_length=255, description="Marketplace internal item ID"
     )

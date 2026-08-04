@@ -19,16 +19,12 @@ class ProductRepository(BaseRepository[Product]):
 
     async def get_by_ean(self, ean: str) -> Optional[Product]:
         """Fetch a product by EAN barcode."""
-        result = await self.db.execute(
-            select(Product).where(Product.ean == ean)
-        )
+        result = await self.db.execute(select(Product).where(Product.ean == ean))
         return result.scalar_one_or_none()
 
     async def search_by_name(self, query: str, limit: int = 20) -> list[Product]:
         """Full-text-style name search (basic ILIKE — Phase 2 will use proper FTS)."""
         result = await self.db.execute(
-            select(Product)
-            .where(Product.name.ilike(f"%{query}%"))
-            .limit(limit)
+            select(Product).where(Product.name.ilike(f"%{query}%")).limit(limit)
         )
         return list(result.scalars().all())

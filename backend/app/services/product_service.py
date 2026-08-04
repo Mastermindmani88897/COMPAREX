@@ -57,9 +57,7 @@ class ProductService:
         logger.info("Product created: %s (%s)", product.name, product.id)
         return ProductPublic.model_validate(product)
 
-    async def update_product(
-        self, product_id: UUID, req: ProductUpdate
-    ) -> ProductPublic:
+    async def update_product(self, product_id: UUID, req: ProductUpdate) -> ProductPublic:
         """Update an existing product."""
         product = await self.repo.get_by_id(product_id)
         if not product:

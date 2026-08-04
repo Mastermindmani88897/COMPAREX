@@ -2,7 +2,6 @@
 COMPAREX Backend – Phase 3 Marketplace Intelligence Core Tests
 """
 
-import pytest
 from app.adapters.factory import MarketplaceFactory, SampleMockAdapter
 from app.services.comparison_engine import ComparisonEngineService
 from app.services.matching_engine import ProductMatchingEngine
@@ -22,31 +21,31 @@ def test_comparison_engine_matrix_calculation():
     """Verify ComparisonEngineService price matrix calculation."""
     sample_listings = [
         {
-          "id": "lst-1",
-          "price": 29990.0,
-          "original_price": 34990.0,
-          "discount_percent": 14.29,
-          "is_available": True,
-          "is_prime": True,
-          "rating": 4.6,
+            "id": "lst-1",
+            "price": 29990.0,
+            "original_price": 34990.0,
+            "discount_percent": 14.29,
+            "is_available": True,
+            "is_prime": True,
+            "rating": 4.6,
         },
         {
-          "id": "lst-2",
-          "price": 31990.0,
-          "original_price": 34990.0,
-          "discount_percent": 8.57,
-          "is_available": True,
-          "is_prime": False,
-          "rating": 4.2,
+            "id": "lst-2",
+            "price": 31990.0,
+            "original_price": 34990.0,
+            "discount_percent": 8.57,
+            "is_available": True,
+            "is_prime": False,
+            "rating": 4.2,
         },
         {
-          "id": "lst-3",
-          "price": 28990.0,
-          "original_price": 34990.0,
-          "discount_percent": 17.15,
-          "is_available": True,
-          "is_prime": True,
-          "rating": 4.8,
+            "id": "lst-3",
+            "price": 28990.0,
+            "original_price": 34990.0,
+            "discount_percent": 17.15,
+            "is_available": True,
+            "is_prime": True,
+            "rating": 4.8,
         },
     ]
 

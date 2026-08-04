@@ -33,7 +33,7 @@ class MarketplaceAggregatorService:
         in_stock_only: bool = False,
         use_cache: bool = True,
     ) -> Dict[str, Any]:
-        """Concurrently query connectors, aggregate, deduplicate, and return structured comparison data."""
+        """Concurrently query connectors, aggregate, deduplicate, and return comparison data."""
         cache_key = (
             "comparex:aggregator:search:"
             + query.lower().strip()
@@ -121,7 +121,9 @@ class MarketplaceAggregatorService:
         elif sort_by == "rating":
             enriched_listings.sort(key=lambda x: float(x.get("rating") or 0.0), reverse=True)
         elif sort_by == "discount":
-            enriched_listings.sort(key=lambda x: float(x.get("discount_percent") or 0.0), reverse=True)
+            enriched_listings.sort(
+                key=lambda x: float(x.get("discount_percent") or 0.0), reverse=True
+            )
         elif sort_by == "deal_score":
             enriched_listings.sort(key=lambda x: float(x.get("deal_score") or 0.0), reverse=True)
 
@@ -161,7 +163,9 @@ class MarketplaceAggregatorService:
             await redis_client.set(
                 cache_key, json.dumps(response_payload), expire_seconds=CACHE_TTL_SECONDS
             )
-            logger.info("Saved aggregator search query=%s to cache (TTL=%ds)", query, CACHE_TTL_SECONDS)
+            logger.info(
+                "Saved aggregator search query=%s to cache (TTL=%ds)", query, CACHE_TTL_SECONDS
+            )
         except Exception as exc:
             logger.warning("Redis cache write error: %s", exc)
 
@@ -173,7 +177,13 @@ class MarketplaceAggregatorService:
         unique_list: List[Dict[str, Any]] = []
 
         for lst in listings:
-            key = str(lst["marketplace_slug"]) + ":" + str(lst["title"]).lower() + ":" + str(lst["price"])
+            key = (
+                str(lst["marketplace_slug"])
+                + ":"
+                + str(lst["title"]).lower()
+                + ":"
+                + str(lst["price"])
+            )
             if key not in seen:
                 seen[key] = lst
                 unique_list.append(lst)

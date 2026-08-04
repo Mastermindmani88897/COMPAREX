@@ -8,6 +8,7 @@ Provides key-value caching, session token blacklisting, and health checks.
 
 import time
 from typing import Any, Optional
+
 import httpx
 
 from app.core.config import settings
@@ -42,10 +43,7 @@ class UpstashRedisClient:
         if not self.is_configured:
             return None
 
-        cmd_list = [
-            str(arg) if not isinstance(arg, (int, float, str)) else arg
-            for arg in cmd
-        ]
+        cmd_list = [str(arg) if not isinstance(arg, (int, float, str)) else arg for arg in cmd]
 
         try:
             async with httpx.AsyncClient(timeout=2.0) as client:
@@ -86,9 +84,7 @@ class UpstashRedisClient:
             return None
         return val
 
-    async def set(
-        self, key: str, value: str, expire_seconds: Optional[int] = None
-    ) -> bool:
+    async def set(self, key: str, value: str, expire_seconds: Optional[int] = None) -> bool:
         """Set key-value pair with optional TTL in seconds."""
         exp_time = (time.time() + expire_seconds) if expire_seconds else None
         self._memory_store[key] = (str(value), exp_time)

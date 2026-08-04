@@ -2,8 +2,9 @@
 COMPAREX Backend - OpenAI Provider Implementation
 """
 
-import httpx
 from typing import Any, Dict, Optional
+
+import httpx
 
 from app.ai.providers.base import BaseAIProvider
 
