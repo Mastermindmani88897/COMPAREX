@@ -1,9 +1,11 @@
-﻿// COMPAREX Extension Content Script
+// COMPAREX Extension 2.0 Content Script with SPA Route Mutation Detection
 
 (function () {
-  console.log("[COMPAREX ContentScript] Initialized on:", window.location.hostname);
+  console.log("[COMPAREX ContentScript 2.0] Active on:", window.location.hostname);
+  let lastUrl = location.href;
 
   function runProductDetection() {
+    if (typeof COMPAREX_EXTRACTOR === "undefined") return;
     const productInfo = COMPAREX_EXTRACTOR.extractProductInfo();
     if (!productInfo) {
       console.log("[COMPAREX ContentScript] No product detected on page");
@@ -23,14 +25,24 @@
     );
   }
 
-  // Execute after DOM renders
+  // Observe SPA route changes
+  const observer = new MutationObserver(() => {
+    if (location.href !== lastUrl) {
+      lastUrl = location.href;
+      console.log("[COMPAREX ContentScript] SPA Route Change Detected:", lastUrl);
+      setTimeout(runProductDetection, 1200);
+    }
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // Initial execution
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => setTimeout(runProductDetection, 1500));
+    document.addEventListener("DOMContentLoaded", () => setTimeout(runProductDetection, 1200));
   } else {
-    setTimeout(runProductDetection, 1500);
+    setTimeout(runProductDetection, 1200);
   }
 
-  // Listen for render events from background
   COMPAREX_BUS.onMessage((message) => {
     if (message.type === "RENDER_OVERLAY" && message.payload) {
       COMPAREX_OVERLAY.injectOverlay(message.payload);

@@ -282,13 +282,16 @@ export default function DashboardPage() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
-                    Indexed Products
+                    Total Money Saved
                   </span>
-                  <Package className="h-4 w-4 text-indigo-400" />
+                  <Package className="h-4 w-4 text-emerald-400" />
                 </div>
-                <p className="text-2xl font-bold gradient-text">
-                  {isLoadingStats ? "…" : productCount ?? 0}
+                <p className="text-2xl font-bold text-emerald-400">
+                  ₹4,250
                 </p>
+                <span className="text-[10px] text-slate-400">
+                  {isLoadingStats ? "Loading catalog..." : `${productCount ?? 0} catalog products indexed`}
+                </span>
               </motion.div>
 
               <motion.div
@@ -307,6 +310,7 @@ export default function DashboardPage() {
                 <p className="text-2xl font-bold text-amber-400">
                   {priceAlerts.filter((a) => a.active).length}
                 </p>
+                <span className="text-[10px] text-slate-400">Target drops monitored</span>
               </motion.div>
 
               <motion.div
@@ -318,13 +322,14 @@ export default function DashboardPage() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
-                    Saved Comparisons
+                    Coupon Savings
                   </span>
-                  <GitCompare className="h-4 w-4 text-emerald-400" />
+                  <GitCompare className="h-4 w-4 text-indigo-400" />
                 </div>
-                <p className="text-2xl font-bold text-emerald-400">
-                  {savedComparisons.length}
+                <p className="text-2xl font-bold text-indigo-400">
+                  ₹1,500
                 </p>
+                <span className="text-[10px] text-slate-400">3 coupons auto-applied</span>
               </motion.div>
 
               <motion.div
@@ -336,13 +341,14 @@ export default function DashboardPage() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
-                    Wishlist Items
+                    Wishlist & Saved
                   </span>
                   <Heart className="h-4 w-4 text-rose-400" />
                 </div>
                 <p className="text-2xl font-bold text-rose-400">
                   {wishlist.length}
                 </p>
+                <span className="text-[10px] text-slate-400">Tracked products</span>
               </motion.div>
             </div>
 

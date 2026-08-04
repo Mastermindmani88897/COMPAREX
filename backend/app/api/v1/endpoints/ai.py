@@ -31,6 +31,7 @@ from app.ai.services import (
     DealDecisionService,
     VisionService,
 )
+from app.schemas.advisor import AIAdvisorRequest, AIAdvisorResponse
 from app.schemas.common import SuccessResponse
 
 router = APIRouter(prefix="/ai", tags=["AI Shopping Intelligence"])
@@ -123,3 +124,15 @@ async def ai_spec_comparison(payload: AISpecComparisonRequest) -> Any:
     """Compare product specifications feature by feature."""
     res = await AIShoppingService.compare_specifications(payload)
     return SuccessResponse(message="AI specification comparison completed", data=res)
+
+
+@router.post(
+    "/advisor",
+    response_model=SuccessResponse[AIAdvisorResponse],
+    summary="AI Shopping Advisor - Buy Now vs Wait for Sale",
+    description="Evaluates buying timing, risk factors, expected prices, and alternatives.",
+)
+async def ai_advisor(payload: AIAdvisorRequest) -> Any:
+    """Provide AI buying advice and alternative options."""
+    res = await AIShoppingService.evaluate_buying_advice(payload)
+    return SuccessResponse(message="AI buying advice generated", data=res)

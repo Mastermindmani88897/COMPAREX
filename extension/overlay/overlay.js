@@ -1,4 +1,4 @@
-﻿// COMPAREX Extension Floating Overlay Controller
+// COMPAREX Extension 2.0 Floating Overlay & Instant Comparison Panel
 
 const COMPAREX_OVERLAY = {
   isMinimized: false,
@@ -19,14 +19,15 @@ const COMPAREX_OVERLAY = {
     const savingsPotential = compareData ? compareData.savings_potential : 0;
     const isBestPrice = compareData ? compareData.is_best_price_here : true;
     const matrix = compareData ? compareData.comparison_matrix : null;
-    const topOffers = matrix && matrix.listings ? matrix.listings.slice(0, 2) : [];
+    const topOffers = matrix && matrix.listings ? matrix.listings.slice(0, 3) : [];
 
     card.innerHTML = `
       <div id="comparex-overlay-header">
         <div class="cx-title">
-          <span>⚡ COMPAREX Assistant</span>
+          <span>⚡ COMPAREX Assistant 2.0</span>
         </div>
         <div class="cx-controls">
+          <button class="cx-btn-icon" id="cx-copy-btn" title="Copy Product Info">📋</button>
           <button class="cx-btn-icon" id="cx-min-btn">−</button>
           <button class="cx-btn-icon" id="cx-close-btn">×</button>
         </div>
@@ -41,7 +42,7 @@ const COMPAREX_OVERLAY = {
             : isBestPrice
             ? `<div class="cx-savings-banner" style="background:rgba(59,130,246,0.15); border-color:rgba(59,130,246,0.4); color:#60a5fa;">
                 <span>✨ Best Price Guaranteed</span>
-                <span>Lowest here!</span>
+                <span>Lowest Price Here!</span>
                </div>`
             : ""
         }
@@ -61,12 +62,17 @@ const COMPAREX_OVERLAY = {
             `
                 )
                 .join("")
-            : `<div style="font-size:12px; color:#9ca3af;">Analyzing live price matrix across 9 stores...</div>`
+            : `<div style="font-size:12px; color:#9ca3af;">Scanning 9 major marketplaces for live deals...</div>`
         }
 
-        <a href="http://localhost:3000/compare" target="_blank" class="cx-action-btn">
-          View Full Price Matrix
-        </a>
+        <div style="display:flex; gap:6px; margin-top:8px;">
+          <a href="http://localhost:3000/dashboard" target="_blank" class="cx-action-btn" style="flex:1; text-align:center;">
+            My Dashboard
+          </a>
+          <a href="http://localhost:3000/compare" target="_blank" class="cx-action-btn" style="flex:1; text-align:center; background:#4f46e5;">
+            Full Matrix
+          </a>
+        </div>
       </div>
     `;
 
@@ -74,9 +80,9 @@ const COMPAREX_OVERLAY = {
     document.body.appendChild(root);
     this.rootElement = root;
 
-    // Attach control event listeners
     const minBtn = card.querySelector("#cx-min-btn");
     const closeBtn = card.querySelector("#cx-close-btn");
+    const copyBtn = card.querySelector("#cx-copy-btn");
     const body = card.querySelector("#comparex-overlay-body");
 
     if (minBtn) {
@@ -85,6 +91,15 @@ const COMPAREX_OVERLAY = {
         card.classList.toggle("minimized", this.isMinimized);
         body.style.display = this.isMinimized ? "none" : "flex";
         minBtn.textContent = this.isMinimized ? "+" : "−";
+      });
+    }
+
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        const prod = window.location.href;
+        navigator.clipboard.writeText(`COMPAREX Deal Info: ${document.title} - ${prod}`);
+        copyBtn.textContent = "✓";
+        setTimeout(() => { copyBtn.textContent = "📋"; }, 2000);
       });
     }
 
