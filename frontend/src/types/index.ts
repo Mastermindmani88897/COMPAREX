@@ -1,4 +1,4 @@
-// Global TypeScript types for COMPAREX
+﻿// Global TypeScript types for COMPAREX
 
 // ── API Response Envelopes ────────────────────────────────────────────────────
 export interface ApiResponse<T> {
@@ -110,7 +110,7 @@ export interface Product {
   updated_at: string;
 }
 
-// ── Marketplace Types ─────────────────────────────────────────────────────────
+// ── Marketplace & Connector Types (Phase 4) ──────────────────────────────────
 export interface Marketplace {
   id: string;
   name: string;
@@ -119,6 +119,57 @@ export interface Marketplace {
   base_url: string;
   is_active: boolean;
   country_code: string;
+}
+
+export interface ConnectorMetadata {
+  name: string;
+  slug: string;
+  base_url: string;
+  supported_categories: string[];
+  is_enabled: boolean;
+  priority: number;
+  supports_search: boolean;
+  supports_details: boolean;
+  supports_price_lookup: boolean;
+  logo_url?: string | null;
+}
+
+export interface AggregatedListing {
+  id?: string;
+  title: string;
+  price: number;
+  original_price?: number | null;
+  discount_percent?: number | null;
+  currency: string;
+  seller_name?: string | null;
+  listing_url: string;
+  marketplace_slug: string;
+  marketplace_name: string;
+  marketplace_logo?: string | null;
+  marketplace_base_url?: string | null;
+  is_available: boolean;
+  is_prime: boolean;
+  stock_status: string;
+  delivery_estimate?: string | null;
+  rating?: number | null;
+  review_count?: number | null;
+  deal_score?: number | null;
+  badges?: string[];
+}
+
+export interface AggregatedSearchResponse {
+  query: string;
+  category?: string | null;
+  total_listings: number;
+  marketplaces_queried: string[];
+  lowest_price?: number | null;
+  highest_price?: number | null;
+  average_price?: number | null;
+  price_spread?: number | null;
+  max_savings?: number | null;
+  best_deal_listing_id?: string | null;
+  listings: AggregatedListing[];
+  from_cache: boolean;
 }
 
 // ── Price Listing Types ───────────────────────────────────────────────────────

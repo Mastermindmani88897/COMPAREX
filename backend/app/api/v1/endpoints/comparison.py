@@ -1,22 +1,51 @@
-"""
+﻿"""
 COMPAREX Backend - Comparison & Matching Engine Endpoints
-
-Price history timeline and product duplicate detection.
-The /compare endpoint lives in products.py to avoid route duplication.
 """
 
 import uuid
-from typing import Any
+from typing import Any, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.repositories.price_history_repository import PriceHistoryRepository
 from app.repositories.product_listing_repository import ProductListingRepository
+from app.schemas.common import SuccessResponse
+from app.services.aggregator_service import MarketplaceAggregatorService
 from app.services.matching_engine import ProductMatchingEngine
 
 router = APIRouter()
+
+
+@router.get(
+    "/comparison/aggregate",
+    summary="Multi-Marketplace Price Aggregator",
+    description="Aggregates live and mock connector prices across all relevant connectors.",
+)
+async def aggregate_marketplace_prices(
+    q: str = Query(..., description="Search keyword, title, or EAN"),
+    category: Optional[str] = Query(None, description="Category filter (e.g. electronics, fashion, beauty)"),
+    sort_by: str = Query("price", description="Sort order: price, price_desc, rating, discount, deal_score"),
+    min_price: Optional[float] = Query(None, ge=0),
+    max_price: Optional[float] = Query(None, ge=0),
+    in_stock_only: bool = Query(False, description="Filter only in-stock listings"),
+    use_cache: bool = Query(True, description="Enable Redis caching"),
+) -> Any:
+    """Aggregate search across all connector capabilities."""
+    result = await MarketplaceAggregatorService.aggregate_search(
+        query=q,
+        category=category,
+        sort_by=sort_by,
+        min_price=min_price,
+        max_price=max_price,
+        in_stock_only=in_stock_only,
+        use_cache=use_cache,
+    )
+    return SuccessResponse(
+        message="Marketplace prices aggregated successfully",
+        data=result,
+    )
 
 
 @router.get(

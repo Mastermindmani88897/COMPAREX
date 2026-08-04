@@ -1,11 +1,14 @@
-"""
-COMPAREX Backend – Marketplace Management API Endpoints
+﻿"""
+COMPAREX Backend – Marketplace Management & Connector Endpoints
 """
 
+from typing import Optional
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.registry import CategoryCapabilityRegistry, ConnectorRegistry
 from app.api.deps import get_current_active_user, get_db
 from app.models.user import User
 from app.schemas.common import SuccessResponse
@@ -17,6 +20,38 @@ from app.schemas.marketplace import (
 from app.services.marketplace_service import MarketplaceService
 
 router = APIRouter(prefix="/marketplaces", tags=["Marketplaces"])
+
+
+@router.get(
+    "/connectors",
+    summary="List Registered Connectors",
+    description="Retrieve all registered marketplace connectors, status, priority, and capabilities.",
+)
+async def list_registered_connectors(
+    category: Optional[str] = Query(None, description="Filter by category capability"),
+    enabled_only: bool = Query(True, description="Filter only active enabled connectors"),
+):
+    """List marketplace connectors endpoint."""
+    connectors = ConnectorRegistry.list_connectors(category=category, enabled_only=enabled_only)
+    data = [c.to_dict() for c in connectors]
+    return SuccessResponse(
+        message="Marketplace connectors retrieved successfully",
+        data=data,
+    )
+
+
+@router.get(
+    "/capabilities",
+    summary="List Category Capability Registry",
+    description="Retrieve category-to-marketplace capability mappings.",
+)
+async def list_category_capabilities():
+    """List category capabilities mapping endpoint."""
+    capabilities = CategoryCapabilityRegistry.get_all_capabilities()
+    return SuccessResponse(
+        message="Category capability mapping retrieved",
+        data=capabilities,
+    )
 
 
 @router.get(
