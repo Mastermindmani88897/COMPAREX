@@ -8,7 +8,9 @@ that is mounted at /api/v1 in main.py.
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
+    admin,
     ai,
+    ai_modes,
     alerts,
     analytics,
     auth,
@@ -25,6 +27,7 @@ from app.api.v1.endpoints import (
     listings,
     marketplaces,
     memory,
+    metrics,
     persona,
     planner,
     price_history,
@@ -37,17 +40,20 @@ from app.api.v1.endpoints import (
 
 v1_router = APIRouter()
 
-# Health
+# Health & Metrics
 v1_router.include_router(health.router)
+v1_router.include_router(metrics.router)
 
-# AI Shopping Intelligence Platform
+# AI Shopping Intelligence Platform & Advanced Modes
 v1_router.include_router(ai.router)
+v1_router.include_router(ai_modes.router)
 
 # Extension Gateway
 v1_router.include_router(extension.router)
 
-# Auth
+# Auth & Admin Portal
 v1_router.include_router(auth.router)
+v1_router.include_router(admin.router)
 
 # Users
 v1_router.include_router(users.router)

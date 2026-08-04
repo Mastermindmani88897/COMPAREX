@@ -21,6 +21,8 @@ from app.middleware.error_handler import (
     unhandled_exception_handler,
     validation_exception_handler,
 )
+from app.middleware.observability import ObservabilityMiddleware
+from app.middleware.security import EnterpriseSecurityMiddleware
 
 # Initialize logging first
 setup_logging()
@@ -69,8 +71,10 @@ def create_application() -> FastAPI:
         },
     )
 
-    # ── CORS ──────────────────────────────────────────────────────
+    # ── CORS & Enterprise Middleware ──────────────────────────────
     setup_cors(app)
+    app.add_middleware(EnterpriseSecurityMiddleware)
+    app.add_middleware(ObservabilityMiddleware)
 
     # ── Exception Handlers ────────────────────────────────────────
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)

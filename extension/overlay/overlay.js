@@ -108,6 +108,15 @@ const COMPAREX_OVERLAY = {
         root.remove();
       });
     }
+
+    // Keyboard shortcut listener (Alt+C) for instant overlay toggle
+    window.addEventListener("keydown", (e) => {
+      if (e.altKey && (e.key === "c" || e.key === "C")) {
+        this.isMinimized = !this.isMinimized;
+        card.classList.toggle("minimized", this.isMinimized);
+        body.style.display = this.isMinimized ? "none" : "flex";
+      }
+    });
   },
 
   updateData(compareData) {

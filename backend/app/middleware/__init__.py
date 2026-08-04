@@ -1,1 +1,3 @@
-# COMPAREX Backend – Middleware Package
+"""
+COMPAREX Backend – Middleware Package
+"""
