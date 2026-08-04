@@ -120,6 +120,77 @@ export interface ExtensionStatusResponse {
   supported_marketplaces: string[];
 }
 
+// ── AI Intelligence Platform Types (Phase 6) ─────────────────────────────────
+export interface ProductRecommendationItem {
+  product_name: string;
+  price: number;
+  marketplace_name: string;
+  deal_score: number;
+  reasons: string[];
+  is_best_value?: boolean;
+}
+
+export interface AIChatResponse {
+  response_text: string;
+  detected_intent: string;
+  recommended_category?: string | null;
+  recommendations: ProductRecommendationItem[];
+  reasoning_summary: string;
+}
+
+export interface AIMatchResponse {
+  is_match: boolean;
+  confidence_score: number;
+  matched_attributes: string[];
+  discrepancies: string[];
+  reasoning: string;
+}
+
+export interface AIImageSearchResponse {
+  detected_product_type: string;
+  extracted_features: string[];
+  confidence_score: number;
+  suggested_search_query: string;
+  aggregated_results?: AggregatedSearchResponse | null;
+}
+
+export interface AIReviewSummaryResponse {
+  product_name: string;
+  pros: string[];
+  cons: string[];
+  summary: string;
+  buying_verdict: string;
+  review_confidence_score: number;
+}
+
+export interface AIDealAnalysisResponse {
+  product_name: string;
+  deal_score: number;
+  decision: "BUY_NOW" | "GREAT_DEAL" | "FAIR_PRICE" | "PREMIUM_CHOICE" | "WAIT_FOR_PRICE_DROP";
+  decision_label: string;
+  score_breakdown: Record<string, number>;
+  detailed_explanation: string;
+  alternatives_suggested: Array<{
+    product_name: string;
+    price: number;
+    marketplace_name: string;
+    reason: string;
+  }>;
+}
+
+export interface AISpecComparisonResponse {
+  product_a_name: string;
+  product_b_name: string;
+  key_differences: Array<{
+    attribute: string;
+    product_a: string;
+    product_b: string;
+    insight: string;
+  }>;
+  verdict: string;
+  winner_name?: string | null;
+}
+
 export interface Marketplace {
   id: string;
   name: string;

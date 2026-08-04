@@ -77,7 +77,7 @@ jobs:
           LOG_LEVEL: "INFO"
 
       - name: Run unit tests (no database required)
-        run: pytest tests/test_phase3.py tests/test_phase4.py tests/test_phase5.py -v --tb=short
+        run: pytest tests/test_phase3.py tests/test_phase4.py tests/test_phase5.py tests/test_phase6.py -v --tb=short
         env:
           ENVIRONMENT: development
           DEBUG: "True"
