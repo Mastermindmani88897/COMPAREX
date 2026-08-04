@@ -10,18 +10,27 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     ai,
     alerts,
+    analytics,
     auth,
     brands,
     categories,
+    coach,
     comparison,
     coupons,
     dashboard,
+    explain,
     extension,
+    feedback,
     health,
     listings,
     marketplaces,
+    memory,
+    persona,
     price_history,
+    privacy,
     products,
+    profile,
+    recommendations,
     users,
 )
 
@@ -71,3 +80,30 @@ v1_router.include_router(coupons.router)
 
 # Shopping Dashboard
 v1_router.include_router(dashboard.router)
+
+# Personal Shopping Profile & Preferences
+v1_router.include_router(profile.router)
+
+# Shopping Memory Timeline
+v1_router.include_router(memory.router)
+
+# Shopping DNA & Persona Engine
+v1_router.include_router(persona.router)
+
+# Personalized Recommendation Engine
+v1_router.include_router(recommendations.router)
+
+# AI Shopping Coach
+v1_router.include_router(coach.router)
+
+# Explainable AI & CompareX Explain
+v1_router.include_router(explain.router)
+
+# AI Feedback Loop
+v1_router.include_router(feedback.router)
+
+# Shopping Analytics Dashboard
+v1_router.include_router(analytics.router)
+
+# Smart Privacy Center
+v1_router.include_router(privacy.router)
