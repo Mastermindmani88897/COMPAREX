@@ -75,3 +75,12 @@ jobs:
           DATABASE_URL: "postgresql+asyncpg://postgres:password@localhost:5432/comparex"
           SECRET_KEY: "ci-test-secret-key"
           LOG_LEVEL: "INFO"
+
+      - name: Run unit tests (no database required)
+        run: pytest tests/test_phase3.py -v --tb=short
+        env:
+          ENVIRONMENT: development
+          DEBUG: "True"
+          DATABASE_URL: "postgresql+asyncpg://postgres:password@localhost:5432/comparex"
+          SECRET_KEY: "ci-test-secret-key"
+          LOG_LEVEL: "INFO"

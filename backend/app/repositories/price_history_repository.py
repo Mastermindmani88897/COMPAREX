@@ -25,7 +25,7 @@ class PriceHistoryRepository(BaseRepository[PriceHistory]):
         stmt = (
             select(PriceHistory)
             .where(PriceHistory.listing_id == listing_id)
-            .order_by(PriceHistory.timestamp.asc())
+            .order_by(PriceHistory.created_at.asc())
             .limit(limit)
         )
         result = await self.db.execute(stmt)

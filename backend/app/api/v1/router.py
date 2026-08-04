@@ -9,6 +9,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     auth,
+    brands,
     categories,
     comparison,
     health,
@@ -31,6 +32,9 @@ v1_router.include_router(users.router)
 
 # Categories
 v1_router.include_router(categories.router)
+
+# Brands
+v1_router.include_router(brands.router)
 
 # Products
 v1_router.include_router(products.router)

@@ -26,7 +26,8 @@ def anyio_backend():
 @pytest.fixture(scope="session", autouse=True)
 async def setup_test_db():
     """Configure in-memory SQLite engine and override get_db dependency."""
-    settings.ENVIRONMENT = "testing"
+    # settings.ENVIRONMENT must match the pattern (development|staging|production)
+    # so we leave it as-is during testing; only override get_db dependency.
 
     test_engine = create_async_engine(
         TEST_DATABASE_URL,
