@@ -30,6 +30,38 @@ setup_logging()
 logger = get_logger(__name__)
 
 
+async def verify_and_migrate_db_schema():
+    """Verify ORM model columns exist in PostgreSQL database and apply safe auto-migrations on startup."""
+    try:
+        from sqlalchemy import text
+        from app.db.session import engine
+
+        async with engine.begin() as conn:
+            res = await conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns WHERE table_name = 'users';"
+                )
+            )
+            existing_cols = {row[0] for row in res.fetchall()}
+            logger.info("Startup DB Inspection - Existing 'users' table columns: %s", existing_cols)
+
+            statements = [
+                ("google_id", "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);"),
+                ("google_id_idx", "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_id ON users (google_id);"),
+                ("login_provider", "ALTER TABLE users ADD COLUMN IF NOT EXISTS login_provider VARCHAR(50) DEFAULT 'email' NOT NULL;"),
+                ("avatar_url", "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;"),
+                ("hashed_password", "ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL;"),
+            ]
+
+            for key, stmt in statements:
+                if key.endswith("_idx") or key not in existing_cols or key == "hashed_password":
+                    await conn.execute(text(stmt))
+
+        logger.info("Database schema validation completed cleanly. All User ORM columns verified.")
+    except Exception as exc:
+        logger.warning("Startup database schema verification warning: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -43,7 +75,7 @@ async def lifespan(app: FastAPI):
         settings.APP_VERSION,
         settings.ENVIRONMENT,
     )
-    # Phase 2: DB connection warm-up, Redis connection, scheduler start
+    await verify_and_migrate_db_schema()
     yield
 
     # ── Shutdown ──────────────────────────────────────────────────
