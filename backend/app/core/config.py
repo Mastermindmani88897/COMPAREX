@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "https://comparex-eight.vercel.app",
+        "https://comparex-backend-33jp.onrender.com",
     ]
     ALLOWED_METHODS: List[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     ALLOWED_HEADERS: List[str] = ["*"]

@@ -1,8 +1,20 @@
 import axios, { AxiosError, type AxiosInstance, type AxiosResponse } from "axios";
 import type { TokenResponse, UserPublic } from "@/types";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const getBaseUrl = (): string => {
+  let url = process.env.NEXT_PUBLIC_API_URL || "https://comparex-backend-33jp.onrender.com/api/v1";
+  url = url.trim().replace(/\/+$/, "");
+  if (!url.endsWith("/api/v1")) {
+    if (url.endsWith("/api")) {
+      url = `${url}/v1`;
+    } else {
+      url = `${url}/api/v1`;
+    }
+  }
+  return url;
+};
+
+const API_BASE_URL = getBaseUrl();
 
 const ACCESS_TOKEN_KEY = "comparex_access_token";
 const REFRESH_TOKEN_KEY = "comparex_refresh_token";

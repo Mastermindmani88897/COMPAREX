@@ -72,10 +72,12 @@ def create_application() -> FastAPI:
         },
     )
 
-    # ── CORS & Enterprise Middleware ──────────────────────────────
-    setup_cors(app)
+    # ── Enterprise & CORS Middleware ──────────────────────────────
+    # Note: In Starlette/FastAPI, middleware registered last runs first.
+    # CORSMiddleware must be registered last to intercept OPTIONS preflight requests.
     app.add_middleware(EnterpriseSecurityMiddleware)
     app.add_middleware(ObservabilityMiddleware)
+    setup_cors(app)
 
     # ── Exception Handlers ────────────────────────────────────────
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)

@@ -37,36 +37,52 @@ class AuthService:
 
     async def register(self, req: RegisterRequest) -> UserPublic:
         """Register a new user account."""
-        if req.password != req.confirm_password:
+        display_name = (req.name or req.full_name or req.username or "").strip()
+        if not display_name:
+            display_name = req.email.split("@")[0]
+
+        confirm_pw = req.confirm_password or req.confirmPassword or req.password
+        if req.password != confirm_pw:
+            logger.warning("Registration failed for %s: Passwords do not match", req.email)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Passwords do not match",
             )
 
         if await self.user_repo.email_exists(req.email):
+            logger.warning("Registration failed for %s: Email address already registered", req.email)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email address is already registered",
             )
 
-        hashed_pw = hash_password(req.password)
-        user_data = {
-            "email": req.email.lower(),
-            "name": req.name,
-            "hashed_password": hashed_pw,
-            "role": req.role or "user",
-            "is_active": True,
-            "is_verified": False,
-        }
+        try:
+            hashed_pw = hash_password(req.password)
+            user_data = {
+                "email": req.email.lower(),
+                "name": display_name,
+                "hashed_password": hashed_pw,
+                "role": req.role or "user",
+                "is_active": True,
+                "is_verified": False,
+            }
 
-        user = await self.user_repo.create(user_data)
-        logger.info("New user registered: %s (ID: %s)", user.email, user.id)
-        return UserPublic.model_validate(user)
+            user = await self.user_repo.create(user_data)
+            logger.info("New user registered successfully: %s (ID: %s)", user.email, user.id)
+            return UserPublic.model_validate(user)
+        except Exception as exc:
+            await self.db.rollback()
+            logger.error("Database error during user registration for %s: %s", req.email, exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Registration failed due to a database error. Please try again.",
+            )
 
     async def login(self, req: LoginRequest) -> TokenResponse:
         """Authenticate user credentials and issue access/refresh tokens."""
         user = await self.user_repo.get_by_email(req.email)
         if not user or not verify_password(req.password, user.hashed_password):
+            logger.warning("Login failed for %s: Invalid credentials", req.email)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password",
@@ -74,6 +90,7 @@ class AuthService:
             )
 
         if not user.is_active:
+            logger.warning("Login failed for %s: Account inactive", req.email)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User account is inactive",

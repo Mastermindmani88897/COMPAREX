@@ -32,10 +32,10 @@ class UserPublic(UserBase):
     id: uuid.UUID
     avatar_url: Optional[str] = None
     role: str = "user"
-    is_active: bool
-    is_verified: bool
-    created_at: datetime
-    updated_at: datetime
+    is_active: bool = True
+    is_verified: bool = False
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 

@@ -54,11 +54,24 @@ export default function RegisterPage() {
       await register(formData.name, formData.email, formData.password, formData.confirmPassword);
       router.push("/dashboard");
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { detail?: string; message?: string } } };
-      const msg =
-        axiosErr?.response?.data?.detail ||
-        axiosErr?.response?.data?.message ||
-        "Registration failed. Please try again.";
+      let msg = "Registration failed. Please try again.";
+      if (typeof err === "object" && err !== null && "response" in err) {
+        const res = (err as { response?: { data?: { detail?: unknown; message?: string } } }).response;
+        if (res?.data) {
+          const detail = res.data.detail;
+          if (typeof detail === "string") {
+            msg = detail;
+          } else if (Array.isArray(detail)) {
+            msg = detail
+              .map((item: { msg?: string; loc?: string[] }) => item.msg || JSON.stringify(item))
+              .join("; ");
+          } else if (res.data.message) {
+            msg = res.data.message;
+          }
+        }
+      } else if (err instanceof Error) {
+        msg = err.message;
+      }
       setError(msg);
     } finally {
       setIsLoading(false);

@@ -30,9 +30,12 @@ class RegisterRequest(BaseModel):
     """User Registration Request."""
 
     email: EmailStr
-    name: str = Field(min_length=1, max_length=255)
+    name: Optional[str] = Field(None, max_length=255)
+    full_name: Optional[str] = Field(None, max_length=255)
+    username: Optional[str] = Field(None, max_length=255)
     password: str = Field(min_length=8, max_length=128)
-    confirm_password: str
+    confirm_password: Optional[str] = None
+    confirmPassword: Optional[str] = None
     role: Optional[str] = Field(default="user", pattern="^(user|admin)$")
 
 
