@@ -30,6 +30,8 @@ class UserPublic(UserBase):
     """User data safe to expose in API responses."""
 
     id: uuid.UUID
+    google_id: Optional[str] = None
+    login_provider: str = "email"
     avatar_url: Optional[str] = None
     role: str = "user"
     is_active: bool = True

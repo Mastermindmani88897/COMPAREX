@@ -26,3 +26,8 @@ class UserRepository(BaseRepository[User]):
         """Check if an email is already registered."""
         user = await self.get_by_email(email)
         return user is not None
+
+    async def get_by_google_id(self, google_id: str) -> Optional[User]:
+        """Fetch a user by Google OAuth ID."""
+        result = await self.db.execute(select(User).where(User.google_id == google_id))
+        return result.scalar_one_or_none()

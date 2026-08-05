@@ -43,3 +43,14 @@ class RefreshTokenRequest(BaseModel):
     """Token Refresh Request."""
 
     refresh_token: str
+
+
+class GoogleAuthRequest(BaseModel):
+    """Google OAuth Request Schema."""
+
+    id_token: Optional[str] = None
+    access_token: Optional[str] = None
+    google_id: Optional[str] = None
+    email: Optional[EmailStr] = None
+    name: Optional[str] = None
+    avatar_url: Optional[str] = None

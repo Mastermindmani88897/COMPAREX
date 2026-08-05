@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import oauth2_scheme
 from app.db.session import get_db
-from app.schemas.auth import LoginRequest, RefreshTokenRequest, RegisterRequest, TokenResponse
+from app.schemas.auth import GoogleAuthRequest, LoginRequest, RefreshTokenRequest, RegisterRequest, TokenResponse
 from app.schemas.common import SuccessResponse
 from app.schemas.user import UserPublic
 from app.services.auth_service import AuthService
@@ -88,5 +88,24 @@ async def refresh_token(
     token_response = await auth_service.refresh_token(req.refresh_token)
     return SuccessResponse(
         message="Token refreshed successfully",
+        data=token_response,
+    )
+
+
+@router.post(
+    "/google",
+    response_model=SuccessResponse[TokenResponse],
+    summary="Google OAuth Authentication",
+    description="Authenticate or auto-create account using Google OAuth ID token or user payload.",
+)
+async def google_auth(
+    req: GoogleAuthRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Google OAuth login/register endpoint."""
+    auth_service = AuthService(db)
+    token_response = await auth_service.google_authenticate(req)
+    return SuccessResponse(
+        message="Google authentication successful",
         data=token_response,
     )

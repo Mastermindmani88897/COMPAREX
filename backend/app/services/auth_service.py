@@ -22,7 +22,7 @@ from app.core.security import (
     verify_password,
 )
 from app.repositories.user_repository import UserRepository
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
+from app.schemas.auth import GoogleAuthRequest, LoginRequest, RegisterRequest, TokenResponse
 from app.schemas.user import UserPublic
 
 logger = get_logger(__name__)
@@ -155,6 +155,63 @@ class AuthService:
         return TokenResponse(
             access_token=new_access_token,
             refresh_token=new_refresh_token,
+            token_type="bearer",
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            user=UserPublic.model_validate(user),
+        )
+
+    async def google_authenticate(self, req: "GoogleAuthRequest") -> TokenResponse:
+        """Authenticate user via Google OAuth id_token or payload."""
+        email = (req.email or "").lower().strip()
+        google_id = req.google_id or f"google_{hash(email)}"
+        display_name = req.name or (email.split("@")[0] if email else "Google User")
+
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email is required for Google OAuth authentication",
+            )
+
+        # 1. Check if user exists by google_id or email
+        user = await self.user_repo.get_by_google_id(google_id)
+        if not user:
+            user = await self.user_repo.get_by_email(email)
+
+        if user:
+            # Update existing user record with Google profile info if needed
+            update_fields = {}
+            if not user.google_id:
+                update_fields["google_id"] = google_id
+            if req.avatar_url and not user.avatar_url:
+                update_fields["avatar_url"] = req.avatar_url
+            if user.login_provider != "google":
+                update_fields["login_provider"] = "google"
+
+            if update_fields:
+                user = await self.user_repo.update(user, update_fields)
+            logger.info("Existing user logged in via Google OAuth: %s", user.email)
+        else:
+            # 2. Auto-create new user account for Google OAuth
+            user_data = {
+                "email": email,
+                "name": display_name,
+                "google_id": google_id,
+                "login_provider": "google",
+                "avatar_url": req.avatar_url,
+                "hashed_password": None,
+                "role": "user",
+                "is_active": True,
+                "is_verified": True,
+            }
+            user = await self.user_repo.create(user_data)
+            logger.info("New account auto-created via Google OAuth: %s (ID: %s)", user.email, user.id)
+
+        access_token = create_access_token(subject=str(user.id), role=user.role)
+        refresh_token = create_refresh_token(subject=str(user.id), role=user.role)
+
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
             token_type="bearer",
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             user=UserPublic.model_validate(user),

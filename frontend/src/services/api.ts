@@ -209,6 +209,19 @@ export const authService = {
     apiClient.get<{ data: UserPublic; message: string; success: boolean }>(
       "/users/me"
     ),
+
+  googleAuth: (payload: {
+    id_token?: string;
+    access_token?: string;
+    google_id?: string;
+    email?: string;
+    name?: string;
+    avatar_url?: string;
+  }) =>
+    apiClient.post<{ data: TokenResponse; message: string; success: boolean }>(
+      "/auth/google",
+      payload
+    ),
 };
 
 export const healthCheck = () => apiClient.get("/health");

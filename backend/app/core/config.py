@@ -127,6 +127,12 @@ class Settings(BaseSettings):
     THIRD_PARTY_SHOPPING_API_KEY: Optional[str] = None
     THIRD_PARTY_SHOPPING_PROVIDER: Optional[str] = "shopping_api"
 
+    # ── Google OAuth & Gemini AI ──────────────────────────────────
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+    GEMINI_API_KEY: Optional[str] = None
+    AI_PROVIDER: str = "gemini"
+
     # ── Logging ───────────────────────────────────────────────────
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "text"  # "json" | "text"

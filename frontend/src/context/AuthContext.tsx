@@ -19,6 +19,14 @@ import type { AuthState, TokenResponse, UserPublic } from "@/types";
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  googleLogin: (payload: {
+    id_token?: string;
+    access_token?: string;
+    google_id?: string;
+    email?: string;
+    name?: string;
+    avatar_url?: string;
+  }) => Promise<void>;
   register: (
     name: string,
     email: string,
@@ -109,6 +117,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const googleLogin = useCallback(
+    async (payload: {
+      id_token?: string;
+      access_token?: string;
+      google_id?: string;
+      email?: string;
+      name?: string;
+      avatar_url?: string;
+    }): Promise<void> => {
+      const res = await apiClient.post("/auth/google", payload);
+      const tokenData: TokenResponse = res.data.data;
+      saveStoredTokens(tokenData.access_token, tokenData.refresh_token, true);
+      setState({ user: tokenData.user, isAuthenticated: true, isLoading: false });
+    },
+    []
+  );
+
   const register = useCallback(
     async (
       name: string,
@@ -147,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ ...state, login, googleLogin, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
