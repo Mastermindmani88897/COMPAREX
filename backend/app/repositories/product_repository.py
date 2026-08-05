@@ -3,8 +3,7 @@ COMPAREX Backend – Product Repository
 """
 
 from typing import Optional
-
-from sqlalchemy import select
+from sqlalchemy import select, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.product import Product
@@ -22,9 +21,44 @@ class ProductRepository(BaseRepository[Product]):
         result = await self.db.execute(select(Product).where(Product.ean == ean))
         return result.scalar_one_or_none()
 
-    async def search_by_name(self, query: str, limit: int = 20) -> list[Product]:
-        """Full-text-style name search (basic ILIKE — Phase 2 will use proper FTS)."""
-        result = await self.db.execute(
-            select(Product).where(Product.name.ilike(f"%{query}%")).limit(limit)
-        )
-        return list(result.scalars().all())
+    async def search_by_name(self, query: str, limit: int = 50) -> list[Product]:
+        """Full-text style search matching name, category, brand, or description."""
+        terms = [t.strip() for t in query.split() if t.strip()]
+        if not terms:
+            result = await self.db.execute(select(Product).limit(limit))
+            return list(result.scalars().all())
+
+        # Match all terms across Product fields
+        conditions = []
+        for term in terms:
+            pattern = f"%{term}%"
+            conditions.append(
+                or_(
+                    Product.name.ilike(pattern),
+                    Product.category.ilike(pattern),
+                    Product.brand.ilike(pattern),
+                    Product.description.ilike(pattern),
+                )
+            )
+
+        stmt = select(Product).where(and_(*conditions)).limit(limit)
+        result = await self.db.execute(stmt)
+        products = list(result.scalars().all())
+
+        if not products:
+            # Fallback to matching ANY term if ALL terms match returns 0
+            any_conditions = []
+            for term in terms:
+                pattern = f"%{term}%"
+                any_conditions.append(
+                    or_(
+                        Product.name.ilike(pattern),
+                        Product.category.ilike(pattern),
+                        Product.brand.ilike(pattern),
+                    )
+                )
+            stmt_any = select(Product).where(or_(*any_conditions)).limit(limit)
+            res_any = await self.db.execute(stmt_any)
+            products = list(res_any.scalars().all())
+
+        return products
