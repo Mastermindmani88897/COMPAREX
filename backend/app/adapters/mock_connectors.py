@@ -1,4 +1,4 @@
-﻿"""
+"""
 COMPAREX Backend - Phase 4 Mock Connectors
 
 Realistic mock connector implementations for Indian retail marketplaces:
@@ -8,7 +8,6 @@ Amazon, Flipkart, Croma, Reliance Digital, Vijay Sales, Myntra, Ajio, Meesho, Ny
 from typing import Any, Dict, List
 
 from app.adapters.base import BaseMarketplaceAdapter
-from app.adapters.factory import MarketplaceFactory
 from app.adapters.registry import ConnectorMetadata, ConnectorRegistry
 
 
@@ -348,6 +347,7 @@ CONNECTORS_TO_REGISTER = [
 
 def register_all_mock_connectors() -> None:
     """Register all mock connectors with both ConnectorRegistry and MarketplaceFactory."""
+    from app.adapters.factory import MarketplaceFactory
     for meta, connector_cls in CONNECTORS_TO_REGISTER:
         ConnectorRegistry.register(meta, connector_cls)
         MarketplaceFactory.register(meta.slug, connector_cls)

@@ -119,6 +119,14 @@ class Settings(BaseSettings):
     SMTP_USER: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
 
+    # ── Official Marketplace & Third-Party APIs ─────────────────
+    AMAZON_PAAPI_KEY: Optional[str] = None
+    AMAZON_PAAPI_SECRET: Optional[str] = None
+    FLIPKART_AFFILIATE_ID: Optional[str] = None
+    FLIPKART_AFFILIATE_TOKEN: Optional[str] = None
+    THIRD_PARTY_SHOPPING_API_KEY: Optional[str] = None
+    THIRD_PARTY_SHOPPING_PROVIDER: Optional[str] = "shopping_api"
+
     # ── Logging ───────────────────────────────────────────────────
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "text"  # "json" | "text"

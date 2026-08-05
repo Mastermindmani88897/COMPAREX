@@ -2,11 +2,13 @@
 COMPAREX Backend – Marketplace Factory Pattern
 
 Factory for registering and instantiating marketplace adapters dynamically.
+Integrates 3-Tier PrioritizedMarketplaceConnector by default.
 """
 
 from typing import Any, Type
 
 from app.adapters.base import BaseMarketplaceAdapter
+from app.adapters.priority_connector import PrioritizedMarketplaceConnector
 
 
 class SampleMockAdapter(BaseMarketplaceAdapter):
@@ -85,9 +87,10 @@ class MarketplaceFactory:
 
     @classmethod
     def get_adapter(cls, slug: str, base_url: str = "") -> BaseMarketplaceAdapter:
-        """Instantiate an adapter instance for a registered marketplace slug."""
-        adapter_cls = cls._registry.get(slug.lower(), SampleMockAdapter)
-        return adapter_cls(marketplace_slug=slug, base_url=base_url)
+        """Instantiate a 3-Tier Prioritized Marketplace Adapter for any marketplace slug."""
+        if slug.lower() == "mock":
+            return SampleMockAdapter(marketplace_slug=slug, base_url=base_url)
+        return PrioritizedMarketplaceConnector(marketplace_slug=slug, base_url=base_url)
 
     @classmethod
     def list_registered_slugs(cls) -> list[str]:
@@ -95,5 +98,18 @@ class MarketplaceFactory:
         return list(cls._registry.keys())
 
 
-# Register default sample mock adapter
+# Register default adapters
 MarketplaceFactory.register("mock", SampleMockAdapter)
+for mp_slug in [
+    "amazon",
+    "flipkart",
+    "croma",
+    "reliance_digital",
+    "vijay_sales",
+    "tata_cliq",
+    "jiomart",
+    "myntra",
+    "ajio",
+    "snapdeal",
+]:
+    MarketplaceFactory.register(mp_slug, PrioritizedMarketplaceConnector)
