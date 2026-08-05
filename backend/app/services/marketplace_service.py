@@ -9,11 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.repositories.marketplace_repository import MarketplaceRepository
-from app.schemas.marketplace import (
-    MarketplaceCreate,
-    MarketplacePublic,
-    MarketplaceUpdate,
-)
+from app.schemas.marketplace import MarketplaceCreate, MarketplacePublic, MarketplaceUpdate
 
 logger = get_logger(__name__)
 

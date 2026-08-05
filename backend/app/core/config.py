@@ -5,11 +5,12 @@ Loads all settings from environment variables using Pydantic BaseSettings.
 All configuration is centralized here — no magic strings elsewhere.
 """
 
+import json
 import re
 from functools import lru_cache
-from typing import List, Optional
+from typing import Any, List, Optional, Union
 
-from pydantic import Field
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,11 +28,22 @@ class Settings(BaseSettings):
     APP_NAME: str = "COMPAREX"
     APP_VERSION: str = "1.0.0"
     APP_DESCRIPTION: str = "AI Shopping Intelligence Platform API"
-    ENVIRONMENT: str = Field(
-        default="development",
-        pattern="^(development|staging|production)$",
-    )
+    ENVIRONMENT: str = "development"
     DEBUG: bool = True
+
+    @field_validator("ENVIRONMENT", mode="before")
+    @classmethod
+    def parse_environment(cls, v: Any) -> str:
+        if isinstance(v, str):
+            v_clean = v.strip().lower()
+            if v_clean in ("prod", "production"):
+                return "production"
+            if v_clean in ("stage", "staging"):
+                return "staging"
+            if v_clean in ("dev", "development"):
+                return "development"
+            return v_clean
+        return "development"
 
     # ── Server ────────────────────────────────────────────────────
     HOST: str = "0.0.0.0"
@@ -50,6 +62,18 @@ class Settings(BaseSettings):
     ALLOWED_METHODS: List[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     ALLOWED_HEADERS: List[str] = ["*"]
 
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_allowed_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str):
+            if v.startswith("["):
+                try:
+                    return json.loads(v)
+                except Exception:
+                    pass
+            return [item.strip() for item in v.split(",") if item.strip()]
+        return v
+
     # ── Database ──────────────────────────────────────────────────
     DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/comparex"
     DATABASE_ECHO: bool = False
@@ -62,6 +86,8 @@ class Settings(BaseSettings):
             url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
         elif url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif url.startswith("sqlite://") and not url.startswith("sqlite+aiosqlite://"):
+            url = url.replace("sqlite://", "sqlite+aiosqlite://", 1)
 
         url = url.replace("sslmode=require", "ssl=require").replace("sslmode=prefer", "ssl=prefer")
         if "channel_binding=" in url:

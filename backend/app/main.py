@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1.router import v1_router
@@ -80,6 +81,35 @@ def create_application() -> FastAPI:
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
+
+    # ── Root & Utility Endpoints ─────────────────────────────────
+    @app.get("/", include_in_schema=False)
+    async def root():
+        return JSONResponse(
+            {
+                "name": settings.APP_NAME,
+                "version": settings.APP_VERSION,
+                "description": settings.APP_DESCRIPTION,
+                "status": "online",
+                "docs": settings.DOCS_URL,
+                "health": "/health",
+                "api_v1": settings.API_V1_PREFIX,
+            }
+        )
+
+    @app.get("/health", include_in_schema=False)
+    async def health_root():
+        return JSONResponse(
+            {
+                "status": "ok",
+                "version": settings.APP_VERSION,
+                "environment": settings.ENVIRONMENT,
+            }
+        )
+
+    @app.get("/openapi.json", include_in_schema=False)
+    async def openapi_root():
+        return JSONResponse(app.openapi())
 
     # ── Routers ───────────────────────────────────────────────────
     app.include_router(v1_router, prefix=settings.API_V1_PREFIX)

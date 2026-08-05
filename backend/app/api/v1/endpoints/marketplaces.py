@@ -12,11 +12,7 @@ from app.adapters.registry import CategoryCapabilityRegistry, ConnectorRegistry
 from app.api.deps import get_current_active_user, get_db
 from app.models.user import User
 from app.schemas.common import SuccessResponse
-from app.schemas.marketplace import (
-    MarketplaceCreate,
-    MarketplacePublic,
-    MarketplaceUpdate,
-)
+from app.schemas.marketplace import MarketplaceCreate, MarketplacePublic, MarketplaceUpdate
 from app.services.marketplace_service import MarketplaceService
 
 router = APIRouter(prefix="/marketplaces", tags=["Marketplaces"])
