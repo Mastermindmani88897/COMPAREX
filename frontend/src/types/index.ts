@@ -33,12 +33,14 @@ export interface UserPublic {
   id: string;
   email: string;
   name: string;
+  google_id?: string | null;
+  login_provider?: string;
   avatar_url?: string | null;
   role: string;
   is_active: boolean;
   is_verified: boolean;
-  created_at: string;
-  updated_at: string;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 /** Matches backend TokenResponse schema */

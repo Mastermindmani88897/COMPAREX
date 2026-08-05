@@ -164,7 +164,16 @@ class AuthService:
         """Authenticate user via Google OAuth id_token or payload."""
         email = (req.email or "").lower().strip()
         google_id = req.google_id or f"google_{hash(email)}"
-        display_name = req.name or (email.split("@")[0] if email else "Google User")
+        
+        # Determine real display name (Priority: full_name/name -> given_name -> email prefix)
+        raw_name = (req.full_name or req.name or req.given_name or "").strip()
+        if raw_name and raw_name.lower() != "google user":
+            display_name = raw_name
+        elif email and "@" in email:
+            prefix = email.split("@")[0]
+            display_name = prefix.capitalize()
+        else:
+            display_name = "User"
 
         if not email:
             raise HTTPException(
@@ -186,6 +195,9 @@ class AuthService:
                 update_fields["avatar_url"] = req.avatar_url
             if user.login_provider != "google":
                 update_fields["login_provider"] = "google"
+            # Update name if user previously had "Google User" or missing name
+            if display_name and (user.name.lower() == "google user" or user.name == "User"):
+                update_fields["name"] = display_name
 
             if update_fields:
                 user = await self.user_repo.update(user, update_fields)

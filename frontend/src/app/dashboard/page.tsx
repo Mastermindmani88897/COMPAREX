@@ -25,6 +25,8 @@ import { AuthGuard } from "@/components/shared/AuthGuard";
 import apiClient from "@/services/api";
 import type { Product } from "@/types";
 
+import { getUserDisplayName, getUserFirstName, getUserInitials } from "@/utils/user";
+
 const sidebarItems = [
   { icon: LayoutDashboard, label: "Overview", href: "/dashboard", active: true },
   { icon: ShoppingBag, label: "My Products", href: "/products", active: false },
@@ -50,17 +52,17 @@ export default function DashboardPage() {
   const [wishlist] = useState([
     {
       id: "w1",
-      name: "Apple iPad Air (M2)",
+      name: "Apple MacBook Air M3 (16GB, 512GB)",
       brand: "Apple",
-      targetPrice: 54900,
-      currentPrice: 57900,
+      targetPrice: 124900,
+      currentPrice: 121900,
     },
     {
       id: "w2",
-      name: "Dell XPS 15 Laptop",
-      brand: "Dell",
-      targetPrice: 145000,
-      currentPrice: 139900,
+      name: "Sony WH-1000XM5 Wireless Headphones",
+      brand: "Sony",
+      targetPrice: 26990,
+      currentPrice: 24990,
     },
   ]);
 
@@ -143,14 +145,16 @@ export default function DashboardPage() {
     );
   };
 
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "??";
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "morning";
+    if (hour < 18) return "afternoon";
+    return "evening";
+  };
+
+  const initials = getUserInitials(user);
+  const displayName = getUserDisplayName(user);
+  const firstName = getUserFirstName(user);
 
   return (
     <AuthGuard>
@@ -165,15 +169,23 @@ export default function DashboardPage() {
         >
           <div className="p-4 border-b" style={{ borderColor: "var(--border)" }}>
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl gradient-bg flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
-                {initials}
-              </div>
-              <div className="min-w-0">
+              {user?.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt={displayName}
+                  className="h-10 w-10 rounded-xl object-cover flex-shrink-0"
+                />
+              ) : (
+                <div className="h-10 w-10 rounded-xl gradient-bg flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
+                  {initials}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
                 <p
                   className="text-sm font-semibold truncate"
                   style={{ color: "var(--foreground)" }}
                 >
-                  {user?.name || "User"}
+                  {displayName}
                 </p>
                 <p
                   className="text-xs truncate"
@@ -228,7 +240,7 @@ export default function DashboardPage() {
               >
                 Good {getGreeting()},{" "}
                 <span className="gradient-text">
-                  {user?.name?.split(" ")[0] || "there"}!
+                  {firstName}!
                 </span>
               </motion.h1>
               <p

@@ -9,6 +9,8 @@ import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { siteConfig } from "@/config/site";
 import { useAuth } from "@/context/AuthContext";
 
+import { getUserDisplayName, getUserFirstName, getUserInitials } from "@/utils/user";
+
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -40,9 +42,9 @@ export function Navbar() {
 
   const isActive = (href: string) => pathname === href;
 
-  const initials = user?.name
-    ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
-    : "??";
+  const initials = getUserInitials(user);
+  const displayName = getUserDisplayName(user);
+  const firstName = getUserFirstName(user);
 
   return (
     <>
@@ -70,32 +72,33 @@ export function Navbar() {
               </span>
             </Link>
 
-            {/* Desktop Nav */}
+            {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-1">
               {siteConfig.nav.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
                   id={`nav-${item.label.toLowerCase()}`}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                     isActive(item.href)
-                      ? "gradient-text font-semibold"
+                      ? "text-indigo-400 font-semibold"
                       : "hover:text-indigo-400"
                   }`}
-                  style={{ color: isActive(item.href) ? undefined : "var(--foreground-muted)" }}
+                  style={{
+                    color: isActive(item.href) ? undefined : "var(--foreground-muted)",
+                  }}
                 >
                   {item.label}
                 </Link>
               ))}
             </div>
 
-            {/* Desktop Actions */}
+            {/* Right Actions */}
             <div className="hidden md:flex items-center gap-3">
               <ThemeToggle />
 
               {isLoading ? (
-                // Auth loading skeleton
-                <div className="h-8 w-8 rounded-full animate-pulse" style={{ background: "var(--border)" }} />
+                <div className="h-8 w-8 rounded-lg bg-slate-800 animate-pulse" />
               ) : isAuthenticated && user ? (
                 // Authenticated: User menu
                 <div className="relative">
@@ -108,11 +111,19 @@ export function Navbar() {
                     className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border transition-all duration-200 hover:border-indigo-500"
                     style={{ borderColor: "var(--border)", background: "var(--card)" }}
                   >
-                    <div className="h-7 w-7 rounded-lg gradient-bg flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-                      {initials}
-                    </div>
+                    {user.avatar_url ? (
+                      <img
+                        src={user.avatar_url}
+                        alt={displayName}
+                        className="h-7 w-7 rounded-lg object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="h-7 w-7 rounded-lg gradient-bg flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                        {initials}
+                      </div>
+                    )}
                     <span className="text-sm font-medium max-w-[120px] truncate" style={{ color: "var(--foreground)" }}>
-                      {user.name.split(" ")[0]}
+                      {firstName}
                     </span>
                   </button>
 
@@ -128,13 +139,26 @@ export function Navbar() {
                         onClick={(e) => e.stopPropagation()}
                       >
                         {/* User Info */}
-                        <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
-                          <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
-                            {user.name}
-                          </p>
-                          <p className="text-xs truncate mt-0.5" style={{ color: "var(--foreground-muted)" }}>
-                            {user.email}
-                          </p>
+                        <div className="px-4 py-3 border-b flex items-center gap-3" style={{ borderColor: "var(--border)" }}>
+                          {user.avatar_url ? (
+                            <img
+                              src={user.avatar_url}
+                              alt={displayName}
+                              className="h-9 w-9 rounded-xl object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="h-9 w-9 rounded-xl gradient-bg flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                              {initials}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
+                              {displayName}
+                            </p>
+                            <p className="text-xs truncate mt-0.5" style={{ color: "var(--foreground-muted)" }}>
+                              {user.email}
+                            </p>
+                          </div>
                         </div>
 
                         {/* Menu Items */}

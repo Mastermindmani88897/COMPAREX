@@ -53,4 +53,7 @@ class GoogleAuthRequest(BaseModel):
     google_id: Optional[str] = None
     email: Optional[EmailStr] = None
     name: Optional[str] = None
+    full_name: Optional[str] = None
+    given_name: Optional[str] = None
+    family_name: Optional[str] = None
     avatar_url: Optional[str] = None
