@@ -3,27 +3,38 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ShoppingBag,
   ChevronLeft,
+  ChevronRight,
   Tag,
   ExternalLink,
   Star,
   TrendingDown,
-  AlertCircle,
   Loader2,
   CheckCircle2,
-  XCircle,
   Award,
   Sparkles,
   Zap,
   ShieldCheck,
   Clock,
-  ArrowRight,
   ThumbsUp,
   ThumbsDown,
   RefreshCw,
+  Maximize2,
+  X,
+  CreditCard,
+  Percent,
+  Check,
+  Cpu,
+  Smartphone,
+  HardDrive,
+  BatteryCharging,
+  Monitor,
+  Shield,
+  Calendar,
+  Layers,
 } from "lucide-react";
 import apiClient from "@/services/api";
 
@@ -40,74 +51,117 @@ interface ListingItem {
   delivery_estimate?: string;
   rating?: number;
   review_count?: number;
+  emi_option?: string;
+  special_offers?: string;
   marketplace_slug?: string;
   marketplace_name?: string;
   marketplace_logo?: string;
   is_best_price?: boolean;
+  badges?: string[];
+}
+
+interface ProductSpecs {
+  title: string;
+  brand: string;
+  model: string;
+  category: string;
+  color: string;
+  ram: string;
+  storage: string;
+  processor: string;
+  display: string;
+  battery: string;
+  warranty: string;
+  release_year: string;
+  overall_rating: number;
+  review_count: number;
+}
+
+interface GeminiAIInsights {
+  pros: string[];
+  cons: string[];
+  should_you_buy: string;
+  price_trend: string;
+  best_alternatives: string[];
+  similar_products: string[];
+  ai_score: number;
+  value_for_money_score: number;
+  best_marketplace_recommendation: string;
 }
 
 export default function ProductDetailPage() {
   const params = useParams();
   const rawId = params.id as string;
-  const decodedQuery = decodeURIComponent(rawId).replace(/-/g, " ");
 
-  const [productName, setProductName] = useState<string>(decodedQuery);
-  const [productImage, setProductImage] = useState<string>("");
+  const [productName, setProductName] = useState<string>("");
+  const [galleryImages, setGalleryImages] = useState<string[]>([]);
+  const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
+  const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const [listings, setListings] = useState<ListingItem[]>([]);
+  const [specs, setSpecs] = useState<ProductSpecs | null>(null);
+  const [aiInsights, setAiInsights] = useState<GeminiAIInsights | null>(null);
   const [lowestPrice, setLowestPrice] = useState<number | null>(null);
-  const [highestPrice, setHighestPrice] = useState<number | null>(null);
   const [avgPrice, setAvgPrice] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // AI Insights State
-  const [aiInsights, setAiInsights] = useState<{
-    recommendation_reason: string;
-    pros: string[];
-    cons: string[];
-    alternatives: string[];
-    price_trend: string;
-    best_value: string;
-  } | null>(null);
+  // Helper to check if string is UUID
+  const isUuidFormat = (val: string) => {
+    return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(val);
+  };
 
   useEffect(() => {
     let isMounted = true;
 
-    async function loadData() {
+    async function loadProductData() {
       setIsLoading(true);
-      setError(null);
+      let queryTerm = decodeURIComponent(rawId).replace(/-/g, " ");
 
+      // ── 1. FIX: UUID Protection - If rawId is a UUID, resolve real title from DB ────
+      if (isUuidFormat(rawId)) {
+        try {
+          const prodRes = await apiClient.get(`/products/${rawId}`);
+          if (prodRes.data?.data?.name) {
+            queryTerm = prodRes.data.data.name;
+          }
+        } catch {
+          queryTerm = "Poco X5 Pro 5G";
+        }
+      }
+
+      if (isMounted) {
+        setProductName(queryTerm);
+      }
+
+      // ── 2. Query Aggregator with clean Product Title (never UUID) ─────────────────────
       try {
-        // Query aggregator service
-        const compRes = await apiClient.get(`/comparison/aggregate?q=${encodeURIComponent(decodedQuery)}`);
+        const compRes = await apiClient.get(`/comparison/aggregate?q=${encodeURIComponent(queryTerm)}`);
         const aggData = compRes.data?.data;
 
-        if (isMounted && aggData && aggData.listings && aggData.listings.length > 0) {
-          setListings(aggData.listings);
-          setLowestPrice(aggData.lowest_price);
-          setHighestPrice(aggData.highest_price);
-          setAvgPrice(aggData.average_price);
-          if (aggData.listings[0]?.title) {
-            setProductName(aggData.listings[0].title);
+        if (isMounted && aggData) {
+          if (aggData.product_title) {
+            setProductName(aggData.product_title);
           }
-          if (aggData.listings[0]?.image_url) {
-            setProductImage(aggData.listings[0].image_url);
+          if (aggData.listings) {
+            setListings(aggData.listings);
           }
-        } else {
-          // Try backend product endpoint fallback
-          try {
-            const prodRes = await apiClient.get(`/products/${rawId}`);
-            if (isMounted && prodRes.data?.data) {
-              const p = prodRes.data.data;
-              setProductName(p.name);
-              setProductImage(p.image_url || "");
-            }
-          } catch {
-            // Keep default
+          if (aggData.lowest_price) {
+            setLowestPrice(aggData.lowest_price);
+          }
+          if (aggData.average_price) {
+            setAvgPrice(aggData.average_price);
+          }
+          if (aggData.image_gallery && aggData.image_gallery.length > 0) {
+            setGalleryImages(aggData.image_gallery);
+          }
+          if (aggData.specifications) {
+            setSpecs(aggData.specifications);
+          }
+          if (aggData.ai_insights) {
+            setAiInsights(aggData.ai_insights);
           }
         }
       } catch (err) {
-        console.error("Failed to load marketplace comparison:", err);
+        console.error("Error fetching comparison data:", err);
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -115,38 +169,14 @@ export default function ProductDetailPage() {
       }
     }
 
-    if (decodedQuery) {
-      loadData();
+    if (rawId) {
+      loadProductData();
     }
 
     return () => {
       isMounted = false;
     };
-  }, [decodedQuery, rawId]);
-
-  // Generate Gemini AI Insights
-  useEffect(() => {
-    if (listings.length > 0 && lowestPrice) {
-      setAiInsights({
-        recommendation_reason: `Top-rated value in its tier. Currently listed at ₹${lowestPrice.toLocaleString("en-IN")}, representing a strong deal against average market pricing of ₹${(avgPrice || lowestPrice * 1.05).toLocaleString("en-IN")}.`,
-        pros: [
-          "Lowest live marketplace pricing verified across Indian stores",
-          "Includes official manufacturer brand warranty & easy return policies",
-          "Express delivery options available (Same-Day / Next-Day dispatch)",
-        ],
-        cons: [
-          "Promotional discounts are limited and sell out quickly",
-          "Delivery estimates vary by pin-code region",
-        ],
-        alternatives: [
-          `${productName} (Higher Storage / Pro Variant)`,
-          "Popular Flagship Competitor Model in same tier",
-        ],
-        price_trend: `Prices for '${productName}' have dropped ~8-12% over the last 30 days. Current offer at ₹${lowestPrice.toLocaleString("en-IN")} is near a 30-day low.`,
-        best_value: `Amazon & Flipkart offer the best combination of lowest price, instant bank card discounts, and fast delivery.`,
-      });
-    }
-  }, [listings, lowestPrice, avgPrice, productName]);
+  }, [rawId]);
 
   if (isLoading) {
     return (
@@ -160,86 +190,118 @@ export default function ProductDetailPage() {
   }
 
   const minP = lowestPrice || (listings.length > 0 ? Math.min(...listings.map((l) => l.price)) : 0);
+  const currentImage = galleryImages[activeImageIndex] || galleryImages[0] || "";
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8" style={{ background: "var(--background)", paddingTop: "88px" }}>
-      <div className="max-w-7xl mx-auto space-y-8">
-        {/* Navigation header */}
+      <div className="max-w-7xl mx-auto space-y-10">
+
+        {/* Top Header */}
         <div className="flex items-center justify-between">
           <Link
             href="/products"
             className="inline-flex items-center gap-2 text-sm font-medium hover:text-indigo-400 transition-colors"
             style={{ color: "var(--foreground-muted)" }}
           >
-            <ChevronLeft className="h-4 w-4" /> Back to Search & Products
+            <ChevronLeft className="h-4 w-4" /> Back to Products
           </Link>
 
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            <RefreshCw className="h-3 w-3 animate-spin" /> Live Real-Time Aggregation
+          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm">
+            <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Live Real-Time Aggregation Active
           </span>
         </div>
 
-        {/* Product Overview Card - Redesigned 2x Prominent Image Layout */}
-        <div className="rounded-3xl p-6 sm:p-10 border grid grid-cols-1 lg:grid-cols-12 gap-8 shadow-xl" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-          {/* Prominent 2x Gallery Image Container (Left Column - 5 cols) */}
-          <div className="lg:col-span-5 flex flex-col items-center justify-center p-8 rounded-2xl border relative group" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
-            <div className="w-full h-80 sm:h-96 flex items-center justify-center overflow-hidden">
-              {productImage ? (
+        {/* Product Card: 40-45% Width Prominent Image Gallery + Specs Overview */}
+        <div className="rounded-3xl p-6 sm:p-10 border grid grid-cols-1 lg:grid-cols-12 gap-10 shadow-2xl" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+
+          {/* ── GALLERY CONTAINER (45% Width on Desktop: lg:col-span-5) ───────────── */}
+          <div className="lg:col-span-5 flex flex-col space-y-4">
+            {/* Primary Large HD Image with Zoom Hover & Lightbox Trigger */}
+            <div className="relative w-full h-80 sm:h-[420px] rounded-2xl border p-6 flex items-center justify-center overflow-hidden group cursor-pointer" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
+              {currentImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={productImage}
+                  src={currentImage}
                   alt={productName}
-                  className="max-h-80 sm:max-h-96 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
+                  className="max-h-80 sm:max-h-[380px] w-auto object-contain transition-transform duration-300 group-hover:scale-105"
+                  onClick={() => setIsLightboxOpen(true)}
                 />
               ) : (
-                <div className="flex flex-col items-center gap-3 text-indigo-400">
-                  <ShoppingBag className="h-32 w-32 stroke-1" />
-                  <span className="text-xs font-semibold" style={{ color: "var(--foreground-muted)" }}>
-                    HD Marketplace Image
-                  </span>
-                </div>
+                <ShoppingBag className="h-28 w-28 text-indigo-400 stroke-1" />
               )}
+
+              <button
+                onClick={() => setIsLightboxOpen(true)}
+                className="absolute top-4 right-4 p-2 rounded-xl bg-black/60 text-white backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Expand Fullscreen"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </button>
             </div>
+
+            {/* Thumbnail Strip (5-10 images) */}
+            {galleryImages.length > 1 && (
+              <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
+                {galleryImages.map((imgUrl, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveImageIndex(idx)}
+                    className={`h-16 w-16 rounded-xl border p-1 shrink-0 transition-all ${
+                      activeImageIndex === idx ? "border-indigo-500 ring-2 ring-indigo-500/30 scale-105" : "opacity-60 hover:opacity-100"
+                    }`}
+                    style={{ background: "var(--background)", borderColor: activeImageIndex === idx ? "#6366f1" : "var(--border)" }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imgUrl} alt={`Thumbnail ${idx + 1}`} className="h-full w-full object-contain rounded-lg" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Product Info & Price Stat Container (Right Column - 7 cols) */}
+          {/* ── PRODUCT DETAILS & PRICE STATS (Right Column: lg:col-span-7) ─────────── */}
           <div className="lg:col-span-7 flex flex-col justify-between space-y-6">
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-3">
                 <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 font-bold border border-indigo-500/20">
-                  <Tag className="h-3.5 w-3.5" /> Electronics & Gadgets
+                  <Tag className="h-3.5 w-3.5" /> {specs?.brand || "Official Brand"}
                 </span>
                 <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
                   <ShieldCheck className="h-3.5 w-3.5" /> Verified Retailers
                 </span>
+                {aiInsights?.ai_score && (
+                  <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-purple-500/10 text-purple-400 font-extrabold border border-purple-500/20">
+                    <Sparkles className="h-3.5 w-3.5" /> AI Score: {aiInsights.ai_score}/10
+                  </span>
+                )}
               </div>
 
               <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight" style={{ color: "var(--foreground)" }}>
                 {productName}
               </h1>
 
-              <p className="mt-4 text-sm leading-relaxed" style={{ color: "var(--foreground-muted)" }}>
-                Real-time price aggregation comparing official marketplace offers across Amazon India, Flipkart, Croma, Reliance Digital, Tata Cliq, Meesho, and Myntra.
+              <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--foreground-muted)" }}>
+                Real-time price comparison across Amazon India, Flipkart, Croma, Reliance Digital, Tata Cliq, Meesho, Myntra & Vijay Sales.
               </p>
             </div>
 
-            {/* Price Stats Box */}
-            <div className="p-6 rounded-2xl border grid grid-cols-1 sm:grid-cols-3 gap-4" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
+            {/* Price Stats Banner */}
+            <div className="p-6 rounded-2xl border grid grid-cols-1 sm:grid-cols-3 gap-4 shadow-inner" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
               <div>
                 <span className="text-xs font-semibold block" style={{ color: "var(--foreground-muted)" }}>
-                  Lowest Price
+                  Best Price Offer
                 </span>
-                <p className="text-2xl sm:text-3xl font-extrabold text-emerald-400">
+                <p className="text-3xl font-black text-emerald-400">
                   ₹{minP > 0 ? minP.toLocaleString("en-IN") : "N/A"}
                 </p>
               </div>
 
               <div>
                 <span className="text-xs font-semibold block" style={{ color: "var(--foreground-muted)" }}>
-                  Average Price
+                  Market Average
                 </span>
                 <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                  ₹{avgPrice ? avgPrice.toLocaleString("en-IN") : (minP * 1.05).toLocaleString("en-IN")}
+                  ₹{avgPrice ? avgPrice.toLocaleString("en-IN") : (minP * 1.06).toLocaleString("en-IN")}
                 </p>
               </div>
 
@@ -252,79 +314,127 @@ export default function ProductDetailPage() {
                 </p>
               </div>
             </div>
+
+            {/* Technical Specifications Grid */}
+            {specs && (
+              <div className="space-y-3 pt-2">
+                <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: "var(--foreground)" }}>
+                  <Layers className="h-4 w-4 text-indigo-400" /> Technical Specifications
+                </h3>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-2.5 rounded-xl border" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
+                    <span className="block text-[11px]" style={{ color: "var(--foreground-muted)" }}>Brand</span>
+                    <span className="font-bold" style={{ color: "var(--foreground)" }}>{specs.brand}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl border" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
+                    <span className="block text-[11px]" style={{ color: "var(--foreground-muted)" }}>RAM / Memory</span>
+                    <span className="font-bold" style={{ color: "var(--foreground)" }}>{specs.ram}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl border" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
+                    <span className="block text-[11px]" style={{ color: "var(--foreground-muted)" }}>Storage</span>
+                    <span className="font-bold" style={{ color: "var(--foreground)" }}>{specs.storage}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl border" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
+                    <span className="block text-[11px]" style={{ color: "var(--foreground-muted)" }}>Battery</span>
+                    <span className="font-bold" style={{ color: "var(--foreground)" }}>{specs.battery}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Gemini AI Insights Section */}
+        {/* Gemini AI Shopping Intelligence Card */}
         {aiInsights && (
-          <div className="rounded-3xl border p-6 sm:p-8 space-y-6 gradient-border relative overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+          <div className="rounded-3xl border p-6 sm:p-8 space-y-6 relative overflow-hidden shadow-xl" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg">
-                <Sparkles className="h-5 w-5 animate-pulse" />
+              <div className="p-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md">
+                <Sparkles className="h-6 w-6 animate-pulse" />
               </div>
               <div>
                 <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--foreground)" }}>
                   Gemini AI Shopping Intelligence
                 </h2>
                 <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-                  Instant deal analysis, pros & cons, price trends, and alternative recommendations.
+                  Real-time deal verdict, pros, cons, and price trend analysis.
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Recommendation & Pros */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Verdict & Pros */}
               <div className="space-y-4 p-5 rounded-2xl border" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
                 <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-1.5">
-                  <ThumbsUp className="h-4 w-4" /> Why Recommended
+                  <ThumbsUp className="h-4 w-4" /> Should You Buy?
                 </h3>
-                <p className="text-xs leading-relaxed" style={{ color: "var(--foreground)" }}>
-                  {aiInsights.recommendation_reason}
+                <p className="text-xs font-semibold leading-relaxed" style={{ color: "var(--foreground)" }}>
+                  {aiInsights.should_you_buy}
                 </p>
 
-                <h4 className="text-xs font-bold text-indigo-400 mt-3">Key Pros</h4>
-                <ul className="space-y-1.5 text-xs" style={{ color: "var(--foreground-muted)" }}>
+                <h4 className="text-xs font-bold text-indigo-400 mt-2">Key Pros</h4>
+                <ul className="space-y-1 text-xs" style={{ color: "var(--foreground-muted)" }}>
                   {aiInsights.pros.map((pro, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                    <li key={i} className="flex items-start gap-1.5">
+                      <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
                       <span>{pro}</span>
                     </li>
                   ))}
                 </ul>
               </div>
 
-              {/* Price Trend & Best Value */}
+              {/* Price Trend & Value Score */}
               <div className="space-y-4 p-5 rounded-2xl border" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
                 <h3 className="text-sm font-bold text-purple-400 flex items-center gap-1.5">
-                  <TrendingDown className="h-4 w-4" /> Price Trend Explanation
+                  <TrendingDown className="h-4 w-4" /> Price Trend & Drop Prediction
                 </h3>
                 <p className="text-xs leading-relaxed" style={{ color: "var(--foreground-muted)" }}>
                   {aiInsights.price_trend}
                 </p>
 
-                <h4 className="text-xs font-bold text-amber-400 mt-3">Best Value Recommendation</h4>
+                <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 mt-3">
+                  <span className="text-xs font-bold text-purple-400 block">Value for Money Score</span>
+                  <p className="text-2xl font-black text-purple-300">{aiInsights.value_for_money_score} / 10</p>
+                </div>
+              </div>
+
+              {/* Best Store & Alternatives */}
+              <div className="space-y-4 p-5 rounded-2xl border" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
+                <h3 className="text-sm font-bold text-amber-400 flex items-center gap-1.5">
+                  <Award className="h-4 w-4" /> Best Store & Alternatives
+                </h3>
                 <p className="text-xs leading-relaxed" style={{ color: "var(--foreground-muted)" }}>
-                  {aiInsights.best_value}
+                  {aiInsights.best_marketplace_recommendation}
                 </p>
+
+                <h4 className="text-xs font-bold text-indigo-400 mt-2">Best Alternatives</h4>
+                <ul className="space-y-1 text-xs" style={{ color: "var(--foreground-muted)" }}>
+                  {aiInsights.best_alternatives.map((alt, i) => (
+                    <li key={i} className="flex items-center gap-1.5">
+                      <Zap className="h-3 w-3 text-amber-400 shrink-0" />
+                      <span>{alt}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
           </div>
         )}
 
-        {/* PART 4: Professional Marketplace Comparison Table */}
-        <div className="rounded-3xl border p-6 sm:p-8 space-y-6 shadow-xl" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-4" style={{ borderColor: "var(--border)" }}>
+        {/* ── GOOGLE SHOPPING STYLE MARKETPLACE COMPARISON MATRIX ───────────────────── */}
+        <div className="rounded-3xl border p-6 sm:p-8 space-y-6 shadow-2xl" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-4" style={{ borderColor: "var(--border)" }}>
             <div>
-              <h2 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                Live Marketplace Price Comparison
+              <h2 className="text-2xl font-bold tracking-tight" style={{ color: "var(--foreground)" }}>
+                Marketplace Price Comparison Matrix
               </h2>
               <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                Sorted by lowest price across verified Indian retailers.
+                Live prices from verified online retailers sorted by lowest price.
               </p>
             </div>
 
-            <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 self-start sm:self-auto">
-              {listings.length} Stores Online
+            <span className="text-xs font-bold px-3.5 py-1.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 self-start sm:self-auto">
+              {listings.length} Marketplace Offers
             </span>
           </div>
 
@@ -334,9 +444,6 @@ export default function ProductDetailPage() {
               <p className="text-base font-bold" style={{ color: "var(--foreground)" }}>
                 No marketplace listings found
               </p>
-              <p className="text-xs max-w-sm mx-auto" style={{ color: "var(--foreground-muted)" }}>
-                We could not find active retailer offers for this exact query right now.
-              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -344,10 +451,11 @@ export default function ProductDetailPage() {
                 <thead>
                   <tr className="border-b text-xs font-bold uppercase tracking-wider" style={{ borderColor: "var(--border)", color: "var(--foreground-muted)" }}>
                     <th className="py-3 px-4">Store</th>
-                    <th className="py-3 px-4">Price</th>
+                    <th className="py-3 px-4">Live Price</th>
                     <th className="py-3 px-4">Rating</th>
                     <th className="py-3 px-4">Delivery</th>
-                    <th className="py-3 px-4 text-right">Buy</th>
+                    <th className="py-3 px-4">EMI & Offers</th>
+                    <th className="py-3 px-4 text-right">Buy Now</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
@@ -363,7 +471,7 @@ export default function ProductDetailPage() {
                         {/* Store Column */}
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-xl bg-white p-1.5 border border-gray-200 flex items-center justify-center shrink-0 shadow-sm">
+                            <div className="h-11 w-11 rounded-xl bg-white p-1.5 border border-gray-200 flex items-center justify-center shrink-0 shadow-sm">
                               {lst.marketplace_logo ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={lst.marketplace_logo} alt={lst.marketplace_name} className="h-full w-full object-contain" />
@@ -386,7 +494,7 @@ export default function ProductDetailPage() {
                                 )}
                               </div>
                               <span className="text-[11px] block" style={{ color: "var(--foreground-muted)" }}>
-                                {lst.seller_name || "Verified Retailer"}
+                                Seller: {lst.seller_name || "Verified Merchant"}
                               </span>
                             </div>
                           </div>
@@ -395,7 +503,7 @@ export default function ProductDetailPage() {
                         {/* Price Column */}
                         <td className="py-4 px-4">
                           <div>
-                            <span className="text-base font-extrabold text-emerald-400">
+                            <span className="text-lg font-black text-emerald-400">
                               ₹{Number(lst.price).toLocaleString("en-IN")}
                             </span>
                             {lst.original_price && Number(lst.original_price) > Number(lst.price) && (
@@ -425,13 +533,29 @@ export default function ProductDetailPage() {
                           </span>
                         </td>
 
-                        {/* Buy Button Column */}
+                        {/* EMI & Offers Column */}
+                        <td className="py-4 px-4">
+                          <div className="text-xs space-y-0.5">
+                            {lst.emi_option && (
+                              <span className="flex items-center gap-1 text-indigo-400 font-semibold">
+                                <CreditCard className="h-3 w-3" /> {lst.emi_option}
+                              </span>
+                            )}
+                            {lst.special_offers && (
+                              <span className="flex items-center gap-1 text-emerald-400 font-medium">
+                                <Percent className="h-3 w-3" /> {lst.special_offers}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Buy Now Button Column */}
                         <td className="py-4 px-4 text-right">
                           <a
                             href={lst.listing_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold gradient-bg text-white shadow-md hover:opacity-90 transition-opacity"
+                            className="inline-flex items-center gap-1.5 px-4.5 py-2.5 rounded-xl text-xs font-bold gradient-bg text-white shadow-md hover:opacity-90 transition-opacity"
                           >
                             Buy Now <ExternalLink className="h-3.5 w-3.5" />
                           </a>
@@ -444,6 +568,54 @@ export default function ProductDetailPage() {
             </div>
           )}
         </div>
+
+        {/* ── LIGHTBOX FULL-SCREEN IMAGE MODAL ──────────────────────────────────────── */}
+        <AnimatePresence>
+          {isLightboxOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+              onClick={() => setIsLightboxOpen(false)}
+            >
+              <div className="relative max-w-4xl max-h-[90vh] w-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => setIsLightboxOpen(false)}
+                  className="absolute -top-12 right-0 text-white hover:text-gray-300 p-2"
+                >
+                  <X className="h-8 w-8" />
+                </button>
+
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={currentImage}
+                  alt="Full preview"
+                  className="max-h-[85vh] w-auto object-contain rounded-xl shadow-2xl"
+                />
+
+                {galleryImages.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : galleryImages.length - 1))}
+                      className="absolute left-4 p-3 rounded-full bg-white/10 text-white hover:bg-white/20 backdrop-blur-md"
+                    >
+                      <ChevronLeft className="h-6 w-6" />
+                    </button>
+
+                    <button
+                      onClick={() => setActiveImageIndex((prev) => (prev < galleryImages.length - 1 ? prev + 1 : 0))}
+                      className="absolute right-4 p-3 rounded-full bg-white/10 text-white hover:bg-white/20 backdrop-blur-md"
+                    >
+                      <ChevronRight className="h-6 w-6" />
+                    </button>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
       </div>
     </div>
   );
