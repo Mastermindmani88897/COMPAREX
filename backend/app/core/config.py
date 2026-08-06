@@ -126,6 +126,10 @@ class Settings(BaseSettings):
     FLIPKART_AFFILIATE_TOKEN: Optional[str] = None
     THIRD_PARTY_SHOPPING_API_KEY: Optional[str] = None
     THIRD_PARTY_SHOPPING_PROVIDER: Optional[str] = "shopping_api"
+    RAINFOREST_API_KEY: Optional[str] = None
+    BRIGHTDATA_API_KEY: Optional[str] = None
+    SERPAPI_API_KEY: Optional[str] = None
+    ZENROWS_API_KEY: Optional[str] = None
 
     # ── Google OAuth & Gemini AI ──────────────────────────────────
     GOOGLE_CLIENT_ID: Optional[str] = None
