@@ -82,10 +82,22 @@ export default function WishlistDashboardPage() {
     best_value: [],
   });
 
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("date_added");
+
+  useEffect(() => {
+    apiClient
+      .get("/categories")
+      .then((res) => {
+        if (res.data?.data) {
+          setCategories(res.data.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const loadWishlist = async () => {
     setIsLoading(true);

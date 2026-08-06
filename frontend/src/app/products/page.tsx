@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import apiClient from "@/services/api";
 import type { Product, Category } from "@/types";
+import { WishlistHeartButton } from "@/components/wishlist/WishlistHeartButton";
 
 export default function ProductsCatalogPage() {
   const searchParams = useSearchParams();
@@ -292,11 +293,15 @@ export default function ProductsCatalogPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.03 }}
               >
-                <Link
-                  href={`/products/${product.id}`}
-                  className="flex flex-col justify-between h-full rounded-2xl p-5 border transition-all duration-200 hover:border-indigo-500 hover:shadow-xl group"
-                  style={{ background: "var(--card)", borderColor: "var(--border)" }}
-                >
+                <div className="relative group flex flex-col justify-between h-full">
+                  <div className="absolute top-3 right-3 z-10">
+                    <WishlistHeartButton productId={product.id} size="sm" />
+                  </div>
+                  <Link
+                    href={`/products/${product.id}`}
+                    className="flex flex-col justify-between h-full rounded-2xl p-5 border transition-all duration-200 hover:border-indigo-500 hover:shadow-xl"
+                    style={{ background: "var(--card)", borderColor: "var(--border)" }}
+                  >
                   <div>
                     <div className="h-12 w-12 rounded-xl flex items-center justify-center mb-4" style={{ background: "rgba(99,102,241,0.1)" }}>
                       {product.image_url ? (
@@ -342,7 +347,8 @@ export default function ProductsCatalogPage() {
                     </div>
                   </div>
                 </Link>
-              </motion.div>
+              </div>
+            </motion.div>
             ))}
           </div>
         )}

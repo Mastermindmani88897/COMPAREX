@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Heart } from "lucide-react";
 import apiClient from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
@@ -24,6 +24,7 @@ export function WishlistHeartButton({
 }: WishlistHeartButtonProps) {
   const { user } = useAuth();
   const [isWishlisted, setIsWishlisted] = useState<boolean>(initialIsWishlisted);
+  const [itemId, setItemId] = useState<string | undefined>(wishlistItemId);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const iconSizes = {
@@ -31,6 +32,35 @@ export function WishlistHeartButton({
     md: "h-5 w-5",
     lg: "h-6 w-6",
   };
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsWishlisted(initialIsWishlisted);
+
+    if (user && productId && !initialIsWishlisted) {
+      apiClient
+        .get("/wishlist")
+        .then((res) => {
+          if (!isMounted) return;
+          const items = res.data?.data?.items || [];
+          const match = items.find(
+            (i: { product_id: string; product?: { id: string }; id: string }) =>
+              i.product_id === productId || i.product?.id === productId
+          );
+          if (match) {
+            setIsWishlisted(true);
+            setItemId(match.id);
+          }
+        })
+        .catch(() => {
+          // Ignore error silently on initial state check
+        });
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user, productId, initialIsWishlisted]);
 
   const handleToggle = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -48,14 +78,18 @@ export function WishlistHeartButton({
     try {
       if (nextState) {
         // Add to wishlist
-        await apiClient.post("/wishlist", {
+        const res = await apiClient.post("/wishlist", {
           product_id: productId,
           preferred_marketplace: "Amazon",
         });
+        if (res.data?.data?.id) {
+          setItemId(res.data.data.id);
+        }
       } else {
         // Remove from wishlist
-        const targetId = wishlistItemId || productId;
+        const targetId = itemId || wishlistItemId || productId;
         await apiClient.delete(`/wishlist/${targetId}`);
+        setItemId(undefined);
       }
 
       if (onToggle) {
@@ -90,3 +124,4 @@ export function WishlistHeartButton({
     </button>
   );
 }
+

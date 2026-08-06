@@ -122,7 +122,22 @@ class WishlistService:
         self, current_user: User, req: WishlistItemCreate
     ) -> WishlistItemPublic:
         """Add product to wishlist and sync target price alert."""
-        product = await self.product_repo.get_by_id(req.product_id)
+        product_id = req.product_id
+        if isinstance(product_id, str):
+            try:
+                product_id = uuid.UUID(product_id)
+            except ValueError:
+                # Search product by name / slug if non-UUID string sent
+                matches = await self.product_repo.search_by_name(product_id, limit=1)
+                if matches:
+                    product_id = matches[0].id
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Product not found",
+                    )
+
+        product = await self.product_repo.get_by_id(product_id)
         if not product:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -130,7 +145,7 @@ class WishlistService:
             )
 
         existing = await self.wishlist_repo.get_by_user_and_product(
-            current_user.id, req.product_id
+            current_user.id, product.id
         )
         if existing:
             # Update target price / preferred marketplace if already exists
@@ -146,7 +161,7 @@ class WishlistService:
             item = await self.wishlist_repo.create(
                 {
                     "user_id": current_user.id,
-                    "product_id": req.product_id,
+                    "product_id": product.id,
                     "preferred_marketplace": req.preferred_marketplace or "Amazon",
                     "target_price": req.target_price or product.base_price,
                     "notes": req.notes,
@@ -156,7 +171,7 @@ class WishlistService:
         # Auto-sync Price Alert
         if req.target_price or product.base_price:
             target = req.target_price or product.base_price
-            await self._sync_price_alert(current_user.id, req.product_id, target)
+            await self._sync_price_alert(current_user.id, product.id, target)
 
         live_price = product.base_price or Decimal("19999.00")
 
@@ -176,10 +191,26 @@ class WishlistService:
         )
 
     async def update_wishlist_item(
-        self, current_user: User, item_id: uuid.UUID, req: WishlistItemUpdate
+        self, current_user: User, item_id: uuid.UUID | str, req: WishlistItemUpdate
     ) -> WishlistItemPublic:
         """Update a wishlist item's target price, preferred marketplace, or notes."""
-        item = await self.wishlist_repo.get_by_id_and_user(item_id, current_user.id)
+        target_uuid: Optional[uuid.UUID] = None
+        if isinstance(item_id, str):
+            try:
+                target_uuid = uuid.UUID(item_id)
+            except ValueError:
+                target_uuid = None
+        else:
+            target_uuid = item_id
+
+        item = None
+        if target_uuid:
+            item = await self.wishlist_repo.get_by_id_and_user(target_uuid, current_user.id)
+            if not item:
+                item = await self.wishlist_repo.get_by_user_and_product(
+                    current_user.id, target_uuid
+                )
+
         if not item:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -210,13 +241,26 @@ class WishlistService:
             product=ProductPublic.model_validate(product) if product else None,
         )
 
-    async def remove_from_wishlist(self, current_user: User, id_or_product_id: uuid.UUID) -> None:
+    async def remove_from_wishlist(self, current_user: User, id_or_product_id: uuid.UUID | str) -> None:
         """Remove a product from wishlist by Wishlist Item ID or Product ID."""
-        item = await self.wishlist_repo.get_by_id_and_user(id_or_product_id, current_user.id)
-        if not item:
-            item = await self.wishlist_repo.get_by_user_and_product(
-                current_user.id, id_or_product_id
-            )
+        target_uuid: Optional[uuid.UUID] = None
+        if isinstance(id_or_product_id, str):
+            try:
+                target_uuid = uuid.UUID(id_or_product_id)
+            except ValueError:
+                matches = await self.product_repo.search_by_name(id_or_product_id, limit=1)
+                if matches:
+                    target_uuid = matches[0].id
+        else:
+            target_uuid = id_or_product_id
+
+        item = None
+        if target_uuid:
+            item = await self.wishlist_repo.get_by_id_and_user(target_uuid, current_user.id)
+            if not item:
+                item = await self.wishlist_repo.get_by_user_and_product(
+                    current_user.id, target_uuid
+                )
 
         if not item:
             raise HTTPException(

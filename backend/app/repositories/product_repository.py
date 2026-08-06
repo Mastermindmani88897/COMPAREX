@@ -2,9 +2,11 @@
 COMPAREX Backend – Product Repository
 """
 
+import uuid
 from typing import Optional
 from sqlalchemy import select, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.product import Product
 from app.repositories.base import BaseRepository
@@ -15,6 +17,20 @@ class ProductRepository(BaseRepository[Product]):
 
     def __init__(self, db: AsyncSession) -> None:
         super().__init__(Product, db)
+
+    async def get_with_relations(self, product_id: uuid.UUID) -> Optional[Product]:
+        """Fetch a product by ID eagerly loading listings, specs, and images."""
+        stmt = (
+            select(Product)
+            .where(Product.id == product_id)
+            .options(
+                selectinload(Product.listings),
+                selectinload(Product.specifications),
+                selectinload(Product.images),
+            )
+        )
+        res = await self.db.execute(stmt)
+        return res.scalars().first()
 
     async def get_by_ean(self, ean: str) -> Optional[Product]:
         """Fetch a product by EAN barcode."""

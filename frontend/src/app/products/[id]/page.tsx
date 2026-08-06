@@ -105,6 +105,8 @@ export default function ProductDetailPage() {
   const [avgPrice, setAvgPrice] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  const [realProductId, setRealProductId] = useState<string>(rawId);
+
   // Helper to check if string is UUID
   const isUuidFormat = (val: string) => {
     return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(val);
@@ -124,8 +126,20 @@ export default function ProductDetailPage() {
           if (prodRes.data?.data?.name) {
             queryTerm = prodRes.data.data.name;
           }
+          if (prodRes.data?.data?.id) {
+            setRealProductId(prodRes.data.data.id);
+          }
         } catch {
           queryTerm = "Poco X5 Pro 5G";
+        }
+      } else {
+        try {
+          const prodRes = await apiClient.get(`/products?query=${encodeURIComponent(queryTerm)}&limit=1`);
+          if (prodRes.data?.data?.[0]?.id) {
+            setRealProductId(prodRes.data.data[0].id);
+          }
+        } catch {
+          // keep rawId fallback
         }
       }
 
@@ -208,7 +222,7 @@ export default function ProductDetailPage() {
           </Link>
 
           <div className="flex items-center gap-3">
-            <WishlistHeartButton productId={rawId} size="lg" />
+            <WishlistHeartButton productId={realProductId} size="lg" />
             <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm">
               <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Live Real-Time Aggregation Active
             </span>

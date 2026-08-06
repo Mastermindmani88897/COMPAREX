@@ -68,7 +68,7 @@ async def add_to_wishlist(
     description="Update target price, preferred marketplace, or notes for a wishlist item.",
 )
 async def update_wishlist_item(
-    id: uuid.UUID,
+    id: str,
     req: WishlistItemUpdate,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
@@ -86,7 +86,7 @@ async def update_wishlist_item(
     description="Remove a product from wishlist by Wishlist Item ID or Product ID.",
 )
 async def remove_from_wishlist(
-    id: uuid.UUID,
+    id: str,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):

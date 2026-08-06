@@ -15,7 +15,7 @@ from app.schemas.product import ProductPublic
 class WishlistItemCreate(BaseModel):
     """Payload to add a product to wishlist."""
 
-    product_id: uuid.UUID
+    product_id: uuid.UUID | str
     preferred_marketplace: Optional[str] = "Amazon"
     target_price: Optional[Decimal] = None
     notes: Optional[str] = None
