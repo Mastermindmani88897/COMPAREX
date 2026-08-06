@@ -37,6 +37,7 @@ import {
   Layers,
 } from "lucide-react";
 import apiClient from "@/services/api";
+import { WishlistHeartButton } from "@/components/wishlist/WishlistHeartButton";
 
 interface ListingItem {
   id: string;
@@ -206,9 +207,12 @@ export default function ProductDetailPage() {
             <ChevronLeft className="h-4 w-4" /> Back to Products
           </Link>
 
-          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm">
-            <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Live Real-Time Aggregation Active
-          </span>
+          <div className="flex items-center gap-3">
+            <WishlistHeartButton productId={rawId} size="lg" />
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm">
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Live Real-Time Aggregation Active
+            </span>
+          </div>
         </div>
 
         {/* Product Card: 40-45% Width Prominent Image Gallery + Specs Overview */}

@@ -36,6 +36,7 @@ from app.api.v1.endpoints import (
     profile,
     recommendations,
     users,
+    wishlist,
 )
 
 v1_router = APIRouter()
@@ -81,6 +82,7 @@ v1_router.include_router(price_history.router)
 
 # Price Drop Alerts & Watchlist
 v1_router.include_router(alerts.router)
+v1_router.include_router(wishlist.router)
 
 # Smart Coupon Engine
 v1_router.include_router(coupons.router)

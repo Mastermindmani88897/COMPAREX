@@ -29,6 +29,7 @@ import { getUserDisplayName, getUserFirstName, getUserInitials } from "@/utils/u
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: "Overview", href: "/dashboard", active: true },
+  { icon: Heart, label: "Wishlist & Favorites", href: "/dashboard/wishlist", active: false },
   { icon: ShoppingBag, label: "My Products", href: "/products", active: false },
   { icon: Bell, label: "Price Alerts", href: "/dashboard#alerts", active: false },
   { icon: Settings, label: "Settings", href: "/dashboard/settings", active: false },

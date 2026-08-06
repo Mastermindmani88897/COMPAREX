@@ -20,20 +20,51 @@ router = APIRouter(prefix="/products", tags=["Products"])
 
 
 @router.get(
+    "/autocomplete",
+    summary="Search Autocomplete Suggestions",
+    description="Returns instant search suggestions, brand matches, and categories for search bar.",
+)
+async def autocomplete_products(
+    q: str = Query(..., min_length=1, description="Search term prefix"),
+    limit: int = Query(8, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+):
+    """Autocomplete endpoint."""
+    service = ProductService(db)
+    suggestions = await service.autocomplete_suggestions(query=q, limit=limit)
+    return SuccessResponse(
+        message="Autocomplete suggestions retrieved",
+        data=suggestions,
+    )
+
+
+@router.get(
     "",
     response_model=SuccessResponse[list[ProductPublic]],
     summary="List Products",
-    description="Retrieve all indexed products with optional search query filter.",
+    description="Retrieve all indexed products with search query, category, brand, and price range filters.",
 )
 async def list_products(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     query: Optional[str] = Query(None, description="Search term for product name"),
+    category: Optional[str] = Query(None, description="Category filter"),
+    brand: Optional[str] = Query(None, description="Brand filter"),
+    min_price: Optional[float] = Query(None, ge=0, description="Minimum price filter"),
+    max_price: Optional[float] = Query(None, ge=0, description="Maximum price filter"),
     db: AsyncSession = Depends(get_db),
 ):
     """List products endpoint."""
     service = ProductService(db)
-    products = await service.list_products(skip=skip, limit=limit, query=query)
+    products = await service.list_products(
+        skip=skip,
+        limit=limit,
+        query=query,
+        category=category,
+        brand=brand,
+        min_price=min_price,
+        max_price=max_price,
+    )
     return SuccessResponse(
         message="Products retrieved successfully",
         data=products,

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Zap, LogOut, LayoutDashboard, User } from "lucide-react";
+import { Menu, X, Zap, LogOut, LayoutDashboard, User, Heart } from "lucide-react";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { siteConfig } from "@/config/site";
 import { useAuth } from "@/context/AuthContext";
@@ -96,6 +96,17 @@ export function Navbar() {
             {/* Right Actions */}
             <div className="hidden md:flex items-center gap-3">
               <ThemeToggle />
+
+              {isAuthenticated && user && (
+                <Link
+                  href="/dashboard/wishlist"
+                  className="p-2 rounded-xl border hover:text-rose-400 hover:border-rose-400/30 transition-colors"
+                  style={{ borderColor: "var(--border)", background: "var(--card)", color: "var(--foreground-muted)" }}
+                  title="My Wishlist & Favorites"
+                >
+                  <Heart className="h-4 w-4 text-rose-500 fill-rose-500/20" />
+                </Link>
+              )}
 
               {isLoading ? (
                 <div className="h-8 w-8 rounded-lg bg-slate-800 animate-pulse" />

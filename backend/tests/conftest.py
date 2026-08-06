@@ -53,3 +53,11 @@ async def setup_test_db():
     app.dependency_overrides[get_db] = _override_get_db
     yield
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def async_client():
+    """Httpx AsyncClient fixture for testing endpoints."""
+    from httpx import ASGITransport, AsyncClient
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
