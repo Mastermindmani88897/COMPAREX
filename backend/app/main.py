@@ -32,85 +32,161 @@ logger = get_logger(__name__)
 
 async def verify_and_migrate_db_schema():
     """Verify ORM model columns exist in database and apply auto-migrations on startup."""
+    # ── Verify Environment Variables ─────────────────────────────────────
+    env_keys = {
+        "DATABASE_URL": bool(settings.DATABASE_URL),
+        "JWT_SECRET": bool(settings.EFFECTIVE_JWT_SECRET),
+        "GOOGLE_CLIENT_ID": bool(settings.GOOGLE_CLIENT_ID),
+        "GOOGLE_CLIENT_SECRET": bool(settings.GOOGLE_CLIENT_SECRET),
+        "GEMINI_API_KEY": bool(settings.GEMINI_API_KEY),
+        "RAINFOREST_API_KEY": bool(settings.RAINFOREST_API_KEY),
+        "BRIGHTDATA_API_KEY": bool(settings.BRIGHTDATA_API_KEY),
+        "SERPAPI_API_KEY": bool(settings.SERPAPI_API_KEY),
+        "ZENROWS_API_KEY": bool(settings.ZENROWS_API_KEY),
+    }
+    missing_envs = [k for k, v in env_keys.items() if not v]
+    if missing_envs:
+        logger.warning("Production Environment Variables Missing: %s", missing_envs)
+    else:
+        logger.info("Environment Variables Verified: All 9 required keys present.")
+
     try:
-        from sqlalchemy import text
-        from app.db.session import engine
+        from sqlalchemy import inspect, text
         from app.db.base import Base
+        from app.db.session import engine
         import app.models  # noqa: F401
+        from app.models.product import Product
 
         # 1. Create all missing ORM tables safely
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
-        # 2. Check & alter table columns if missing
+        # 2. Inspect products table columns dynamically
         async with engine.begin() as conn:
-            statements = [
+            def get_cols(sync_conn):
+                inspector = inspect(sync_conn)
+                if inspector.has_table("products"):
+                    return [c["name"] for c in inspector.get_columns("products")]
+                return []
+
+            existing_cols = await conn.run_sync(get_cols)
+            logger.info("Products table columns: %s", existing_cols)
+
+            expected_cols = [c.name for c in Product.__table__.columns]
+            missing_cols = [c for c in expected_cols if c not in existing_cols]
+            logger.info("Missing columns: %s", missing_cols)
+
+            # Column DDL Mappings for Products table
+            column_ddls = {
+                "rating": "ALTER TABLE products ADD COLUMN IF NOT EXISTS rating FLOAT DEFAULT 4.5;",
+                "review_count": (
+                    "ALTER TABLE products ADD COLUMN IF NOT EXISTS review_count INTEGER DEFAULT 0;"
+                ),
+                "popularity_score": (
+                    "ALTER TABLE products ADD COLUMN IF NOT EXISTS popularity_score FLOAT DEFAULT"
+                    " 0.0;"
+                ),
+                "search_keywords": (
+                    "ALTER TABLE products ADD COLUMN IF NOT EXISTS search_keywords TEXT;"
+                ),
+                "stock_status": (
+                    "ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_status VARCHAR(50)"
+                    " DEFAULT 'in_stock';"
+                ),
+                "discount_percentage": (
+                    "ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_percentage FLOAT"
+                    " DEFAULT 0.0;"
+                ),
+                "base_price": (
+                    "ALTER TABLE products ADD COLUMN IF NOT EXISTS base_price NUMERIC(12, 2);"
+                ),
+                "category": (
+                    "ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(255);"
+                ),
+                "brand": "ALTER TABLE products ADD COLUMN IF NOT EXISTS brand VARCHAR(255);",
+                "ean": "ALTER TABLE products ADD COLUMN IF NOT EXISTS ean VARCHAR(50);",
+            }
+
+            index_ddls = [
                 (
-                    "google_id",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);",
+                    "CREATE INDEX IF NOT EXISTS ix_products_category_brand ON products (category,"
+                    " brand);"
                 ),
                 (
-                    "google_id_idx",
-                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_id ON users (google_id);",
+                    "CREATE INDEX IF NOT EXISTS ix_products_base_price ON products (base_price);"
                 ),
                 (
-                    "login_provider",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS login_provider VARCHAR(50) "
-                    "DEFAULT 'email' NOT NULL;",
+                    "CREATE INDEX IF NOT EXISTS ix_products_popularity ON products"
+                    " (popularity_score);"
                 ),
-                ("avatar_url", "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;"),
+                "CREATE INDEX IF NOT EXISTS ix_products_rating ON products (rating);",
+                "CREATE INDEX IF NOT EXISTS ix_products_category ON products (category);",
+                "CREATE INDEX IF NOT EXISTS ix_products_brand ON products (brand);",
+                "CREATE INDEX IF NOT EXISTS ix_products_ean ON products (ean);",
+            ]
+
+            # Additional System Table Alterations
+            other_ddls = [
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);",
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_id ON users (google_id);",
                 (
-                    "hashed_password",
-                    "ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL;",
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS login_provider VARCHAR(50)"
+                    " DEFAULT 'email' NOT NULL;"
                 ),
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;",
+                "ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL;",
                 (
-                    "price_alerts_mp",
-                    "ALTER TABLE price_alerts ADD COLUMN IF NOT EXISTS marketplace "
-                    "VARCHAR(100) DEFAULT 'All Marketplaces' NOT NULL;",
-                ),
-                (
-                    "price_alerts_method",
-                    "ALTER TABLE price_alerts ADD COLUMN IF NOT EXISTS notification_method "
-                    "VARCHAR(50) DEFAULT 'both' NOT NULL;",
-                ),
-                (
-                    "price_history_pid",
-                    "ALTER TABLE price_history ADD COLUMN IF NOT EXISTS product_id "
-                    "UUID REFERENCES products(id) ON DELETE CASCADE;",
-                ),
-                (
-                    "price_history_slug",
-                    "ALTER TABLE price_history ADD COLUMN IF NOT EXISTS marketplace_slug "
-                    "VARCHAR(100);",
+                    "ALTER TABLE price_alerts ADD COLUMN IF NOT EXISTS marketplace VARCHAR(100)"
+                    " DEFAULT 'All Marketplaces' NOT NULL;"
                 ),
                 (
-                    "idx_ph_pid",
-                    "CREATE INDEX IF NOT EXISTS ix_price_history_product_id "
-                    "ON price_history (product_id);",
+                    "ALTER TABLE price_alerts ADD COLUMN IF NOT EXISTS notification_method"
+                    " VARCHAR(50) DEFAULT 'both' NOT NULL;"
                 ),
                 (
-                    "idx_ph_slug",
-                    "CREATE INDEX IF NOT EXISTS ix_price_history_marketplace_slug "
-                    "ON price_history (marketplace_slug);",
+                    "ALTER TABLE price_history ADD COLUMN IF NOT EXISTS product_id UUID REFERENCES"
+                    " products(id) ON DELETE CASCADE;"
                 ),
                 (
-                    "idx_notif_user",
-                    "CREATE INDEX IF NOT EXISTS ix_notifications_user_id "
-                    "ON notifications (user_id);",
+                    "ALTER TABLE price_history ADD COLUMN IF NOT EXISTS marketplace_slug"
+                    " VARCHAR(100);"
                 ),
                 (
-                    "idx_notif_read",
-                    "CREATE INDEX IF NOT EXISTS ix_notifications_is_read "
-                    "ON notifications (is_read);",
+                    "CREATE INDEX IF NOT EXISTS ix_price_history_product_id ON price_history"
+                    " (product_id);"
+                ),
+                (
+                    "CREATE INDEX IF NOT EXISTS ix_price_history_marketplace_slug ON price_history"
+                    " (marketplace_slug);"
+                ),
+                (
+                    "CREATE INDEX IF NOT EXISTS ix_notifications_user_id ON notifications"
+                    " (user_id);"
+                ),
+                (
+                    "CREATE INDEX IF NOT EXISTS ix_notifications_is_read ON notifications"
+                    " (is_read);"
                 ),
             ]
 
-            for key, stmt in statements:
-                await conn.execute(text(stmt))
+            executed_any = False
+            for col in missing_cols:
+                if col in column_ddls:
+                    await conn.execute(text(column_ddls[col]))
+                    executed_any = True
 
-        logger.info(
-            "Database schema validation completed cleanly. All ORM tables verified."
-        )
+            for idx_stmt in index_ddls + other_ddls:
+                await conn.execute(text(idx_stmt))
+
+            if executed_any:
+                logger.info(
+                    "Migration executed: Added missing columns (%s) to products table.",
+                    missing_cols,
+                )
+            else:
+                logger.info("Migration executed: Schema up to date, all Product columns present.")
+
+        logger.info("Schema validation completed.")
     except Exception as exc:
         logger.warning("Startup database schema verification warning: %s", exc)
 
