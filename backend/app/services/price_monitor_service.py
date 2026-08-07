@@ -37,7 +37,7 @@ class PriceMonitorService:
 
         async with AsyncSessionLocal() as session:
             try:
-                stmt = select(PriceAlert).where(PriceAlert.is_active == True)
+                stmt = select(PriceAlert).where(PriceAlert.is_active.is_(True))
                 res = await session.execute(stmt)
                 alerts: List[PriceAlert] = list(res.scalars().all())
                 logger.info("Found %d active price alerts to monitor.", len(alerts))
@@ -61,7 +61,6 @@ class PriceMonitorService:
 
                     # 2. Append new price history records for each store
                     for lst in listings:
-                        store_name = lst.get("marketplace_name") or lst.get("marketplace_slug") or "Amazon"
                         store_price = lst.get("price")
                         if store_price and store_price > 0:
                             ph = PriceHistory(
@@ -86,12 +85,21 @@ class PriceMonitorService:
 
                         # Create Notification
                         notif_service = NotificationService(session)
-                        best_store = listings[0].get("marketplace_name", "Retailer") if listings else "Amazon"
+                        best_store = (
+                            listings[0].get("marketplace_name", "Retailer")
+                            if listings
+                            else "Amazon"
+                        )
+                        target_val = float(target_price)
+                        notif_msg = (
+                            f"{product.name} price dropped on {best_store}! "
+                            f"Current Price: ₹{lowest_price:,.0f} (Target: ₹{target_val:,.0f})."
+                        )
                         await notif_service.create_notification(
                             user_id=alert.user_id,
                             product_id=product.id,
                             title="🔔 Great News! Price Dropped!",
-                            message=f"{product.name} price dropped on {best_store}! Current Price: ₹{lowest_price:,.0f} (Target: ₹{float(target_price):,.0f}).",
+                            message=notif_msg,
                             type="price_drop",
                             target_price=target_price,
                             current_price=Decimal(str(lowest_price)),

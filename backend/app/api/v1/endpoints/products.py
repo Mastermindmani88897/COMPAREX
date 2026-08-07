@@ -42,7 +42,10 @@ async def autocomplete_products(
     "",
     response_model=SuccessResponse[list[ProductPublic]],
     summary="List Products",
-    description="Retrieve all indexed products with search query, category, brand, rating, stock status, and price range filters.",
+    description=(
+        "Retrieve all indexed products with search query, category, brand, rating, stock status, "
+        "and price range filters."
+    ),
 )
 async def list_products(
     skip: int = Query(0, ge=0),
@@ -54,7 +57,9 @@ async def list_products(
     max_price: Optional[float] = Query(None, ge=0, description="Maximum price filter"),
     min_rating: Optional[float] = Query(None, ge=0, le=5, description="Minimum rating filter"),
     in_stock_only: Optional[bool] = Query(None, description="Filter in-stock products only"),
-    sort_by: Optional[str] = Query(None, description="Sort order: popularity, price_low, price_high, rating, discount"),
+    sort_by: Optional[str] = Query(
+        None, description="Sort order: popularity, price_low, price_high, rating, discount"
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """List products endpoint."""

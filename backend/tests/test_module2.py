@@ -1,7 +1,8 @@
 """
 COMPAREX Backend - Module 2 Prioritized Marketplace Connector Test Suite
 
-Tests Priority 1 (Official API), Priority 2 (Third-Party Provider), and Priority 3 (Graceful Fallback & Cache).
+Tests Priority 1 (Official API), Priority 2 (Third-Party Provider),
+and Priority 3 (Graceful Fallback & Cache).
 """
 
 import pytest
@@ -72,7 +73,7 @@ async def test_priority_1_official_api():
 async def test_connector_never_crashes_on_error():
     """Test that connector catches priority errors gracefully and returns fallback data."""
     connector = PrioritizedMarketplaceConnector(marketplace_slug="flipkart")
-    
+
     # Details & price check should return valid payload without raising exceptions
     details = await connector.fetch_product_details("https://www.flipkart.com/item/123")
     assert "price" in details

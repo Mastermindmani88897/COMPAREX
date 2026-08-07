@@ -28,7 +28,9 @@ router = APIRouter(tags=["Price Drop Alerts & Watchlist"])
     response_model=SuccessResponse[Dict[str, Any]],
     status_code=status.HTTP_201_CREATED,
     summary="Create Price Drop Alert",
-    description="Set target price threshold, marketplace preference, and notification method for a product.",
+    description=(
+        "Set target price threshold, marketplace preference, and notification method for a product."
+    ),
 )
 async def create_price_alert(
     payload: PriceAlertCreate,

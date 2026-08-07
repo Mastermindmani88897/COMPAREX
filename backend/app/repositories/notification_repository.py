@@ -23,7 +23,7 @@ class NotificationRepository(BaseRepository[Notification]):
         """Fetch notifications for user sorted by newest first."""
         stmt = select(Notification).where(Notification.user_id == user_id)
         if unread_only:
-            stmt = stmt.where(Notification.is_read == False)
+            stmt = stmt.where(Notification.is_read.is_(False))
         stmt = stmt.order_by(desc(Notification.created_at)).limit(limit)
         res = await self.db.execute(stmt)
         return list(res.scalars().all())
@@ -31,12 +31,14 @@ class NotificationRepository(BaseRepository[Notification]):
     async def get_unread_count(self, user_id: uuid.UUID) -> int:
         """Get count of unread notifications for a user."""
         stmt = select(Notification).where(
-            Notification.user_id == user_id, Notification.is_read == False
+            Notification.user_id == user_id, Notification.is_read.is_(False)
         )
         res = await self.db.execute(stmt)
         return len(list(res.scalars().all()))
 
-    async def mark_as_read(self, notification_id: uuid.UUID, user_id: uuid.UUID) -> Optional[Notification]:
+    async def mark_as_read(
+        self, notification_id: uuid.UUID, user_id: uuid.UUID
+    ) -> Optional[Notification]:
         """Mark a single notification as read."""
         stmt = select(Notification).where(
             Notification.id == notification_id, Notification.user_id == user_id
@@ -53,7 +55,7 @@ class NotificationRepository(BaseRepository[Notification]):
         """Mark all unread notifications as read for a user."""
         stmt = (
             update(Notification)
-            .where(Notification.user_id == user_id, Notification.is_read == False)
+            .where(Notification.user_id == user_id, Notification.is_read.is_(False))
             .values(is_read=True)
         )
         res = await self.db.execute(stmt)

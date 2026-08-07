@@ -44,7 +44,7 @@ class WishlistService:
         category: Optional[str] = None,
         sort_by: str = "date_added",
     ) -> WishlistResponse:
-        """Fetch user wishlist enriched with live marketplace pricing, target price alert badges, and AI recommendations."""
+        """Fetch user wishlist enriched with live marketplace pricing and target price alerts."""
         raw_items = await self.wishlist_repo.get_by_user_id(current_user.id)
         public_items: List[WishlistItemPublic] = []
         total_savings = Decimal("0.0")
@@ -76,11 +76,15 @@ class WishlistService:
                 if agg.get("lowest_price") and agg["lowest_price"] > 0:
                     live_price = Decimal(str(agg["lowest_price"]))
             except Exception as exc:
-                logger.warning("Failed live price lookup for wishlist item %s: %s", product.name, exc)
+                logger.warning(
+                    "Failed live price lookup for wishlist item %s: %s", product.name, exc
+                )
 
             target = item.target_price or live_price
             price_drop = live_price <= target
-            savings = max(Decimal("0.0"), target - live_price) if live_price < target else Decimal("0.0")
+            savings = (
+                max(Decimal("0.0"), target - live_price) if live_price < target else Decimal("0.0")
+            )
             total_savings += savings
 
             pub = WishlistItemPublic(
@@ -146,9 +150,7 @@ class WishlistService:
                 detail="Product not found",
             )
 
-        existing = await self.wishlist_repo.get_by_user_and_product(
-            current_user.id, product.id
-        )
+        existing = await self.wishlist_repo.get_by_user_and_product(current_user.id, product.id)
         if existing:
             # Update target price / preferred marketplace if already exists
             existing.preferred_marketplace = (
@@ -243,7 +245,9 @@ class WishlistService:
             product=ProductPublic.model_validate(product) if product else None,
         )
 
-    async def remove_from_wishlist(self, current_user: User, id_or_product_id: uuid.UUID | str) -> None:
+    async def remove_from_wishlist(
+        self, current_user: User, id_or_product_id: uuid.UUID | str
+    ) -> None:
         """Remove a product from wishlist by Wishlist Item ID or Product ID."""
         target_uuid: Optional[uuid.UUID] = None
         if isinstance(id_or_product_id, str):
@@ -278,7 +282,9 @@ class WishlistService:
     ) -> None:
         """Create or update corresponding PriceAlert record for user."""
         try:
-            stmt = select(PriceAlert).where(PriceAlert.user_id == user_id, PriceAlert.product_id == product_id)
+            stmt = select(PriceAlert).where(
+                PriceAlert.user_id == user_id, PriceAlert.product_id == product_id
+            )
             res = await self.db.execute(stmt)
             existing = res.scalars().first()
 
@@ -296,7 +302,9 @@ class WishlistService:
                 self.db.add(alert)
             await self.db.commit()
         except Exception as exc:
-            logger.warning("Failed to sync price alert for user %s product %s: %s", user_id, product_id, exc)
+            logger.warning(
+                "Failed to sync price alert for user %s product %s: %s", user_id, product_id, exc
+            )
 
     def _generate_ai_wishlist_recommendations(
         self, items: List[WishlistItemPublic]
@@ -305,15 +313,40 @@ class WishlistService:
         if not items:
             return {
                 "you_may_also_like": [
-                    {"title": "Sony WH-1000XM5 Wireless Headphones", "brand": "Sony", "price": 24990, "marketplace": "Amazon"},
-                    {"title": "Apple iPad Air M2", "brand": "Apple", "price": 54900, "marketplace": "Flipkart"},
+                    {
+                        "title": "Sony WH-1000XM5 Wireless Headphones",
+                        "brand": "Sony",
+                        "price": 24990,
+                        "marketplace": "Amazon",
+                    },
+                    {
+                        "title": "Apple iPad Air M2",
+                        "brand": "Apple",
+                        "price": 54900,
+                        "marketplace": "Flipkart",
+                    },
                 ],
                 "cheaper_alternative": [
-                    {"title": "POCO X5 Pro 5G", "brand": "POCO", "price": 20999, "marketplace": "Flipkart"},
-                    {"title": "boAt Rockerz 550", "brand": "boAt", "price": 1499, "marketplace": "Amazon"},
+                    {
+                        "title": "POCO X5 Pro 5G",
+                        "brand": "POCO",
+                        "price": 20999,
+                        "marketplace": "Flipkart",
+                    },
+                    {
+                        "title": "boAt Rockerz 550",
+                        "brand": "boAt",
+                        "price": 1499,
+                        "marketplace": "Amazon",
+                    },
                 ],
                 "best_value": [
-                    {"title": "Samsung Galaxy S25 Ultra", "brand": "Samsung", "price": 129999, "marketplace": "Reliance Digital"},
+                    {
+                        "title": "Samsung Galaxy S25 Ultra",
+                        "brand": "Samsung",
+                        "price": 129999,
+                        "marketplace": "Reliance Digital",
+                    },
                 ],
             }
 

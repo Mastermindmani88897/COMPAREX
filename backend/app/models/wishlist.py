@@ -31,7 +31,6 @@ class Wishlist(Base):
         Index("ix_wishlist_user_created", "user_id", "created_at"),
     )
 
-
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -57,9 +56,7 @@ class Wishlist(Base):
         String(100), nullable=True, default="Amazon"
     )
 
-    target_price: Mapped[Optional[Decimal]] = mapped_column(
-        Numeric(12, 2), nullable=True
-    )
+    target_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
 
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

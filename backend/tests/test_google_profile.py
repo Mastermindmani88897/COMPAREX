@@ -14,7 +14,8 @@ def anyio_backend():
 
 @pytest.mark.anyio
 async def test_google_auth_name_resolution_full_name():
-    """Test that Google OAuth authentication with full_name returns full_name and not 'Google User'."""
+    """Test that Google OAuth authentication with full_name returns full_name and not
+    'Google User'."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         req_payload = {
             "google_id": "google_test_profile_101",
@@ -35,7 +36,8 @@ async def test_google_auth_name_resolution_full_name():
 
 @pytest.mark.anyio
 async def test_google_auth_name_resolution_email_prefix_fallback():
-    """Test that Google OAuth without name falls back to capitalized email prefix and NEVER 'Google User'."""
+    """Test that Google OAuth without name falls back to capitalized email prefix and
+    NEVER 'Google User'."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         req_payload = {
             "google_id": "google_test_profile_102",

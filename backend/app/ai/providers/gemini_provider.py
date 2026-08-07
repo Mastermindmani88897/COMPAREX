@@ -40,13 +40,18 @@ class GeminiProvider(BaseAIProvider):
         """Call Google Gemini 1.5 Flash generateContent REST API."""
         if not self.api_key:
             logger.info("Gemini API key omitted; generating structured AI response.")
-            return f"COMPAREX AI Analysis for '{prompt[:60]}': Highly recommended deal based on price trends, merchant trust score, and feature specs."
+            return (
+                f"COMPAREX AI Analysis for '{prompt[:60]}': Highly recommended deal based on "
+                "price trends, merchant trust score, and feature specs."
+            )
 
         url = f"{self.base_url}/{self.model_name}:generateContent?key={self.api_key}"
         contents = []
 
         if system_prompt:
-            contents.append({"role": "user", "parts": [{"text": f"System Context: {system_prompt}"}]})
+            contents.append(
+                {"role": "user", "parts": [{"text": f"System Context: {system_prompt}"}]}
+            )
         contents.append({"role": "user", "parts": [{"text": prompt}]})
 
         payload = {
@@ -67,11 +72,16 @@ class GeminiProvider(BaseAIProvider):
                         parts = candidates[0].get("content", {}).get("parts", [])
                         if parts:
                             return parts[0].get("text", "").strip()
-                logger.warning("Gemini API returned status %d: %s", response.status_code, response.text[:200])
+                logger.warning(
+                    "Gemini API returned status %d: %s", response.status_code, response.text[:200]
+                )
         except Exception as exc:
             logger.error("Error communicating with Gemini API: %s", exc)
 
-        return f"Gemini AI Shopping Intelligence: Analyzed '{prompt[:60]}'. Optimal purchase timing with strong deal confidence."
+        return (
+            f"Gemini AI Shopping Intelligence: Analyzed '{prompt[:60]}'. "
+            "Optimal purchase timing with strong deal confidence."
+        )
 
     async def analyze_image(
         self,
@@ -82,7 +92,7 @@ class GeminiProvider(BaseAIProvider):
         if self.api_key and image_bytes_or_url.startswith("http"):
             try:
                 gen_text = await self.generate_text(
-                    prompt=f"Identify this product from URL: {image_bytes_or_url}. Prompt: {prompt}"
+                    prompt=f"Identify product from URL: {image_bytes_or_url}. Prompt: {prompt}"
                 )
                 return {
                     "detected_product_type": "Consumer Product",
@@ -109,17 +119,35 @@ class GeminiProvider(BaseAIProvider):
     ) -> Dict[str, Any]:
         """Generate structured deal intelligence powered by Gemini AI."""
         prompt = (
-            f"Analyze product '{product_name}' priced at ₹{lowest_price} across {listings_count} Indian marketplaces. "
-            "Return concise insights: Why recommended, Pros, Cons, Alternative products, Price trend explanation, and Best value recommendation."
+            f"Analyze product '{product_name}' priced at ₹{lowest_price} across "
+            f"{listings_count} Indian marketplaces. Return concise insights: Why recommended, "
+            "Pros, Cons, Alternative products, Price trend, and Best value recommendation."
         )
 
         ai_response = await self.generate_text(
             prompt=prompt,
-            system_prompt="You are COMPAREX AI Shopping Specialist. Provide objective, expert buying intelligence.",
+            system_prompt=(
+                "You are COMPAREX AI Shopping Specialist. Provide objective buying intelligence."
+            ),
+        )
+
+        rec_reason = (
+            f"Top-rated value in its tier. Currently listed at ₹{lowest_price:,.0f}, "
+            "which represents a strong deal against average market pricing."
+        )
+
+        price_trend_msg = (
+            f"Prices for '{product_name}' have dropped ~8-12% over the last 30 days. "
+            f"Current price of ₹{lowest_price:,.0f} is near 30-day low."
+        )
+
+        best_val_msg = (
+            "Flipkart & Amazon offer the best combination of lowest price, "
+            "instant bank discounts, and trusted delivery."
         )
 
         return {
-            "recommendation_reason": f"Top-rated value in its tier. Currently listed at ₹{lowest_price:,.0f}, which represents a strong deal against average market pricing.",
+            "recommendation_reason": rec_reason,
             "pros": [
                 "Competitive price point across major Indian marketplaces",
                 "High customer satisfaction and verified merchant warranty",
@@ -133,8 +161,7 @@ class GeminiProvider(BaseAIProvider):
                 f"{product_name} (Higher Storage Variant)",
                 "Next-gen Competitor Model in same price bracket",
             ],
-            "price_trend": f"Prices for '{product_name}' have dropped ~8-12% over the last 30 days. Current price of ₹{lowest_price:,.0f} is near 30-day low.",
-            "best_value": "Flipkart & Amazon offer the best combination of lowest price, instant bank discounts, and trusted delivery.",
+            "price_trend": price_trend_msg,
+            "best_value": best_val_msg,
             "ai_raw_analysis": ai_response,
         }
-

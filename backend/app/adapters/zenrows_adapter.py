@@ -18,7 +18,9 @@ logger = get_logger(__name__)
 class ZenRowsAdapter(BaseMarketplaceAdapter):
     """Adapter for ZenRows proxy web scraper acting as Priority 4 fallback."""
 
-    def __init__(self, marketplace_slug: str = "zenrows", base_url: str = "https://zenrows.com") -> None:
+    def __init__(
+        self, marketplace_slug: str = "zenrows", base_url: str = "https://zenrows.com"
+    ) -> None:
         super().__init__(marketplace_slug=marketplace_slug, base_url=base_url)
         self.api_key = settings.ZENROWS_API_KEY or ""
         self.api_url = "https://api.zenrows.com/v1/"
@@ -43,27 +45,31 @@ class ZenRowsAdapter(BaseMarketplaceAdapter):
                 if response.status_code == 200:
                     logger.info("ZenRows API successfully scraped fallback results for '%s'", query)
                     # Extracted fallback listing
-                    return [{
-                        "title": f"{query} - Online Deal",
-                        "price": 49999.0,
-                        "original_price": 54999.0,
-                        "discount_percent": 9.0,
-                        "currency": "INR",
-                        "seller_name": "Online Retailer",
-                        "listing_url": f"https://www.google.com/search?q={query}",
-                        "marketplace_product_id": f"ZEN-{hash(query)%10000}",
-                        "is_available": True,
-                        "stock_status": "IN_STOCK",
-                        "delivery_estimate": "Delivery in 3 Days",
-                        "rating": 4.4,
-                        "review_count": 50,
-                        "image_url": "",
-                        "marketplace_slug": "generic_store",
-                        "marketplace_name": "Marketplace Partner",
-                        "marketplace_logo": "",
-                    }]
+                    return [
+                        {
+                            "title": f"{query} - Online Deal",
+                            "price": 49999.0,
+                            "original_price": 54999.0,
+                            "discount_percent": 9.0,
+                            "currency": "INR",
+                            "seller_name": "Online Retailer",
+                            "listing_url": f"https://www.google.com/search?q={query}",
+                            "marketplace_product_id": f"ZEN-{hash(query) % 10000}",
+                            "is_available": True,
+                            "stock_status": "IN_STOCK",
+                            "delivery_estimate": "Delivery in 3 Days",
+                            "rating": 4.4,
+                            "review_count": 50,
+                            "image_url": "",
+                            "marketplace_slug": "generic_store",
+                            "marketplace_name": "Marketplace Partner",
+                            "marketplace_logo": "",
+                        }
+                    ]
                 else:
-                    logger.warning("ZenRows API error status %d: %s", response.status_code, response.text[:200])
+                    logger.warning(
+                        "ZenRows API error status %d: %s", response.status_code, response.text[:200]
+                    )
         except Exception as exc:
             logger.error("ZenRows API exception: %s", exc)
 
@@ -79,8 +85,12 @@ class ZenRowsAdapter(BaseMarketplaceAdapter):
         return {
             "title": raw_data.get("title", "Fallback Product"),
             "price": float(raw_data.get("price", 0.0)),
-            "original_price": float(raw_data["original_price"]) if raw_data.get("original_price") else None,
-            "discount_percent": float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None,
+            "original_price": (
+                float(raw_data["original_price"]) if raw_data.get("original_price") else None
+            ),
+            "discount_percent": (
+                float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None
+            ),
             "currency": raw_data.get("currency", "INR"),
             "listing_url": raw_data.get("listing_url", "https://www.google.com"),
             "marketplace_product_id": raw_data.get("marketplace_product_id", "ZEN-01"),

@@ -348,6 +348,7 @@ CONNECTORS_TO_REGISTER = [
 def register_all_mock_connectors() -> None:
     """Register all mock connectors with both ConnectorRegistry and MarketplaceFactory."""
     from app.adapters.factory import MarketplaceFactory
+
     for meta, connector_cls in CONNECTORS_TO_REGISTER:
         ConnectorRegistry.register(meta, connector_cls)
         MarketplaceFactory.register(meta.slug, connector_cls)

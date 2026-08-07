@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.main import app
 from app.models.user import User
 from app.models.product import Product
-from app.models.wishlist import Wishlist
 from app.models.price_alert import PriceAlert
 from app.services.product_service import ProductService
 from app.services.wishlist_service import WishlistService
@@ -89,7 +88,9 @@ async def test_wishlist_crud_and_price_alert_sync(mock_agg, db_session: AsyncSes
     assert item.preferred_marketplace == "Amazon"
 
     # Verify PriceAlert record created
-    stmt_alert = select(PriceAlert).where(PriceAlert.user_id == user.id, PriceAlert.product_id == product.id)
+    stmt_alert = select(PriceAlert).where(
+        PriceAlert.user_id == user.id, PriceAlert.product_id == product.id
+    )
     alert_res = await db_session.execute(stmt_alert)
     alert = alert_res.scalars().first()
     assert alert is not None
@@ -188,4 +189,3 @@ async def test_wishlist_api_endpoints_oauth_and_password_users(mock_agg, db_sess
         # GET /api/v1/wishlist after delete
         get_res_empty = await client.get("/api/v1/wishlist", headers=headers)
         assert get_res_empty.json()["data"]["total_items"] == 0
-

@@ -15,20 +15,60 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 INDIAN_MARKETPLACES = [
-    {"name": "Flipkart", "slug": "flipkart", "domain": "flipkart.com", "logo": "https://pngimg.com/uploads/flipkart/flipkart_PNG1.png"},
-    {"name": "Croma", "slug": "croma", "domain": "croma.com", "logo": "https://www.croma.com/assets/images/croma_logo.png"},
-    {"name": "Reliance Digital", "slug": "reliance_digital", "domain": "reliancedigital.in", "logo": "https://www.reliancedigital.in/build/client/images/rd_logo.svg"},
-    {"name": "Tata Cliq", "slug": "tata_cliq", "domain": "tatacliq.com", "logo": "https://www.tatacliq.com/favicon.ico"},
-    {"name": "Meesho", "slug": "meesho", "domain": "meesho.com", "logo": "https://images.meesho.com/images/pow/meeshoLogo.png"},
-    {"name": "Myntra", "slug": "myntra", "domain": "myntra.com", "logo": "https://a57.foxnews.com/static.foxnews.com/foxnews.com/content/uploads/2021/02/1200/675/Myntra-logo.jpg"},
-    {"name": "Vijay Sales", "slug": "vijay_sales", "domain": "vijaysales.com", "logo": "https://www.vijaysales.com/images/vijaysales-logo.png"},
+    {
+        "name": "Flipkart",
+        "slug": "flipkart",
+        "domain": "flipkart.com",
+        "logo": "https://pngimg.com/uploads/flipkart/flipkart_PNG1.png",
+    },
+    {
+        "name": "Croma",
+        "slug": "croma",
+        "domain": "croma.com",
+        "logo": "https://www.croma.com/assets/images/croma_logo.png",
+    },
+    {
+        "name": "Reliance Digital",
+        "slug": "reliance_digital",
+        "domain": "reliancedigital.in",
+        "logo": "https://www.reliancedigital.in/build/client/images/rd_logo.svg",
+    },
+    {
+        "name": "Tata Cliq",
+        "slug": "tata_cliq",
+        "domain": "tatacliq.com",
+        "logo": "https://www.tatacliq.com/favicon.ico",
+    },
+    {
+        "name": "Meesho",
+        "slug": "meesho",
+        "domain": "meesho.com",
+        "logo": "https://images.meesho.com/images/pow/meeshoLogo.png",
+    },
+    {
+        "name": "Myntra",
+        "slug": "myntra",
+        "domain": "myntra.com",
+        "logo": (
+            "https://a57.foxnews.com/static.foxnews.com/foxnews.com/content/uploads/"
+            "2021/02/1200/675/Myntra-logo.jpg"
+        ),
+    },
+    {
+        "name": "Vijay Sales",
+        "slug": "vijay_sales",
+        "domain": "vijaysales.com",
+        "logo": "https://www.vijaysales.com/images/vijaysales-logo.png",
+    },
 ]
 
 
 class BrightDataAdapter(BaseMarketplaceAdapter):
     """Adapter for Bright Data API delivering Indian marketplace listings."""
 
-    def __init__(self, marketplace_slug: str = "brightdata", base_url: str = "https://brightdata.com") -> None:
+    def __init__(
+        self, marketplace_slug: str = "brightdata", base_url: str = "https://brightdata.com"
+    ) -> None:
         super().__init__(marketplace_slug=marketplace_slug, base_url=base_url)
         self.api_key = settings.BRIGHTDATA_API_KEY or ""
         self.endpoint = "https://api.brightdata.com/serp/req"
@@ -44,8 +84,12 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
             "Content-Type": "application/json",
         }
 
+        sites = (
+            "site:flipkart.com OR site:croma.com OR site:reliancedigital.in OR "
+            "site:tatacliq.com OR site:meesho.com OR site:myntra.com OR site:vijaysales.com"
+        )
         payload = {
-            "query": f"{query} buy online India site:flipkart.com OR site:croma.com OR site:reliancedigital.in OR site:tatacliq.com OR site:meesho.com OR site:myntra.com OR site:vijaysales.com",
+            "query": f"{query} buy online India {sites}",
             "country": "IN",
             "search_engine": "google",
         }
@@ -60,7 +104,7 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
                     for item in organic_results[:limit]:
                         url = item.get("link") or item.get("url") or ""
                         title = item.get("title") or item.get("snippet") or f"{query} online"
-                        
+
                         # Match store
                         matched_mp = None
                         for mp in INDIAN_MARKETPLACES:
@@ -76,29 +120,39 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
                             # Estimate price based on query
                             price = 24999.0
 
-                        listings.append({
-                            "title": title,
-                            "price": price,
-                            "original_price": price * 1.12,
-                            "discount_percent": 11.0,
-                            "currency": "INR",
-                            "seller_name": f"{matched_mp['name']} Official Store",
-                            "listing_url": url or f"https://www.{matched_mp['domain']}/search?q={query}",
-                            "marketplace_product_id": f"{matched_mp['slug'].upper()}-BD-{hash(url) % 10000}",
-                            "is_available": True,
-                            "stock_status": "IN_STOCK",
-                            "delivery_estimate": "Delivery in 2 Days",
-                            "rating": 4.6,
-                            "review_count": 85,
-                            "image_url": item.get("image") or "",
-                            "marketplace_slug": matched_mp["slug"],
-                            "marketplace_name": matched_mp["name"],
-                            "marketplace_logo": matched_mp["logo"],
-                        })
-                    logger.info("Bright Data fetched %d Indian marketplace listings for '%s'", len(listings), query)
+                        mp_pid = f"{matched_mp['slug'].upper()}-BD-{hash(url) % 10000}"
+                        listings.append(
+                            {
+                                "title": title,
+                                "price": price,
+                                "original_price": price * 1.12,
+                                "discount_percent": 11.0,
+                                "currency": "INR",
+                                "seller_name": f"{matched_mp['name']} Official Store",
+                                "listing_url": url
+                                or f"https://www.{matched_mp['domain']}/search?q={query}",
+                                "marketplace_product_id": mp_pid,
+                                "is_available": True,
+                                "stock_status": "IN_STOCK",
+                                "delivery_estimate": "Delivery in 2 Days",
+                                "rating": 4.6,
+                                "review_count": 85,
+                                "image_url": item.get("image") or "",
+                                "marketplace_slug": matched_mp["slug"],
+                                "marketplace_name": matched_mp["name"],
+                                "marketplace_logo": matched_mp["logo"],
+                            }
+                        )
+                    logger.info(
+                        "Bright Data fetched %d Indian marketplace listings for '%s'",
+                        len(listings),
+                        query,
+                    )
                     return listings
                 else:
-                    logger.warning("Bright Data API status %d: %s", response.status_code, response.text[:200])
+                    logger.warning(
+                        "Bright Data API status %d: %s", response.status_code, response.text[:200]
+                    )
         except Exception as exc:
             logger.error("Bright Data API exception: %s", exc)
 
@@ -113,13 +167,19 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
     def normalize_listing(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
         slug = raw_data.get("marketplace_slug", "flipkart")
         name = raw_data.get("marketplace_name", "Flipkart")
-        logo = raw_data.get("marketplace_logo", "https://pngimg.com/uploads/flipkart/flipkart_PNG1.png")
+        logo = raw_data.get(
+            "marketplace_logo", "https://pngimg.com/uploads/flipkart/flipkart_PNG1.png"
+        )
 
         return {
             "title": raw_data.get("title", f"Product on {name}"),
             "price": float(raw_data.get("price", 0.0)),
-            "original_price": float(raw_data["original_price"]) if raw_data.get("original_price") else None,
-            "discount_percent": float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None,
+            "original_price": (
+                float(raw_data["original_price"]) if raw_data.get("original_price") else None
+            ),
+            "discount_percent": (
+                float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None
+            ),
             "currency": raw_data.get("currency", "INR"),
             "listing_url": raw_data.get("listing_url", f"https://www.{slug}.com"),
             "marketplace_product_id": raw_data.get("marketplace_product_id", f"{slug.upper()}-01"),

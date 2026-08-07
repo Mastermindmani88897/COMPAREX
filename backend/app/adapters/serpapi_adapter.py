@@ -22,7 +22,10 @@ STORE_LOGOS = {
     "reliance digital": "https://www.reliancedigital.in/build/client/images/rd_logo.svg",
     "tata cliq": "https://www.tatacliq.com/favicon.ico",
     "meesho": "https://images.meesho.com/images/pow/meeshoLogo.png",
-    "myntra": "https://a57.foxnews.com/static.foxnews.com/foxnews.com/content/uploads/2021/02/1200/675/Myntra-logo.jpg",
+    "myntra": (
+        "https://a57.foxnews.com/static.foxnews.com/foxnews.com/content/uploads/"
+        "2021/02/1200/675/Myntra-logo.jpg"
+    ),
     "vijay sales": "https://www.vijaysales.com/images/vijaysales-logo.png",
 }
 
@@ -30,7 +33,11 @@ STORE_LOGOS = {
 class SerpApiAdapter(BaseMarketplaceAdapter):
     """Adapter for SerpAPI Google Shopping search results."""
 
-    def __init__(self, marketplace_slug: str = "google_shopping", base_url: str = "https://shopping.google.com") -> None:
+    def __init__(
+        self,
+        marketplace_slug: str = "google_shopping",
+        base_url: str = "https://shopping.google.com",
+    ) -> None:
         super().__init__(marketplace_slug=marketplace_slug, base_url=base_url)
         self.api_key = settings.SERPAPI_API_KEY or ""
         self.api_url = "https://serpapi.com/search.json"
@@ -69,36 +76,46 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
 
                         merchant = item.get("source", "Google Merchant")
                         merchant_slug = merchant.lower().replace(" ", "_")
-                        
+
                         logo = STORE_LOGOS.get(merchant.lower(), "")
 
                         delivery = item.get("delivery", "Standard Delivery 2-3 Days")
                         rating = float(item.get("rating", 4.5)) if item.get("rating") else 4.5
                         reviews = int(item.get("reviews", 95)) if item.get("reviews") else 95
 
-                        listings.append({
-                            "title": item.get("title", f"{query} on {merchant}"),
-                            "price": float(extracted_price),
-                            "original_price": float(extracted_price * 1.10),
-                            "discount_percent": 10.0,
-                            "currency": "INR",
-                            "seller_name": merchant,
-                            "listing_url": item.get("link") or item.get("product_link") or "https://shopping.google.com",
-                            "marketplace_product_id": item.get("product_id", f"SERP-{hash(merchant)%1000}"),
-                            "is_available": True,
-                            "stock_status": "IN_STOCK",
-                            "delivery_estimate": delivery,
-                            "rating": rating,
-                            "review_count": reviews,
-                            "image_url": item.get("thumbnail", ""),
-                            "marketplace_slug": merchant_slug,
-                            "marketplace_name": merchant,
-                            "marketplace_logo": logo,
-                        })
-                    logger.info("SerpAPI Google Shopping fetched %d listings for '%s'", len(listings), query)
+                        listings.append(
+                            {
+                                "title": item.get("title", f"{query} on {merchant}"),
+                                "price": float(extracted_price),
+                                "original_price": float(extracted_price * 1.10),
+                                "discount_percent": 10.0,
+                                "currency": "INR",
+                                "seller_name": merchant,
+                                "listing_url": item.get("link")
+                                or item.get("product_link")
+                                or "https://shopping.google.com",
+                                "marketplace_product_id": item.get(
+                                    "product_id", f"SERP-{hash(merchant) % 1000}"
+                                ),
+                                "is_available": True,
+                                "stock_status": "IN_STOCK",
+                                "delivery_estimate": delivery,
+                                "rating": rating,
+                                "review_count": reviews,
+                                "image_url": item.get("thumbnail", ""),
+                                "marketplace_slug": merchant_slug,
+                                "marketplace_name": merchant,
+                                "marketplace_logo": logo,
+                            }
+                        )
+                    logger.info(
+                        "SerpAPI Google Shopping fetched %d listings for '%s'", len(listings), query
+                    )
                     return listings
                 else:
-                    logger.warning("SerpAPI error status %d: %s", response.status_code, response.text[:200])
+                    logger.warning(
+                        "SerpAPI error status %d: %s", response.status_code, response.text[:200]
+                    )
         except Exception as exc:
             logger.error("SerpAPI exception: %s", exc)
 
@@ -118,11 +135,17 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
         return {
             "title": raw_data.get("title", f"Listing on {merchant}"),
             "price": float(raw_data.get("price", 0.0)),
-            "original_price": float(raw_data["original_price"]) if raw_data.get("original_price") else None,
-            "discount_percent": float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None,
+            "original_price": (
+                float(raw_data["original_price"]) if raw_data.get("original_price") else None
+            ),
+            "discount_percent": (
+                float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None
+            ),
             "currency": raw_data.get("currency", "INR"),
             "listing_url": raw_data.get("listing_url", "https://shopping.google.com"),
-            "marketplace_product_id": raw_data.get("marketplace_product_id", f"{slug.upper()}-SERP"),
+            "marketplace_product_id": raw_data.get(
+                "marketplace_product_id", f"{slug.upper()}-SERP"
+            ),
             "seller_name": merchant,
             "is_available": bool(raw_data.get("is_available", True)),
             "is_prime": False,

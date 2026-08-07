@@ -72,7 +72,7 @@ class ProductService:
         in_stock_only: Optional[bool] = None,
         sort_by: Optional[str] = None,
     ) -> list[ProductPublic]:
-        """List products using fast database-level search, synonyms, and live marketplace fallbacks."""
+        """List products using fast database search, synonyms, and live fallbacks."""
         synonyms = self._get_synonyms(query) if query else None
 
         products = await self.repo.search_products(
@@ -89,24 +89,36 @@ class ProductService:
             synonyms=synonyms,
         )
 
-        # If DB returned 0 products AND a query was provided, trigger live aggregation & auto-cache in DB
+        # If DB returned 0 products AND query provided, trigger live aggregation & auto-cache in DB
         if not products and query and query.strip():
-            logger.info("Search query '%s' yielded 0 DB hits. Triggering live marketplace aggregation & auto-caching...", query)
+            logger.info(
+                "Search query '%s' yielded 0 DB hits. Triggering live aggregation...",
+                query,
+            )
             try:
-                agg = await MarketplaceAggregatorService.aggregate_search(query=query, use_cache=True)
+                agg = await MarketplaceAggregatorService.aggregate_search(
+                    query=query, use_cache=True
+                )
                 p_title = agg.get("product_title") or query.title()
                 p_cat = agg.get("category") or category or "Electronics"
                 p_brand = agg.get("specifications", {}).get("brand") or brand or "Brand"
                 lowest_price = agg.get("lowest_price") or 19999.0
-                primary_img = agg.get("primary_image") or "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600"
+                primary_img = (
+                    agg.get("primary_image")
+                    or "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600"
+                )
 
+                desc_str = (
+                    f"{p_title} - Price comparison across Amazon, Flipkart, Croma, "
+                    "Reliance Digital, Tata Cliq, Meesho, Myntra & Vijay Sales."
+                )
                 new_product = Product(
                     id=uuid.uuid4(),
                     name=p_title,
                     brand=p_brand,
                     category=p_cat,
                     base_price=Decimal(str(lowest_price)),
-                    description=f"{p_title} - Price comparison across Amazon, Flipkart, Croma, Reliance Digital, Tata Cliq, Meesho, Myntra & Vijay Sales.",
+                    description=desc_str,
                     image_url=primary_img,
                     stock_status="in_stock",
                     rating=Decimal("4.6"),
@@ -122,7 +134,9 @@ class ProductService:
                         id=uuid.uuid4(),
                         product_id=new_product.id,
                         price=Decimal(str(lst_data.get("price", lowest_price))),
-                        original_price=Decimal(str(lst_data.get("original_price", lowest_price * 1.15))),
+                        original_price=Decimal(
+                            str(lst_data.get("original_price", lowest_price * 1.15))
+                        ),
                         discount_percentage=Decimal(str(lst_data.get("discount_percent", 10.0))),
                         listing_url=lst_data.get("listing_url", "https://www.amazon.in"),
                         seller_name=lst_data.get("seller_name", "Verified Seller"),
@@ -142,12 +156,15 @@ class ProductService:
                     brand=brand,
                 )
             except Exception as exc:
-                logger.error("Failed to dynamically aggregate and cache search '%s': %s", query, exc)
+                logger.error(
+                    "Failed to dynamically aggregate and cache search '%s': %s", query, exc
+                )
 
-        # If DB is completely empty (no query passed), run seed catalog script to ensure catalog is populated
+        # If DB is empty, run seed catalog script to ensure catalog is populated
         if not products and not query:
             try:
                 from scripts.seed_database import seed_database
+
                 logger.info("Database product catalog is empty. Running database seeder...")
                 await seed_database()
                 products = await self.repo.search_products(skip=skip, limit=limit)
@@ -195,10 +212,34 @@ class ProductService:
 
         if not suggestions:
             defaults = [
-                {"id": "auto-1", "name": f"{query.title()} 5G", "brand": "POCO", "category": "Mobiles", "base_price": 20999.0},
-                {"id": "auto-2", "name": f"{query.title()} Pro Max", "brand": "Apple", "category": "Mobiles", "base_price": 119900.0},
-                {"id": "auto-3", "name": f"{query.title()} Ultra", "brand": "Samsung", "category": "Mobiles", "base_price": 129999.0},
-                {"id": "auto-4", "name": f"{query.title()} Wireless ANC Headphones", "brand": "Sony", "category": "Headphones", "base_price": 24990.0},
+                {
+                    "id": "auto-1",
+                    "name": f"{query.title()} 5G",
+                    "brand": "POCO",
+                    "category": "Mobiles",
+                    "base_price": 20999.0,
+                },
+                {
+                    "id": "auto-2",
+                    "name": f"{query.title()} Pro Max",
+                    "brand": "Apple",
+                    "category": "Mobiles",
+                    "base_price": 119900.0,
+                },
+                {
+                    "id": "auto-3",
+                    "name": f"{query.title()} Ultra",
+                    "brand": "Samsung",
+                    "category": "Mobiles",
+                    "base_price": 129999.0,
+                },
+                {
+                    "id": "auto-4",
+                    "name": f"{query.title()} Wireless ANC Headphones",
+                    "brand": "Sony",
+                    "category": "Headphones",
+                    "base_price": 24990.0,
+                },
             ]
             suggestions = defaults[:limit]
 

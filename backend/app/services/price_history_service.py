@@ -5,9 +5,7 @@ Calculates multi-marketplace price trends, historical time-series graph points,
 volatility index, Gemini AI price predictions, and visual trend badges.
 """
 
-import random
 from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import Dict, List, Optional, Any
 from uuid import UUID
 
@@ -33,7 +31,7 @@ STORES = [
 
 
 class DictAttributeWrapper(dict):
-    """Dictionary supporting both item access res['key'] and dot notation res.key for backward compatibility."""
+    """Dict supporting both item access res['key'] and dot notation res.key."""
 
     def __getattr__(self, name: str) -> Any:
         try:
@@ -75,7 +73,7 @@ class PriceHistoryService:
         base_price: float = 49999.0,
         time_range: str = "30d",
     ) -> DictAttributeWrapper:
-        """Compute multi-store price history timeline, trend stats, volatility, and Gemini predictions."""
+        """Compute multi-store price history timeline, volatility, and predictions."""
 
         # 1. Fetch real DB product if available
         product = await db.get(Product, product_id) if db is not None else None
@@ -101,7 +99,6 @@ class PriceHistoryService:
         today = datetime.now()
 
         # Query DB price history points first if db available
-        db_records = []
         if db is not None:
             try:
                 stmt = (
@@ -110,10 +107,9 @@ class PriceHistoryService:
                     .order_by(desc(PriceHistory.id))
                     .limit(500)
                 )
-                res = await db.execute(stmt)
-                db_records = list(res.scalars().all())
+                await db.execute(stmt)
             except Exception:
-                db_records = []
+                pass
 
         # Generate smooth realistic multi-store timeline points
         time_points: List[Any] = []
@@ -124,7 +120,9 @@ class PriceHistoryService:
             dt_str = dt.strftime("%Y-%m-%d") if days > 1 else dt.strftime("%H:00")
             base_var = 1.0 + (0.05 * float(((i * 7 + hash(str(product_id))) % 13) - 6) / 6.0)
 
-            point = PricePointWrapper(date=dt_str, price=round(cur_price * base_var, 2), marketplace_slug="amazon")
+            point = PricePointWrapper(
+                date=dt_str, price=round(cur_price * base_var, 2), marketplace_slug="amazon"
+            )
             setattr(point, "timestamp", dt.isoformat())
 
             for store in STORES:
@@ -182,12 +180,17 @@ class PriceHistoryService:
         elif end_avg > start_avg * 1.02:
             trend_badge = "📈 Rising"
             trend_status = "RISING"
-            ai_prediction = "Price is trending upward due to high demand. Recommend buying now before sale ends."
+            ai_prediction = (
+                "Price is trending upward due to high demand. "
+                "Recommend buying now before sale ends."
+            )
             best_time = "Buy Now - Prices expected to rise."
         else:
             trend_badge = "➖ Stable"
             trend_status = "STABLE"
-            ai_prediction = "Price is steady across major Indian retailers. Minimal price fluctuation expected."
+            ai_prediction = (
+                "Price is steady across major Indian retailers. Minimal price fluctuation expected."
+            )
             best_time = "Fair Market Price - Buy as needed."
 
         volatility_index = round(min(1.0, (highest_recorded - lowest_recorded) / avg_recorded), 2)

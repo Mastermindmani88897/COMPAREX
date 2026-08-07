@@ -1,9 +1,9 @@
 """
 COMPAREX Backend - Marketplace Aggregator & Intelligent Matching Service
 
-Queries Rainforest API, Bright Data, SerpAPI, and ZenRows simultaneously using clean product names (never UUIDs),
-filters out unrelated accessories with intelligent fuzzy matching, collects 5-10 HD gallery images in priority order,
-builds Google Shopping style comparison tables, and generates expanded Gemini AI shopping insights.
+Queries Rainforest API, Bright Data, SerpAPI, and ZenRows simultaneously using clean product names,
+filters out unrelated accessories with fuzzy matching, collects 5-10 HD gallery images in order,
+builds Google Shopping style comparison tables, and generates expanded Gemini AI insights.
 """
 
 import asyncio
@@ -12,13 +12,11 @@ import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-import httpx
 
 from app.adapters.rainforest_adapter import RainforestAdapter
 from app.adapters.brightdata_adapter import BrightDataAdapter
 from app.adapters.serpapi_adapter import SerpApiAdapter
 from app.adapters.zenrows_adapter import ZenRowsAdapter
-from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.redis import redis_client
 
@@ -36,15 +34,33 @@ STORE_LOGOS = {
     "tata_cliq": "https://www.tatacliq.com/favicon.ico",
     "tatacliq": "https://www.tatacliq.com/favicon.ico",
     "meesho": "https://images.meesho.com/images/pow/meeshoLogo.png",
-    "myntra": "https://a57.foxnews.com/static.foxnews.com/foxnews.com/content/uploads/2021/02/1200/675/Myntra-logo.jpg",
+    "myntra": (
+        "https://a57.foxnews.com/static.foxnews.com/foxnews.com/content/uploads/"
+        "2021/02/1200/675/Myntra-logo.jpg"
+    ),
     "vijay_sales": "https://www.vijaysales.com/images/vijaysales-logo.png",
 }
 
 # Accessory Keywords to Reject when query is a primary device
 ACCESSORY_KEYWORDS = {
-    "case", "cover", "back cover", "guard", "screen guard", "tempered glass",
-    "pouch", "charger", "cable", "adapter", "battery", "laptop battery",
-    "cartridge", "printer cartridge", "skin", "stand", "holder", "strap"
+    "case",
+    "cover",
+    "back cover",
+    "guard",
+    "screen guard",
+    "tempered glass",
+    "pouch",
+    "charger",
+    "cable",
+    "adapter",
+    "battery",
+    "laptop battery",
+    "cartridge",
+    "printer cartridge",
+    "skin",
+    "stand",
+    "holder",
+    "strap",
 }
 
 # Default Image Catalog per Popular Product (used for HD gallery enrichment)
@@ -115,7 +131,7 @@ class MarketplaceAggregatorService:
 
     @classmethod
     def is_accessory_rejection(cls, query: str, item_title: str) -> bool:
-        """Determine if an item is an unrelated accessory (e.g. case/cover/battery) when query is a core product."""
+        """Determine if an item is an accessory when query is a core product."""
         q_lower = query.lower()
         t_lower = item_title.lower()
 
@@ -141,19 +157,24 @@ class MarketplaceAggregatorService:
         in_stock_only: bool = False,
         use_cache: bool = True,
     ) -> Dict[str, Any]:
-        """Execute multi-provider search with UUID protection, fuzzy matching, and multi-image gallery."""
+        """Execute multi-provider search with UUID protection and fuzzy matching."""
         raw_query = query.strip()
 
         # ── 1. FIX: UUID Protection Logic ────────────────────────────────────
         # If query is a UUID string, NEVER send it to external APIs!
         target_search_term = raw_query
         if cls.is_uuid(raw_query):
-            logger.info("SEARCH QUERY IS UUID: '%s'. Resolving real product title from database...", raw_query)
+            logger.info(
+                "SEARCH QUERY IS UUID: '%s'. Resolving real product title from database...",
+                raw_query,
+            )
             target_search_term = "Poco X5 Pro 5G"  # Safe default fallback for UUID queries
             logger.info("Resolved UUID '%s' -> Title: '%s'", raw_query, target_search_term)
 
         clean_search_term = cls.normalize_query(target_search_term)
-        logger.info("LOG: Original query: '%s' | Normalized query: '%s'", raw_query, clean_search_term)
+        logger.info(
+            "LOG: Original query: '%s' | Normalized query: '%s'", raw_query, clean_search_term
+        )
 
         cache_key = f"comparex:aggregator:v3:{clean_search_term.lower()}:{sort_by}"
 
@@ -224,10 +245,16 @@ class MarketplaceAggregatorService:
         if not matched_products:
             matched_products = raw_candidates
 
-        logger.info("LOG: Matched products: %d | Rejected products: %d", len(matched_products), len(rejected_products))
+        logger.info(
+            "LOG: Matched products: %d | Rejected products: %d",
+            len(matched_products),
+            len(rejected_products),
+        )
 
         # Ensure full marketplace coverage for Google Shopping style matrix
-        matched_products = cls._ensure_full_marketplace_coverage(clean_search_term, matched_products)
+        matched_products = cls._ensure_full_marketplace_coverage(
+            clean_search_term, matched_products
+        )
         deduped = cls._deduplicate_listings(matched_products)
         enriched = cls._enrich_listings(clean_search_term, deduped)
 
@@ -244,7 +271,11 @@ class MarketplaceAggregatorService:
         avg = round(sum(prices) / len(prices), 2) if prices else 0.0
 
         best_deal = enriched[0] if enriched else {}
-        logger.info("LOG: Selected product: '%s' | Final Buy URL: '%s'", best_deal.get("title"), best_deal.get("listing_url"))
+        logger.info(
+            "LOG: Selected product: '%s' | Final Buy URL: '%s'",
+            best_deal.get("title"),
+            best_deal.get("listing_url"),
+        )
 
         # Build Technical Specifications
         specs = cls._build_product_specs(clean_search_term)
@@ -259,7 +290,16 @@ class MarketplaceAggregatorService:
             "specifications": specs,
             "ai_insights": gemini_ai,
             "total_listings": len(enriched),
-            "marketplaces_queried": ["amazon", "flipkart", "croma", "reliance_digital", "tata_cliq", "meesho", "myntra", "vijay_sales"],
+            "marketplaces_queried": [
+                "amazon",
+                "flipkart",
+                "croma",
+                "reliance_digital",
+                "tata_cliq",
+                "meesho",
+                "myntra",
+                "vijay_sales",
+            ],
             "lowest_price": lowest,
             "highest_price": highest,
             "average_price": avg,
@@ -270,7 +310,9 @@ class MarketplaceAggregatorService:
         }
 
         try:
-            await redis_client.set(cache_key, json.dumps(response_payload), expire_seconds=CACHE_TTL_SECONDS)
+            await redis_client.set(
+                cache_key, json.dumps(response_payload), expire_seconds=CACHE_TTL_SECONDS
+            )
         except Exception as exc:
             logger.warning("Redis cache write error: %s", exc)
 
@@ -278,7 +320,7 @@ class MarketplaceAggregatorService:
 
     @classmethod
     def _build_multi_image_gallery(cls, query: str, listings: List[Dict[str, Any]]) -> List[str]:
-        """Collect 5-10 distinct HD image URLs in priority order: Rainforest -> BrightData -> SerpAPI -> ZenRows -> DB."""
+        """Collect 5-10 distinct HD image URLs in priority order across providers."""
         images: List[str] = []
 
         # 1. Collect images from active listings
@@ -336,7 +378,17 @@ class MarketplaceAggregatorService:
             "title": f"{q} 5G",
             "brand": brand,
             "model": q,
-            "category": "Smartphones & Tech" if ("phone" in q_lower or "poco" in q_lower or "iphone" in q_lower or "samsung" in q_lower or "nothing" in q_lower) else "Consumer Electronics",
+            "category": (
+                "Smartphones & Tech"
+                if (
+                    "phone" in q_lower
+                    or "poco" in q_lower
+                    or "iphone" in q_lower
+                    or "samsung" in q_lower
+                    or "nothing" in q_lower
+                )
+                else "Consumer Electronics"
+            ),
             "color": "Midnight Black / Platinum Silver",
             "ram": "8 GB" if "phone" in q_lower or "poco" in q_lower else "16 GB",
             "storage": "256 GB NVMe / UFS 3.1",
@@ -350,7 +402,9 @@ class MarketplaceAggregatorService:
         }
 
     @classmethod
-    def _build_gemini_insights(cls, query: str, lowest_price: float, avg_price: float, store_count: int) -> Dict[str, Any]:
+    def _build_gemini_insights(
+        cls, query: str, lowest_price: float, avg_price: float, store_count: int
+    ) -> Dict[str, Any]:
         """Generate expanded Gemini AI shopping intelligence."""
         return {
             "pros": [
@@ -363,8 +417,14 @@ class MarketplaceAggregatorService:
                 "Promotional bank card discounts sell out quickly during sale events",
                 "Delivery timelines vary depending on pin-code accessibility",
             ],
-            "should_you_buy": f"YES - BUY NOW. Listed at ₹{lowest_price:,.0f}, which is ~8-12% lower than average market price (₹{avg_price:,.0f}).",
-            "price_trend": f"Prices for '{query}' have reached a 30-day low of ₹{lowest_price:,.0f}. Expected price drop over the next 14 days is minimal (<2%).",
+            "should_you_buy": (
+                f"YES - BUY NOW. Listed at ₹{lowest_price:,.0f}, which is ~8-12% lower than "
+                f"average market price (₹{avg_price:,.0f})."
+            ),
+            "price_trend": (
+                f"Prices for '{query}' have reached a 30-day low of ₹{lowest_price:,.0f}. "
+                "Expected price drop over the next 14 days is minimal (<2%)."
+            ),
             "best_alternatives": [
                 f"{query} (Higher Storage / 12GB RAM Variant)",
                 "Competitor Flagship Model in same price segment",
@@ -375,7 +435,10 @@ class MarketplaceAggregatorService:
             ],
             "ai_score": 9.4,
             "value_for_money_score": 9.6,
-            "best_marketplace_recommendation": f"Amazon and Flipkart offer the best deal with instant bank card discounts and verified seller warranty.",
+            "best_marketplace_recommendation": (
+                "Amazon and Flipkart offer the best deal with instant bank card discounts "
+                "and verified seller warranty."
+            ),
         }
 
     @classmethod
@@ -404,14 +467,94 @@ class MarketplaceAggregatorService:
             base_price = 39999.0
 
         stores = [
-            {"name": "Amazon", "slug": "amazon", "mult": 1.000, "rating": 4.7, "deliv": "Tomorrow", "url": f"https://www.amazon.in/s?k={query}", "emi": "EMI from ₹999/mo", "offers": "10% Instant Discount on HDFC Cards", "seller": "Appario Retail Private Ltd"},
-            {"name": "Flipkart", "slug": "flipkart", "mult": 0.988, "rating": 4.6, "deliv": "2 Days", "url": f"https://www.flipkart.com/search?q={query}", "emi": "No Cost EMI Available", "offers": "5% Unlimited Cashback on Flipkart Axis Card", "seller": "SuperComNet Retailer"},
-            {"name": "Reliance Digital", "slug": "reliance_digital", "mult": 0.994, "rating": 4.5, "deliv": "Tomorrow", "url": f"https://www.reliancedigital.in/search?q={query}", "emi": "EMI from ₹1,049/mo", "offers": "Flat ₹2,000 Bank Cashback", "seller": "Reliance Digital Official Store"},
-            {"name": "Croma", "slug": "croma", "mult": 1.005, "rating": 4.5, "deliv": "Today", "url": f"https://www.croma.com/search?q={query}", "emi": "No Cost EMI Available", "offers": "Tata Neu Pass 5% Coins", "seller": "Croma E-Store"},
-            {"name": "Tata Cliq", "slug": "tata_cliq", "mult": 1.002, "rating": 4.4, "deliv": "3 Days", "url": f"https://www.tatacliq.com/search?k={query}", "emi": "EMI from ₹1,099/mo", "offers": "10% ICICI Bank Card Discount", "seller": "Tata Retail Partner"},
-            {"name": "Meesho", "slug": "meesho", "mult": 0.996, "rating": 4.3, "deliv": "3 Days", "url": f"https://www.meesho.com/search?q={query}", "emi": "Standard EMI Available", "offers": "Free Delivery & Cash on Delivery", "seller": "Verified Meesho Seller"},
-            {"name": "Myntra", "slug": "myntra", "mult": 1.001, "rating": 4.4, "deliv": "Today", "url": f"https://www.myntra.com/{query}", "emi": "EMI Available", "offers": "10% Coupon Savings", "seller": "Myntra Tech Store"},
-            {"name": "Vijay Sales", "slug": "vijay_sales", "mult": 1.004, "rating": 4.4, "deliv": "2 Days", "url": f"https://www.vijaysales.com/search/{query}", "emi": "No Cost EMI Available", "offers": "HSBC Credit Card Discount", "seller": "Vijay Sales Retail"},
+            {
+                "name": "Amazon",
+                "slug": "amazon",
+                "mult": 1.000,
+                "rating": 4.7,
+                "deliv": "Tomorrow",
+                "url": f"https://www.amazon.in/s?k={query}",
+                "emi": "EMI from ₹999/mo",
+                "offers": "10% Instant Discount on HDFC Cards",
+                "seller": "Appario Retail Private Ltd",
+            },
+            {
+                "name": "Flipkart",
+                "slug": "flipkart",
+                "mult": 0.988,
+                "rating": 4.6,
+                "deliv": "2 Days",
+                "url": f"https://www.flipkart.com/search?q={query}",
+                "emi": "No Cost EMI Available",
+                "offers": "5% Unlimited Cashback on Flipkart Axis Card",
+                "seller": "SuperComNet Retailer",
+            },
+            {
+                "name": "Reliance Digital",
+                "slug": "reliance_digital",
+                "mult": 0.994,
+                "rating": 4.5,
+                "deliv": "Tomorrow",
+                "url": f"https://www.reliancedigital.in/search?q={query}",
+                "emi": "EMI from ₹1,049/mo",
+                "offers": "Flat ₹2,000 Bank Cashback",
+                "seller": "Reliance Digital Official Store",
+            },
+            {
+                "name": "Croma",
+                "slug": "croma",
+                "mult": 1.005,
+                "rating": 4.5,
+                "deliv": "Today",
+                "url": f"https://www.croma.com/search?q={query}",
+                "emi": "No Cost EMI Available",
+                "offers": "Tata Neu Pass 5% Coins",
+                "seller": "Croma E-Store",
+            },
+            {
+                "name": "Tata Cliq",
+                "slug": "tata_cliq",
+                "mult": 1.002,
+                "rating": 4.4,
+                "deliv": "3 Days",
+                "url": f"https://www.tatacliq.com/search?k={query}",
+                "emi": "EMI from ₹1,099/mo",
+                "offers": "10% ICICI Bank Card Discount",
+                "seller": "Tata Retail Partner",
+            },
+            {
+                "name": "Meesho",
+                "slug": "meesho",
+                "mult": 0.996,
+                "rating": 4.3,
+                "deliv": "3 Days",
+                "url": f"https://www.meesho.com/search?q={query}",
+                "emi": "Standard EMI Available",
+                "offers": "Free Delivery & Cash on Delivery",
+                "seller": "Verified Meesho Seller",
+            },
+            {
+                "name": "Myntra",
+                "slug": "myntra",
+                "mult": 1.001,
+                "rating": 4.4,
+                "deliv": "Today",
+                "url": f"https://www.myntra.com/{query}",
+                "emi": "EMI Available",
+                "offers": "10% Coupon Savings",
+                "seller": "Myntra Tech Store",
+            },
+            {
+                "name": "Vijay Sales",
+                "slug": "vijay_sales",
+                "mult": 1.004,
+                "rating": 4.4,
+                "deliv": "2 Days",
+                "url": f"https://www.vijaysales.com/search/{query}",
+                "emi": "No Cost EMI Available",
+                "offers": "HSBC Credit Card Discount",
+                "seller": "Vijay Sales Retail",
+            },
         ]
 
         listings = []
@@ -420,40 +563,42 @@ class MarketplaceAggregatorService:
             orig = round(price * 1.15)
             disc = round(((orig - price) / orig) * 100, 1)
 
-            listings.append({
-                "id": f"lst-{s['slug']}-{hash(query)%10000}",
-                "title": f"{query.title()} (Official Warranty)",
-                "price": float(price),
-                "original_price": float(orig),
-                "discount_percent": float(disc),
-                "currency": "INR",
-                "seller_name": s["seller"],
-                "listing_url": s["url"],
-                "marketplace_product_id": f"{s['slug'].upper()}-LIVE",
-                "is_available": True,
-                "stock_status": "IN_STOCK",
-                "delivery_estimate": s["deliv"],
-                "rating": s["rating"],
-                "review_count": 1250,
-                "emi_option": s["emi"],
-                "special_offers": s["offers"],
-                "image_url": "",
-                "marketplace_slug": s["slug"],
-                "marketplace_name": s["name"],
-                "marketplace_logo": STORE_LOGOS.get(s["slug"], ""),
-                "data_priority": 1 if s["slug"] == "amazon" else 2,
-                "marketplace_source": "Rainforest" if s["slug"] == "amazon" else "Bright Data",
-                "last_updated_time": datetime.now(timezone.utc).isoformat(),
-            })
+            listings.append(
+                {
+                    "id": f"lst-{s['slug']}-{hash(query) % 10000}",
+                    "title": f"{query.title()} (Official Warranty)",
+                    "price": float(price),
+                    "original_price": float(orig),
+                    "discount_percent": float(disc),
+                    "currency": "INR",
+                    "seller_name": s["seller"],
+                    "listing_url": s["url"],
+                    "marketplace_product_id": f"{s['slug'].upper()}-LIVE",
+                    "is_available": True,
+                    "stock_status": "IN_STOCK",
+                    "delivery_estimate": s["deliv"],
+                    "rating": s["rating"],
+                    "review_count": 1250,
+                    "emi_option": s["emi"],
+                    "special_offers": s["offers"],
+                    "image_url": "",
+                    "marketplace_slug": s["slug"],
+                    "marketplace_name": s["name"],
+                    "marketplace_logo": STORE_LOGOS.get(s["slug"], ""),
+                    "data_priority": 1 if s["slug"] == "amazon" else 2,
+                    "marketplace_source": "Rainforest" if s["slug"] == "amazon" else "Bright Data",
+                    "last_updated_time": datetime.now(timezone.utc).isoformat(),
+                }
+            )
 
         return listings
 
     @classmethod
-    def _ensure_full_marketplace_coverage(cls, query: str, listings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _ensure_full_marketplace_coverage(
+        cls, query: str, listings: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """Ensure all 8 standard Indian stores appear in the comparison matrix."""
         existing = {item.get("marketplace_slug", "").lower() for item in listings}
-        prices = [float(x["price"]) for x in listings if x.get("price")]
-        base_price = min(prices) if prices else 20999.0
 
         fallbacks = cls._generate_fallback_listings(query)
         for fb in fallbacks:
@@ -490,14 +635,16 @@ class MarketplaceAggregatorService:
             if "id" not in lst_copy or not lst_copy["id"]:
                 lst_copy["id"] = f"lst-{lst_copy.get('marketplace_slug', 'store')}-{idx+1}"
 
-            lst_copy["is_best_price"] = (float(lst_copy["price"]) == min_p)
+            lst_copy["is_best_price"] = float(lst_copy["price"]) == min_p
             badges = ["Verified Seller"]
             if lst_copy["is_best_price"]:
                 lst_copy["badge"] = "Best Price"
                 badges.insert(0, "Lowest Price")
                 badges.append("Best Deal")
 
-            if "Tomorrow" in lst_copy.get("delivery_estimate", "") or "Today" in lst_copy.get("delivery_estimate", ""):
+            if "Tomorrow" in lst_copy.get("delivery_estimate", "") or "Today" in lst_copy.get(
+                "delivery_estimate", ""
+            ):
                 badges.append("Fastest Delivery")
 
             lst_copy["badges"] = badges

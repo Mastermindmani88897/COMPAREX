@@ -77,7 +77,9 @@ class ProductPublic(ProductBase):
                 else:
                     try:
                         imgs = getattr(data, "images", [])
-                        d["images"] = [ProductImageSchema.model_validate(img) for img in imgs] if imgs else []
+                        d["images"] = (
+                            [ProductImageSchema.model_validate(img) for img in imgs] if imgs else []
+                        )
                     except Exception:
                         d["images"] = []
                 return d

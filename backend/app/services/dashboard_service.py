@@ -16,7 +16,6 @@ from app.models.price_alert import PriceAlert
 from app.models.user import User
 from app.models.wishlist import Wishlist
 from app.models.notification import Notification
-from app.schemas.dashboard import DashboardSummaryResponse, ShoppingStats
 from app.services.price_alert_service import PriceAlertService
 
 
@@ -29,7 +28,7 @@ class DashboardService:
         db: AsyncSession,
         user_id: UUID,
     ) -> Dict[str, Any]:
-        """Fetch real-time dashboard metrics, wishlist, alerts, and savings statistics from database."""
+        """Fetch real-time dashboard metrics, wishlist, alerts, and savings from database."""
         user = await db.get(User, user_id)
         user_name = user.full_name or user.email if user else "CompareX Shopper"
 
@@ -40,7 +39,7 @@ class DashboardService:
 
         # 2. Count Active Price Alerts dynamically
         pa_stmt = select(func.count(PriceAlert.id)).where(
-            PriceAlert.user_id == user_id, PriceAlert.is_active == True
+            PriceAlert.user_id == user_id, PriceAlert.is_active.is_(True)
         )
         pa_res = await db.execute(pa_stmt)
         active_alerts_count = pa_res.scalar() or 0
@@ -53,11 +52,11 @@ class DashboardService:
         for item in raw_wl:
             if item.target_price and item.product and item.product.base_price:
                 if item.product.base_price < item.target_price:
-                    total_saved += (item.target_price - item.product.base_price)
+                    total_saved += item.target_price - item.product.base_price
 
         # 4. Count Notifications
         notif_stmt = select(func.count(Notification.id)).where(
-            Notification.user_id == user_id, Notification.is_read == False
+            Notification.user_id == user_id, Notification.is_read.is_(False)
         )
         notif_res = await db.execute(notif_stmt)
         unread_notifications = notif_res.scalar() or 0
@@ -86,8 +85,12 @@ class DashboardService:
                 "MacBook Air M4",
                 "Sony WH-1000XM5",
             ],
-            "deal_history_highlights": [
-                f"Tracked {wishlist_count} products in wishlist",
-                f"Active price drop monitoring for {active_alerts_count} products",
-            ] if wishlist_count > 0 or active_alerts_count > 0 else [],
+            "deal_history_highlights": (
+                [
+                    f"Tracked {wishlist_count} products in wishlist",
+                    f"Active price drop monitoring for {active_alerts_count} products",
+                ]
+                if wishlist_count > 0 or active_alerts_count > 0
+                else []
+            ),
         }

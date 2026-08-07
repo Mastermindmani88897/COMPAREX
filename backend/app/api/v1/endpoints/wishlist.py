@@ -2,7 +2,6 @@
 COMPAREX Backend - Wishlist & Favorites API Endpoints
 """
 
-import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, status
@@ -26,12 +25,17 @@ router = APIRouter(prefix="/wishlist", tags=["Wishlist"])
     "",
     response_model=SuccessResponse[WishlistResponse],
     summary="Get User Wishlist",
-    description="Retrieve all wishlist items for logged in user enriched with live prices, target alerts, and AI recommendations.",
+    description=(
+        "Retrieve all wishlist items for logged in user enriched with live prices, target alerts, "
+        "and AI recommendations."
+    ),
 )
 async def get_user_wishlist(
     search: Optional[str] = Query(None, description="Search term filter"),
     category: Optional[str] = Query(None, description="Category filter"),
-    sort_by: str = Query("date_added", description="Sort by: date_added, price_low, price_high, price_drop"),
+    sort_by: str = Query(
+        "date_added", description="Sort by: date_added, price_low, price_high, price_drop"
+    ),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -48,7 +52,9 @@ async def get_user_wishlist(
     response_model=SuccessResponse[WishlistItemPublic],
     status_code=status.HTTP_201_CREATED,
     summary="Add Product to Wishlist",
-    description="Add a product to user wishlist with optional target price and preferred marketplace.",
+    description=(
+        "Add a product to user wishlist with optional target price and preferred marketplace."
+    ),
 )
 async def add_to_wishlist(
     req: WishlistItemCreate,

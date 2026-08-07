@@ -15,8 +15,8 @@ from sqlalchemy import create_engine, text
 # Add backend directory to sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.core.config import settings
-from app.core.logging import get_logger
+from app.core.config import settings  # noqa: E402
+from app.core.logging import get_logger  # noqa: E402
 
 logger = get_logger(__name__)
 
@@ -33,7 +33,10 @@ def migrate_users_table():
     sql_statements = [
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);",
         "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_id ON users (google_id);",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS login_provider VARCHAR(50) DEFAULT 'email' NOT NULL;",
+        (
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS login_provider VARCHAR(50) "
+            "DEFAULT 'email' NOT NULL;"
+        ),
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;",
         "ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL;",
     ]

@@ -38,6 +38,7 @@ class PrioritizedMarketplaceConnector(BaseMarketplaceAdapter):
         """Lazy load fallback mock connector to prevent circular import."""
         if self._fallback_adapter is None:
             from app.adapters.mock_connectors import BaseMockMarketplaceConnector
+
             self._fallback_adapter = BaseMockMarketplaceConnector(
                 marketplace_slug=self.marketplace_slug, base_url=self.base_url
             )
@@ -50,7 +51,11 @@ class PrioritizedMarketplaceConnector(BaseMarketplaceAdapter):
         # Priority 1 Check: Official API Keys configured
         if slug == "amazon" and settings.AMAZON_PAAPI_KEY and settings.AMAZON_PAAPI_SECRET:
             return 1
-        if slug == "flipkart" and settings.FLIPKART_AFFILIATE_ID and settings.FLIPKART_AFFILIATE_TOKEN:
+        if (
+            slug == "flipkart"
+            and settings.FLIPKART_AFFILIATE_ID
+            and settings.FLIPKART_AFFILIATE_TOKEN
+        ):
             return 1
         if getattr(settings, f"{slug.upper()}_API_KEY", None):
             return 1
@@ -177,9 +182,7 @@ class PrioritizedMarketplaceConnector(BaseMarketplaceAdapter):
             "is_available": bool(raw_data.get("is_available", True)),
             "is_prime": bool(raw_data.get("is_prime", False)),
             "stock_status": raw_data.get("stock_status", "IN_STOCK"),
-            "delivery_estimate": raw_data.get(
-                "delivery_estimate", "Standard Delivery in 2-3 Days"
-            ),
+            "delivery_estimate": raw_data.get("delivery_estimate", "Standard Delivery in 2-3 Days"),
             "rating": float(raw_data["rating"]) if raw_data.get("rating") else 4.5,
             "review_count": int(raw_data.get("review_count", 250)),
             "data_priority": self.get_active_priority(),

@@ -55,9 +55,10 @@ class PriceHistory(Base):
         "ProductListing", back_populates="price_history"
     )
 
-    product: Mapped[Optional["Product"]] = relationship(
-        "Product", backref="price_histories"
-    )
+    product: Mapped[Optional["Product"]] = relationship("Product", backref="price_histories")
 
     def __repr__(self) -> str:
-        return f"<PriceHistory product={self.product_id} store={self.marketplace_slug} price={self.price}>"
+        return (
+            f"<PriceHistory product={self.product_id} "
+            f"store={self.marketplace_slug} price={self.price}>"
+        )

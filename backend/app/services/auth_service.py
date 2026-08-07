@@ -50,7 +50,9 @@ class AuthService:
             )
 
         if await self.user_repo.email_exists(req.email):
-            logger.warning("Registration failed for %s: Email address already registered", req.email)
+            logger.warning(
+                "Registration failed for %s: Email address already registered", req.email
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email address is already registered",
@@ -164,7 +166,7 @@ class AuthService:
         """Authenticate user via Google OAuth id_token or payload."""
         email = (req.email or "").lower().strip()
         google_id = req.google_id or f"google_{hash(email)}"
-        
+
         # Determine real display name (Priority: full_name/name -> given_name -> email prefix)
         raw_name = (req.full_name or req.name or req.given_name or "").strip()
         if raw_name and raw_name.lower() != "google user":
@@ -216,7 +218,9 @@ class AuthService:
                 "is_verified": True,
             }
             user = await self.user_repo.create(user_data)
-            logger.info("New account auto-created via Google OAuth: %s (ID: %s)", user.email, user.id)
+            logger.info(
+                "New account auto-created via Google OAuth: %s (ID: %s)", user.email, user.id
+            )
 
         access_token = create_access_token(subject=str(user.id), role=user.role)
         refresh_token = create_refresh_token(subject=str(user.id), role=user.role)

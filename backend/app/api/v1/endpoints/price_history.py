@@ -1,7 +1,7 @@
 """
 COMPAREX Backend – PriceHistory API Endpoints
 
-Provides multi-store price history timeline analytics, volatility scores, and Gemini AI price predictions.
+Provides multi-store price history timeline analytics, volatility, and Gemini AI predictions.
 """
 
 from typing import Any, Dict, Optional
@@ -21,7 +21,9 @@ router = APIRouter(prefix="/price-history", tags=["Price History Intelligence"])
     "/product/{product_id}",
     response_model=SuccessResponse[Dict[str, Any]],
     summary="Get Product Price History & Multi-Store Trend Analytics",
-    description="Returns multi-store price history timeline points, store toggles, volatility index, and Gemini prediction.",
+    description=(
+        "Returns multi-store price history points, store toggles, volatility index, and prediction."
+    ),
 )
 async def get_product_price_history(
     product_id: UUID,

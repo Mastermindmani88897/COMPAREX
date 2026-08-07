@@ -7,7 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import oauth2_scheme
 from app.db.session import get_db
-from app.schemas.auth import GoogleAuthRequest, LoginRequest, RefreshTokenRequest, RegisterRequest, TokenResponse
+from app.schemas.auth import (
+    GoogleAuthRequest,
+    LoginRequest,
+    RefreshTokenRequest,
+    RegisterRequest,
+    TokenResponse,
+)
 from app.schemas.common import SuccessResponse
 from app.schemas.user import UserPublic
 from app.services.auth_service import AuthService

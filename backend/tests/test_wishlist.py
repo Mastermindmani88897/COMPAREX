@@ -78,7 +78,9 @@ async def test_wishlist_full_crud_flow(mock_agg, async_client: AsyncClient):
 
     # 6. PATCH /api/v1/wishlist/{id} (Update target price)
     patch_payload = {"target_price": 42000.00, "notes": "Updated target"}
-    patch_res = await async_client.patch(f"/api/v1/wishlist/{wishlist_id}", json=patch_payload, headers=headers)
+    patch_res = await async_client.patch(
+        f"/api/v1/wishlist/{wishlist_id}", json=patch_payload, headers=headers
+    )
     assert patch_res.status_code == 200
     assert float(patch_res.json()["data"]["target_price"]) == 42000.00
 

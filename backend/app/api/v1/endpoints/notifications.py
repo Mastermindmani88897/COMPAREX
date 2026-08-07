@@ -3,7 +3,7 @@ COMPAREX Backend – Notification API Endpoints
 """
 
 from typing import Any, Dict
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
@@ -48,7 +48,9 @@ async def mark_notifications_read(
 
     if mark_all:
         count = await service.mark_all_read(current_user.id)
-        return SuccessResponse(message=f"{count} notifications marked as read", data={"marked_count": count})
+        return SuccessResponse(
+            message=f"{count} notifications marked as read", data={"marked_count": count}
+        )
     elif notification_id:
         success = await service.mark_read(notification_id=notification_id, user_id=current_user.id)
         return SuccessResponse(message="Notification marked as read", data={"success": success})

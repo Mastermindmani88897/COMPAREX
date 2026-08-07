@@ -4,7 +4,7 @@ COMPAREX Backend – PriceAlert & Watchlist Service
 Manages user price drop alerts, target thresholds, and watchlist bookmarks.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 from uuid import UUID
 from decimal import Decimal
 
@@ -17,7 +17,6 @@ from app.models.product import Product
 from app.models.watchlist import Watchlist
 from app.schemas.price_alert import (
     PriceAlertCreate,
-    PriceAlertResponse,
     WatchlistCreate,
     WatchlistResponse,
 )
@@ -42,7 +41,9 @@ class PriceAlertService:
             )
 
         prod_name = product.name or "Product Item"
-        init_price = float(product.base_price) if product.base_price else float(payload.target_price)
+        init_price = (
+            float(product.base_price) if product.base_price else float(payload.target_price)
+        )
 
         alert = PriceAlert(
             user_id=user_id,
@@ -73,7 +74,11 @@ class PriceAlertService:
             "notification_method": alert.notification_method,
             "is_active": alert.is_active,
             "triggered": alert.triggered,
-            "created_at": alert.created_at.isoformat() if hasattr(alert, "created_at") and alert.created_at else None,
+            "created_at": (
+                alert.created_at.isoformat()
+                if hasattr(alert, "created_at") and alert.created_at
+                else None
+            ),
         }
 
     @classmethod
@@ -106,7 +111,11 @@ class PriceAlertService:
 
         product = await db.get(Product, alert.product_id)
         p_name = product.name if product else "Saved Product"
-        p_price = float(product.base_price) if (product and product.base_price) else float(alert.target_price)
+        p_price = (
+            float(product.base_price)
+            if (product and product.base_price)
+            else float(alert.target_price)
+        )
 
         return {
             "id": str(alert.id),
@@ -122,7 +131,11 @@ class PriceAlertService:
             "notification_method": alert.notification_method,
             "is_active": alert.is_active,
             "triggered": alert.triggered,
-            "created_at": alert.created_at.isoformat() if hasattr(alert, "created_at") and alert.created_at else None,
+            "created_at": (
+                alert.created_at.isoformat()
+                if hasattr(alert, "created_at") and alert.created_at
+                else None
+            ),
         }
 
     @classmethod
@@ -158,7 +171,11 @@ class PriceAlertService:
         for a in alerts:
             product = await db.get(Product, a.product_id)
             p_name = product.name if product else "Saved Product"
-            p_price = float(product.base_price) if (product and product.base_price) else float(a.target_price)
+            p_price = (
+                float(product.base_price)
+                if (product and product.base_price)
+                else float(a.target_price)
+            )
             output.append(
                 {
                     "id": str(a.id),
@@ -170,11 +187,16 @@ class PriceAlertService:
                     "initial_price": float(a.initial_price),
                     "current_price": p_price,
                     "lowest_price": p_price,
-                    "marketplace": getattr(a, "marketplace", "All Marketplaces") or "All Marketplaces",
+                    "marketplace": getattr(a, "marketplace", "All Marketplaces")
+                    or "All Marketplaces",
                     "notification_method": getattr(a, "notification_method", "both") or "both",
                     "is_active": a.is_active,
                     "triggered": a.triggered,
-                    "created_at": a.created_at.isoformat() if hasattr(a, "created_at") and a.created_at else None,
+                    "created_at": (
+                        a.created_at.isoformat()
+                        if hasattr(a, "created_at") and a.created_at
+                        else None
+                    ),
                 }
             )
         return output

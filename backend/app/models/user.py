@@ -30,7 +30,9 @@ class User(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     hashed_password: Mapped[str | None] = mapped_column(Text, nullable=True)
-    google_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
+    google_id: Mapped[str | None] = mapped_column(
+        String(255), unique=True, nullable=True, index=True
+    )
     login_provider: Mapped[str] = mapped_column(String(50), default="email", nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     role: Mapped[str] = mapped_column(String(50), default="user", nullable=False, index=True)

@@ -17,7 +17,9 @@ logger = get_logger(__name__)
 class RainforestAdapter(BaseMarketplaceAdapter):
     """Adapter for Rainforest API providing Amazon India marketplace listings."""
 
-    def __init__(self, marketplace_slug: str = "amazon", base_url: str = "https://www.amazon.in") -> None:
+    def __init__(
+        self, marketplace_slug: str = "amazon", base_url: str = "https://www.amazon.in"
+    ) -> None:
         super().__init__(marketplace_slug=marketplace_slug, base_url=base_url)
         self.api_key = settings.RAINFOREST_API_KEY or ""
         self.api_url = "https://api.rainforestapi.com/request"
@@ -53,36 +55,57 @@ class RainforestAdapter(BaseMarketplaceAdapter):
                         image_url = item.get("image") or ""
                         title = item.get("title", f"{query} on Amazon")
                         rating = float(item.get("rating", 4.5)) if item.get("rating") else 4.5
-                        reviews = int(item.get("ratings_total", 120)) if item.get("ratings_total") else 120
-                        
-                        delivery_info = item.get("delivery", {})
-                        is_prime = bool(delivery_info.get("is_prime", True)) if isinstance(delivery_info, dict) else True
-                        deliv_str = "Express Delivery Tomorrow" if is_prime else "Delivery in 2-3 Days"
+                        reviews = (
+                            int(item.get("ratings_total", 120))
+                            if item.get("ratings_total")
+                            else 120
+                        )
 
-                        listings.append({
-                            "title": title,
-                            "price": float(raw_price),
-                            "original_price": float(raw_price * 1.15),
-                            "discount_percent": 13.0,
-                            "currency": "INR",
-                            "seller_name": "Amazon Retailer",
-                            "listing_url": listing_url,
-                            "marketplace_product_id": asin,
-                            "is_available": True,
-                            "stock_status": "IN_STOCK",
-                            "delivery_estimate": deliv_str,
-                            "rating": rating,
-                            "review_count": reviews,
-                            "image_url": image_url,
-                            "is_prime": is_prime,
-                            "marketplace_slug": "amazon",
-                            "marketplace_name": "Amazon",
-                            "marketplace_logo": "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg",
-                        })
-                    logger.info("Rainforest API fetched %d Amazon listings for '%s'", len(listings), query)
+                        delivery_info = item.get("delivery", {})
+                        is_prime = (
+                            bool(delivery_info.get("is_prime", True))
+                            if isinstance(delivery_info, dict)
+                            else True
+                        )
+                        deliv_str = (
+                            "Express Delivery Tomorrow" if is_prime else "Delivery in 2-3 Days"
+                        )
+
+                        listings.append(
+                            {
+                                "title": title,
+                                "price": float(raw_price),
+                                "original_price": float(raw_price * 1.15),
+                                "discount_percent": 13.0,
+                                "currency": "INR",
+                                "seller_name": "Amazon Retailer",
+                                "listing_url": listing_url,
+                                "marketplace_product_id": asin,
+                                "is_available": True,
+                                "stock_status": "IN_STOCK",
+                                "delivery_estimate": deliv_str,
+                                "rating": rating,
+                                "review_count": reviews,
+                                "image_url": image_url,
+                                "is_prime": is_prime,
+                                "marketplace_slug": "amazon",
+                                "marketplace_name": "Amazon",
+                                "marketplace_logo": (
+                                    "https://upload.wikimedia.org/wikipedia/commons/a/a9/"
+                                    "Amazon_logo.svg"
+                                ),
+                            }
+                        )
+                    logger.info(
+                        "Rainforest API fetched %d Amazon listings for '%s'", len(listings), query
+                    )
                     return listings
                 else:
-                    logger.warning("Rainforest API error status %d: %s", response.status_code, response.text[:200])
+                    logger.warning(
+                        "Rainforest API error status %d: %s",
+                        response.status_code,
+                        response.text[:200],
+                    )
         except Exception as exc:
             logger.error("Rainforest API exception: %s", exc)
 
@@ -110,8 +133,12 @@ class RainforestAdapter(BaseMarketplaceAdapter):
         return {
             "title": raw_data.get("title", "Amazon Item"),
             "price": float(raw_data.get("price", 0.0)),
-            "original_price": float(raw_data["original_price"]) if raw_data.get("original_price") else None,
-            "discount_percent": float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None,
+            "original_price": (
+                float(raw_data["original_price"]) if raw_data.get("original_price") else None
+            ),
+            "discount_percent": (
+                float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None
+            ),
             "currency": raw_data.get("currency", "INR"),
             "listing_url": raw_data.get("listing_url", "https://www.amazon.in"),
             "marketplace_product_id": raw_data.get("marketplace_product_id", "AMZ-01"),
@@ -125,7 +152,9 @@ class RainforestAdapter(BaseMarketplaceAdapter):
             "image_url": raw_data.get("image_url", ""),
             "marketplace_slug": "amazon",
             "marketplace_name": "Amazon",
-            "marketplace_logo": "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg",
+            "marketplace_logo": (
+                "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg"
+            ),
             "data_priority": 1,
             "marketplace_source": "Rainforest API",
         }

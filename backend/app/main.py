@@ -31,7 +31,7 @@ logger = get_logger(__name__)
 
 
 async def verify_and_migrate_db_schema():
-    """Verify ORM model columns exist in PostgreSQL database and apply safe auto-migrations on startup."""
+    """Verify ORM model columns exist in database and apply auto-migrations on startup."""
     try:
         from sqlalchemy import text
         from app.db.session import engine
@@ -44,31 +44,73 @@ async def verify_and_migrate_db_schema():
 
         # 2. Check & alter table columns if missing
         async with engine.begin() as conn:
-            res = await conn.execute(
-                text("SELECT column_name FROM information_schema.columns WHERE table_name = 'users';")
-            )
-            existing_cols = {row[0] for row in res.fetchall()}
-
             statements = [
-                ("google_id", "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);"),
-                ("google_id_idx", "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_id ON users (google_id);"),
-                ("login_provider", "ALTER TABLE users ADD COLUMN IF NOT EXISTS login_provider VARCHAR(50) DEFAULT 'email' NOT NULL;"),
+                (
+                    "google_id",
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);",
+                ),
+                (
+                    "google_id_idx",
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_id ON users (google_id);",
+                ),
+                (
+                    "login_provider",
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS login_provider VARCHAR(50) "
+                    "DEFAULT 'email' NOT NULL;",
+                ),
                 ("avatar_url", "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;"),
-                ("hashed_password", "ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL;"),
-                ("price_alerts_mp", "ALTER TABLE price_alerts ADD COLUMN IF NOT EXISTS marketplace VARCHAR(100) DEFAULT 'All Marketplaces' NOT NULL;"),
-                ("price_alerts_method", "ALTER TABLE price_alerts ADD COLUMN IF NOT EXISTS notification_method VARCHAR(50) DEFAULT 'both' NOT NULL;"),
-                ("price_history_pid", "ALTER TABLE price_history ADD COLUMN IF NOT EXISTS product_id UUID REFERENCES products(id) ON DELETE CASCADE;"),
-                ("price_history_slug", "ALTER TABLE price_history ADD COLUMN IF NOT EXISTS marketplace_slug VARCHAR(100);"),
-                ("idx_ph_pid", "CREATE INDEX IF NOT EXISTS ix_price_history_product_id ON price_history (product_id);"),
-                ("idx_ph_slug", "CREATE INDEX IF NOT EXISTS ix_price_history_marketplace_slug ON price_history (marketplace_slug);"),
-                ("idx_notif_user", "CREATE INDEX IF NOT EXISTS ix_notifications_user_id ON notifications (user_id);"),
-                ("idx_notif_read", "CREATE INDEX IF NOT EXISTS ix_notifications_is_read ON notifications (is_read);"),
+                (
+                    "hashed_password",
+                    "ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL;",
+                ),
+                (
+                    "price_alerts_mp",
+                    "ALTER TABLE price_alerts ADD COLUMN IF NOT EXISTS marketplace "
+                    "VARCHAR(100) DEFAULT 'All Marketplaces' NOT NULL;",
+                ),
+                (
+                    "price_alerts_method",
+                    "ALTER TABLE price_alerts ADD COLUMN IF NOT EXISTS notification_method "
+                    "VARCHAR(50) DEFAULT 'both' NOT NULL;",
+                ),
+                (
+                    "price_history_pid",
+                    "ALTER TABLE price_history ADD COLUMN IF NOT EXISTS product_id "
+                    "UUID REFERENCES products(id) ON DELETE CASCADE;",
+                ),
+                (
+                    "price_history_slug",
+                    "ALTER TABLE price_history ADD COLUMN IF NOT EXISTS marketplace_slug "
+                    "VARCHAR(100);",
+                ),
+                (
+                    "idx_ph_pid",
+                    "CREATE INDEX IF NOT EXISTS ix_price_history_product_id "
+                    "ON price_history (product_id);",
+                ),
+                (
+                    "idx_ph_slug",
+                    "CREATE INDEX IF NOT EXISTS ix_price_history_marketplace_slug "
+                    "ON price_history (marketplace_slug);",
+                ),
+                (
+                    "idx_notif_user",
+                    "CREATE INDEX IF NOT EXISTS ix_notifications_user_id "
+                    "ON notifications (user_id);",
+                ),
+                (
+                    "idx_notif_read",
+                    "CREATE INDEX IF NOT EXISTS ix_notifications_is_read "
+                    "ON notifications (is_read);",
+                ),
             ]
 
             for key, stmt in statements:
                 await conn.execute(text(stmt))
 
-        logger.info("Database schema validation completed cleanly. All ORM tables and columns verified.")
+        logger.info(
+            "Database schema validation completed cleanly. All ORM tables verified."
+        )
     except Exception as exc:
         logger.warning("Startup database schema verification warning: %s", exc)
 
@@ -91,6 +133,7 @@ async def lifespan(app: FastAPI):
     # Start background price monitor service
     import asyncio
     from app.services.price_monitor_service import start_periodic_price_monitor
+
     monitor_task = asyncio.create_task(start_periodic_price_monitor(interval_seconds=1800))
 
     yield
