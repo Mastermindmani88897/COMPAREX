@@ -225,3 +225,45 @@ export const authService = {
 };
 
 export const healthCheck = () => apiClient.get("/health");
+
+export const wishlistService = {
+  getWishlist: (params?: { search?: string; category?: string; sort_by?: string }) =>
+    apiClient.get("/wishlist", { params }),
+
+  addToWishlist: (payload: { product_id: string; preferred_marketplace?: string; target_price?: number; notes?: string }) =>
+    apiClient.post("/wishlist", payload),
+
+  updateWishlistItem: (id: string, payload: { target_price?: number; preferred_marketplace?: string; notes?: string }) =>
+    apiClient.patch(`/wishlist/${id}`, payload),
+
+  removeFromWishlist: (idOrProductId: string) =>
+    apiClient.delete(`/wishlist/${idOrProductId}`),
+};
+
+export const alertsService = {
+  getAlerts: () => apiClient.get("/alerts"),
+
+  createAlert: (payload: { product_id: string; target_price: number; marketplace?: string; notification_method?: string }) =>
+    apiClient.post("/alerts", payload),
+
+  updateAlert: (id: string, payload: { target_price?: number; marketplace?: string; notification_method?: string; is_active?: boolean }) =>
+    apiClient.patch(`/alerts/${id}`, payload),
+
+  deleteAlert: (id: string) => apiClient.delete(`/alerts/${id}`),
+};
+
+export const notificationService = {
+  getNotifications: () => apiClient.get("/notifications"),
+
+  markRead: (notificationId?: string, markAll: boolean = false) =>
+    apiClient.patch("/notifications/read", { notification_id: notificationId, mark_all: markAll }),
+
+  deleteNotification: (id: string) => apiClient.delete(`/notifications/${id}`),
+
+  clearAll: () => apiClient.post("/notifications/clear-all"),
+};
+
+export const priceHistoryService = {
+  getProductHistory: (productId: string, params?: { product_name?: string; base_price?: number; time_range?: string }) =>
+    apiClient.get(`/price-history/product/${productId}`, { params }),
+};

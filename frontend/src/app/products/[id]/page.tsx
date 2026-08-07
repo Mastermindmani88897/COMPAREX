@@ -35,9 +35,12 @@ import {
   Shield,
   Calendar,
   Layers,
+  Bell,
 } from "lucide-react";
 import apiClient from "@/services/api";
 import { WishlistHeartButton } from "@/components/wishlist/WishlistHeartButton";
+import { PriceAlertModal } from "@/components/alerts/PriceAlertModal";
+import { PriceHistoryChart } from "@/components/charts/PriceHistoryChart";
 
 interface ListingItem {
   id: string;
@@ -204,11 +207,21 @@ export default function ProductDetailPage() {
     );
   }
 
+  const [isAlertModalOpen, setIsAlertModalOpen] = useState<boolean>(false);
+
   const minP = lowestPrice || (listings.length > 0 ? Math.min(...listings.map((l) => l.price)) : 0);
   const currentImage = galleryImages[activeImageIndex] || galleryImages[0] || "";
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8" style={{ background: "var(--background)", paddingTop: "88px" }}>
+      <PriceAlertModal
+        isOpen={isAlertModalOpen}
+        onClose={() => setIsAlertModalOpen(false)}
+        productId={realProductId}
+        productName={productName}
+        currentPrice={minP || 49999}
+      />
+
       <div className="max-w-7xl mx-auto space-y-10">
 
         {/* Top Header */}
@@ -222,7 +235,16 @@ export default function ProductDetailPage() {
           </Link>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsAlertModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all shadow-sm"
+              title="Set Price Drop Alert"
+            >
+              <Bell className="h-4 w-4" /> 🔔 Price Alert
+            </button>
+
             <WishlistHeartButton productId={realProductId} size="lg" />
+            
             <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm">
               <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Live Real-Time Aggregation Active
             </span>
@@ -438,6 +460,13 @@ export default function ProductDetailPage() {
             </div>
           </div>
         )}
+
+        {/* ── PRICE HISTORY GRAPH (NEW FEATURE) ────────────────────────────────── */}
+        <PriceHistoryChart
+          productId={realProductId}
+          productName={productName}
+          basePrice={minP || 49999}
+        />
 
         {/* ── GOOGLE SHOPPING STYLE MARKETPLACE COMPARISON MATRIX ───────────────────── */}
         <div className="rounded-3xl border p-6 sm:p-8 space-y-6 shadow-2xl" style={{ background: "var(--card)", borderColor: "var(--border)" }}>

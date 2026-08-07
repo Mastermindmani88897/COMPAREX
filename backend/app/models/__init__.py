@@ -22,5 +22,6 @@ from app.models.shopping_memory import ShoppingMemory  # noqa: F401
 from app.models.shopping_plan import ShoppingPlan  # noqa: F401
 from app.models.shopping_profile import ShoppingProfile  # noqa: F401
 from app.models.user import User  # noqa: F401
+from app.models.notification import Notification  # noqa: F401
 from app.models.watchlist import Watchlist  # noqa: F401
 from app.models.wishlist import Wishlist  # noqa: F401

@@ -6,7 +6,7 @@ Manages price drop notification triggers and target price threshold configuratio
 
 import uuid
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import Boolean, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID
@@ -47,12 +47,14 @@ class PriceAlert(Base):
 
     target_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     initial_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    marketplace: Mapped[str] = mapped_column(String(100), default="All Marketplaces", nullable=False)
+    notification_method: Mapped[str] = mapped_column(String(50), default="both", nullable=False)
     notification_channel: Mapped[str] = mapped_column(String(50), default="email")
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     triggered: Mapped[bool] = mapped_column(Boolean, default=False)
 
     user: Mapped["User"] = relationship("User", backref="price_alerts")
     product: Mapped["Product"] = relationship("Product", backref="price_alerts")
 
     def __repr__(self) -> str:
-        return f"<PriceAlert user={self.user_id} target={self.target_price}>"
+        return f"<PriceAlert user={self.user_id} target={self.target_price} active={self.is_active}>"

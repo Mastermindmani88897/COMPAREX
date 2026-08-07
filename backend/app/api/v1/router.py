@@ -28,6 +28,7 @@ from app.api.v1.endpoints import (
     marketplaces,
     memory,
     metrics,
+    notifications,
     persona,
     planner,
     price_history,
@@ -83,6 +84,7 @@ v1_router.include_router(price_history.router)
 # Price Drop Alerts & Watchlist
 v1_router.include_router(alerts.router)
 v1_router.include_router(wishlist.router)
+v1_router.include_router(notifications.router)
 
 # Smart Coupon Engine
 v1_router.include_router(coupons.router)

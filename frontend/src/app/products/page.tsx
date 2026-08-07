@@ -14,10 +14,12 @@ import {
   AlertCircle,
   ChevronLeft,
   ArrowUpDown,
+  Bell,
 } from "lucide-react";
 import apiClient from "@/services/api";
 import type { Product, Category } from "@/types";
 import { WishlistHeartButton } from "@/components/wishlist/WishlistHeartButton";
+import { PriceAlertModal } from "@/components/alerts/PriceAlertModal";
 
 export default function ProductsCatalogPage() {
   const searchParams = useSearchParams();
@@ -118,11 +120,23 @@ export default function ProductsCatalogPage() {
   const totalPages = Math.ceil(filteredProducts.length / limit) || 1;
   const paginatedProducts = filteredProducts.slice((page - 1) * limit, page * limit);
 
+  // Price Alert Modal state
+  const [activeAlertProduct, setActiveAlertProduct] = useState<Product | null>(null);
+  
   return (
     <div
       className="min-h-screen py-12 px-4 sm:px-6 lg:px-8"
       style={{ background: "var(--background)", paddingTop: "88px" }}
     >
+      {activeAlertProduct && (
+        <PriceAlertModal
+          isOpen={Boolean(activeAlertProduct)}
+          onClose={() => setActiveAlertProduct(null)}
+          productId={activeAlertProduct.id}
+          productName={activeAlertProduct.name}
+          currentPrice={Number(activeAlertProduct.base_price) || 19999}
+        />
+      )}
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Page Title Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -294,7 +308,19 @@ export default function ProductsCatalogPage() {
                 transition={{ delay: i * 0.03 }}
               >
                 <div className="relative group flex flex-col justify-between h-full">
-                  <div className="absolute top-3 right-3 z-10">
+                  <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setActiveAlertProduct(product);
+                      }}
+                      className="p-2 rounded-xl border bg-black/40 text-amber-400 backdrop-blur-md hover:bg-black/60 transition-all shadow-sm"
+                      style={{ borderColor: "var(--border)" }}
+                      title="Set Price Alert"
+                    >
+                      <Bell className="h-4 w-4" />
+                    </button>
                     <WishlistHeartButton productId={product.id} size="sm" />
                   </div>
                   <Link

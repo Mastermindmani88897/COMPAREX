@@ -127,6 +127,36 @@ EXPLICIT_PRODUCTS = [
         "specs": {"Processor": "Snapdragon 778G 5G", "Display": "6.67-inch FHD+ Flow AMOLED 120Hz", "Camera": "108MP Main + 8MP Ultra Wide + 2MP Macro", "Battery": "5000 mAh with 67W fast charging"},
     },
     {
+        "name": "Apple iPhone 15 Pro Max (256 GB) - Natural Titanium",
+        "category_slug": "smartphones",
+        "brand_slug": "apple",
+        "base_price": 139900.0,
+        "ean": "194253900009",
+        "image_url": "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=600",
+        "description": "iPhone 15 Pro Max forged in grade 5 titanium design, 6.7-inch Super Retina XDR display, A17 Pro chip, 48MP Fusion camera with 5x Telephoto.",
+        "specs": {"Display": "6.7-inch OLED 120Hz ProMotion", "Processor": "Apple A17 Pro", "Camera": "48MP Main + 12MP Ultra Wide + 12MP 5x Telephoto", "Battery": "Up to 29 hours video playback"},
+    },
+    {
+        "name": "Samsung Galaxy S25 Ultra 5G (12GB RAM, 512GB) - Titanium Silver",
+        "category_slug": "smartphones",
+        "brand_slug": "samsung",
+        "base_price": 129999.0,
+        "ean": "880609900099",
+        "image_url": "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=600",
+        "description": "Samsung Galaxy S25 Ultra 5G with Snapdragon 8 Elite Galaxy Edition, 200MP Quad Telephoto Camera, Built-in S Pen, Galaxy AI.",
+        "specs": {"Display": "6.8-inch Dynamic AMOLED 2X 120Hz", "Processor": "Snapdragon 8 Elite", "Camera": "200MP Main + 50MP Periscope + 50MP Ultra-Wide", "Battery": "5000 mAh 45W Fast Charging"},
+    },
+    {
+        "name": "Apple MacBook Air M4 (16GB RAM, 512GB SSD) - Space Grey",
+        "category_slug": "laptops-computers",
+        "brand_slug": "apple",
+        "base_price": 114900.0,
+        "ean": "194253900088",
+        "image_url": "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600",
+        "description": "MacBook Air with next-gen Apple M4 chip, 13.6-inch Liquid Retina display, 16GB unified memory, 512GB SSD, up to 18 hours battery life.",
+        "specs": {"Display": "13.6-inch Liquid Retina 500 nits", "Processor": "Apple M4 Chip 10-core CPU", "Memory": "16GB Unified Memory", "Storage": "512GB Superfast SSD"},
+    },
+    {
         "name": "Apple iPhone 16 Pro Max (256 GB) - Natural Titanium",
         "category_slug": "smartphones",
         "brand_slug": "apple",
@@ -177,6 +207,7 @@ EXPLICIT_PRODUCTS = [
         "specs": {"Noise Cancellation": "V1 Processor Dual Noise Sensor", "Battery": "Up to 35 hours", "Weight": "192 grams ultra light"},
     },
 ]
+
 
 # Dynamic Generator Blueprints for broad product diversity
 DYNAMIC_TEMPLATES = [

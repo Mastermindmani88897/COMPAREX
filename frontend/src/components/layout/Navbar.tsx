@@ -11,6 +11,8 @@ import { useAuth } from "@/context/AuthContext";
 
 import { getUserDisplayName, getUserFirstName, getUserInitials } from "@/utils/user";
 
+import { NotificationBell } from "@/components/notifications/NotificationBell";
+
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -98,14 +100,17 @@ export function Navbar() {
               <ThemeToggle />
 
               {isAuthenticated && user && (
-                <Link
-                  href="/dashboard/wishlist"
-                  className="p-2 rounded-xl border hover:text-rose-400 hover:border-rose-400/30 transition-colors"
-                  style={{ borderColor: "var(--border)", background: "var(--card)", color: "var(--foreground-muted)" }}
-                  title="My Wishlist & Favorites"
-                >
-                  <Heart className="h-4 w-4 text-rose-500 fill-rose-500/20" />
-                </Link>
+                <>
+                  <NotificationBell />
+                  <Link
+                    href="/dashboard/wishlist"
+                    className="p-2 rounded-xl border hover:text-rose-400 hover:border-rose-400/30 transition-colors"
+                    style={{ borderColor: "var(--border)", background: "var(--card)", color: "var(--foreground-muted)" }}
+                    title="My Wishlist & Favorites"
+                  >
+                    <Heart className="h-4 w-4 text-rose-500 fill-rose-500/20" />
+                  </Link>
+                </>
               )}
 
               {isLoading ? (

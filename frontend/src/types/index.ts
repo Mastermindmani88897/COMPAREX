@@ -363,3 +363,40 @@ export interface ContactFormData {
   subject: string;
   message: string;
 }
+
+export interface NotificationItem {
+  id: string;
+  user_id: string;
+  product_id?: string | null;
+  title: string;
+  message: string;
+  type: string;
+  target_price?: number | null;
+  current_price?: number | null;
+  marketplace?: string | null;
+  is_read: boolean;
+  created_at?: string | null;
+}
+
+export interface UserNotificationResponse {
+  unread_count: number;
+  total_count: number;
+  notifications: NotificationItem[];
+}
+
+export interface PriceAlertItem {
+  id: string;
+  user_id: string;
+  product_id: string;
+  product_name: string;
+  product_image?: string | null;
+  target_price: number;
+  initial_price: number;
+  current_price: number;
+  lowest_price: number;
+  marketplace: string;
+  notification_method: string;
+  is_active: boolean;
+  triggered: boolean;
+  created_at?: string | null;
+}
