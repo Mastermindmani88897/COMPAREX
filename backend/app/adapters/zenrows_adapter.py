@@ -31,6 +31,7 @@ class ZenRowsAdapter(BaseMarketplaceAdapter):
             logger.warning("ZenRows API key not configured.")
             return []
 
+        logger.info("MARKETPLACE API REQUEST: provider='ZenRows', query='%s'", query)
         target_url = f"https://www.google.com/search?q={query}+price+in+india+buy+online"
         params = {
             "api_key": self.api_key,
@@ -71,7 +72,7 @@ class ZenRowsAdapter(BaseMarketplaceAdapter):
                         "ZenRows API error status %d: %s", response.status_code, response.text[:200]
                     )
         except Exception as exc:
-            logger.error("ZenRows API exception: %s", exc)
+            logger.error("PROVIDER FAILURE ZenRows API: query='%s', error='%s'", query, exc)
 
         return []
 

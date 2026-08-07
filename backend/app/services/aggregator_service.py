@@ -206,28 +206,42 @@ class MarketplaceAggregatorService:
 
         raw_candidates: List[Dict[str, Any]] = []
 
-        if isinstance(rf_res, list) and rf_res:
+        if isinstance(rf_res, Exception):
+            logger.error("PROVIDER FAILURE Rainforest API: %s", rf_res)
+        elif isinstance(rf_res, list) and rf_res:
             logger.info("API Response Rainforest: %d items", len(rf_res))
             for item in rf_res:
                 raw_candidates.append(rainforest.normalize_listing(item))
 
-        if isinstance(bd_res, list) and bd_res:
+        if isinstance(bd_res, Exception):
+            logger.error("PROVIDER FAILURE Bright Data API: %s", bd_res)
+        elif isinstance(bd_res, list) and bd_res:
             logger.info("API Response Bright Data: %d items", len(bd_res))
             for item in bd_res:
                 raw_candidates.append(brightdata.normalize_listing(item))
 
-        if isinstance(sa_res, list) and sa_res:
+        if isinstance(sa_res, Exception):
+            logger.error("PROVIDER FAILURE SerpAPI: %s", sa_res)
+        elif isinstance(sa_res, list) and sa_res:
             logger.info("API Response SerpAPI: %d items", len(sa_res))
             for item in sa_res:
                 raw_candidates.append(serpapi.normalize_listing(item))
 
-        if not raw_candidates and isinstance(zr_res, list) and zr_res:
+        if isinstance(zr_res, Exception):
+            logger.error("PROVIDER FAILURE ZenRows API: %s", zr_res)
+        elif isinstance(zr_res, list) and zr_res:
             logger.info("API Response ZenRows (Fallback): %d items", len(zr_res))
-            for item in zr_res:
-                raw_candidates.append(zenrows.normalize_listing(item))
+            if not raw_candidates:
+                for item in zr_res:
+                    raw_candidates.append(zenrows.normalize_listing(item))
 
         # If no provider return data, fallback to realistic Indian marketplace offers
         if not raw_candidates:
+            logger.warning(
+                "All live marketplace providers returned 0 items for '%s'. "
+                "Generating baseline Indian marketplace listings...",
+                clean_search_term,
+            )
             raw_candidates = cls._generate_fallback_listings(clean_search_term)
 
         # ── 3. Intelligent Product Matching & Filtering ─────────────────────────

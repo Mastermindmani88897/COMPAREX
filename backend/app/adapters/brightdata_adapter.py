@@ -79,6 +79,7 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
             logger.warning("Bright Data API key not configured.")
             return []
 
+        logger.info("MARKETPLACE API REQUEST: provider='Bright Data', query='%s'", query)
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -154,7 +155,7 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
                         "Bright Data API status %d: %s", response.status_code, response.text[:200]
                     )
         except Exception as exc:
-            logger.error("Bright Data API exception: %s", exc)
+            logger.error("PROVIDER FAILURE Bright Data: query='%s', error='%s'", query, exc)
 
         return []
 

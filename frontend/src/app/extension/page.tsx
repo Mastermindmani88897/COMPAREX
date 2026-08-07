@@ -75,7 +75,7 @@ export default function ExtensionOnboardingPage() {
 
           <div className="pt-4 flex flex-wrap items-center justify-center gap-4">
             <a
-              href="http://localhost:8000/api/v1/extension/status"
+              href={`${process.env.NEXT_PUBLIC_API_URL || "https://comparex-backend-33jp.onrender.com/api/v1"}/extension/status`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl gradient-bg text-white font-bold text-sm shadow-lg hover:opacity-90 transition-opacity"

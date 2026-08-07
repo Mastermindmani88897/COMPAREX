@@ -48,6 +48,7 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
             logger.warning("SerpAPI key not configured.")
             return []
 
+        logger.info("MARKETPLACE API REQUEST: provider='SerpAPI', query='%s'", query)
         params = {
             "engine": "google_shopping",
             "q": query,
@@ -117,7 +118,7 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
                         "SerpAPI error status %d: %s", response.status_code, response.text[:200]
                     )
         except Exception as exc:
-            logger.error("SerpAPI exception: %s", exc)
+            logger.error("PROVIDER FAILURE SerpAPI: query='%s', error='%s'", query, exc)
 
         return []
 

@@ -62,24 +62,46 @@ async def list_products(
     ),
     db: AsyncSession = Depends(get_db),
 ):
-    """List products endpoint."""
-    service = ProductService(db)
-    products = await service.list_products(
-        skip=skip,
-        limit=limit,
-        query=query,
-        category=category,
-        brand=brand,
-        min_price=min_price,
-        max_price=max_price,
-        min_rating=min_rating,
-        in_stock_only=in_stock_only,
-        sort_by=sort_by,
+    from app.core.logging import get_logger
+    endpoint_logger = get_logger(__name__)
+
+    endpoint_logger.info(
+        "SEARCH REQUEST: query='%s', category='%s', brand='%s', min_price=%s, "
+        "max_price=%s, skip=%d, limit=%d",
+        query,
+        category,
+        brand,
+        min_price,
+        max_price,
+        skip,
+        limit,
     )
-    return SuccessResponse(
-        message="Products retrieved successfully",
-        data=products,
-    )
+    try:
+        service = ProductService(db)
+        products = await service.list_products(
+            skip=skip,
+            limit=limit,
+            query=query,
+            category=category,
+            brand=brand,
+            min_price=min_price,
+            max_price=max_price,
+            min_rating=min_rating,
+            in_stock_only=in_stock_only,
+            sort_by=sort_by,
+        )
+        return SuccessResponse(
+            message="Products retrieved successfully",
+            data=products,
+        )
+    except Exception as exc:
+        endpoint_logger.error(
+            "Unhandled exception in list_products endpoint: %s", exc, exc_info=True
+        )
+        return SuccessResponse(
+            message="Products retrieved with fallback",
+            data=[],
+        )
 
 
 @router.post(

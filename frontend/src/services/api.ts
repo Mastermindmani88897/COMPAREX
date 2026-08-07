@@ -106,7 +106,20 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as typeof error.config & {
       _retry?: boolean;
+      _retryCount?: number;
     };
+
+    // Retry transient network or 502/503/504 server errors up to 2 times
+    if (
+      originalRequest &&
+      (!error.response || [502, 503, 504].includes(error.response.status)) &&
+      (originalRequest._retryCount || 0) < 2
+    ) {
+      originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
+      const backoffMs = originalRequest._retryCount * 1000;
+      await new Promise((res) => setTimeout(res, backoffMs));
+      return apiClient(originalRequest);
+    }
 
     if (error.response?.status === 401 && !originalRequest?._retry) {
       if (typeof window === "undefined") return Promise.reject(error);

@@ -75,6 +75,12 @@ class ProductService:
         """List products using fast database search, synonyms, and live fallbacks."""
         synonyms = self._get_synonyms(query) if query else None
 
+        logger.info(
+            "DB QUERY: Executing search for query='%s', category='%s', brand='%s'",
+            query,
+            category,
+            brand,
+        )
         products = await self.repo.search_products(
             skip=skip,
             limit=limit,
@@ -87,6 +93,11 @@ class ProductService:
             in_stock_only=in_stock_only,
             sort_by=sort_by,
             synonyms=synonyms,
+        )
+        logger.info(
+            "DB QUERY RESULT: Found %d products for query='%s'",
+            len(products),
+            query,
         )
 
         # If DB returned 0 products AND query provided, trigger live aggregation & auto-cache in DB
@@ -154,7 +165,10 @@ class ProductService:
                     query=query,
                     category=category,
                     brand=brand,
+                    synonyms=synonyms,
                 )
+                if not products:
+                    products = [new_product]
             except Exception as exc:
                 logger.error(
                     "Failed to dynamically aggregate and cache search '%s': %s", query, exc

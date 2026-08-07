@@ -30,6 +30,7 @@ class RainforestAdapter(BaseMarketplaceAdapter):
             logger.warning("Rainforest API key not configured.")
             return []
 
+        logger.info("MARKETPLACE API REQUEST: provider='Rainforest', query='%s'", query)
         params = {
             "api_key": self.api_key,
             "type": "search",
@@ -107,7 +108,7 @@ class RainforestAdapter(BaseMarketplaceAdapter):
                         response.text[:200],
                     )
         except Exception as exc:
-            logger.error("Rainforest API exception: %s", exc)
+            logger.error("PROVIDER FAILURE Rainforest API: query='%s', error='%s'", query, exc)
 
         return []
 

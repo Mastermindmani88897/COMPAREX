@@ -43,8 +43,12 @@ export default function ProductsCatalogPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const catRes = await apiClient.get("/categories");
-      setCategories(catRes.data.data || []);
+      try {
+        const catRes = await apiClient.get("/categories");
+        setCategories(catRes.data.data || []);
+      } catch {
+        // Non-fatal if categories fail
+      }
 
       const endpoint = query.trim()
         ? `/products?query=${encodeURIComponent(query)}&limit=100`
@@ -52,8 +56,12 @@ export default function ProductsCatalogPage() {
 
       const prodRes = await apiClient.get(endpoint);
       setProducts(prodRes.data.data || []);
-    } catch {
-      setError("Failed to load products. Please check your connection and try again.");
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to load products. Please check your connection and try again.";
+      setError(msg);
       setProducts([]);
     } finally {
       setIsLoading(false);
@@ -65,12 +73,20 @@ export default function ProductsCatalogPage() {
 
     async function loadCatalog() {
       setError(null);
+      setIsLoading(true);
+
+      // Load categories safely
       try {
         const catRes = await apiClient.get("/categories");
         if (!isCancelled) {
           setCategories(catRes.data.data || []);
         }
+      } catch {
+        // Non-fatal
+      }
 
+      // Load products catalog
+      try {
         const endpoint = query.trim()
           ? `/products?query=${encodeURIComponent(query)}&limit=100`
           : `/products?limit=100`;
@@ -79,9 +95,13 @@ export default function ProductsCatalogPage() {
         if (!isCancelled) {
           setProducts(prodRes.data.data || []);
         }
-      } catch {
+      } catch (err: any) {
         if (!isCancelled) {
-          setError("Failed to load products. Please check your connection and try again.");
+          const msg =
+            err?.response?.data?.message ||
+            err?.message ||
+            "Failed to load products. Please check your connection and try again.";
+          setError(msg);
           setProducts([]);
         }
       } finally {
