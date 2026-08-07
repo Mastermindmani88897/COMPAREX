@@ -174,13 +174,69 @@ class ProductService:
                     "Failed to dynamically aggregate and cache search '%s': %s", query, exc
                 )
 
-        # If DB is empty, run seed catalog script to ensure catalog is populated
+        # If DB is empty and no query, seed initial catalog products safely
         if not products and not query:
             try:
-                from scripts.seed_database import seed_database
+                logger.info("Database product catalog is empty. Seeding initial products...")
+                popular_items = [
+                    "Poco X5 Pro 5G",
+                    "iPhone 16 Pro",
+                    "Samsung S25 Ultra",
+                    "Sony WH-1000XM5 Wireless Headphones",
+                    "MacBook Air M3",
+                ]
+                for item_name in popular_items:
+                    try:
+                        agg = await MarketplaceAggregatorService.aggregate_search(
+                            query=item_name, use_cache=True
+                        )
+                        p_title = agg.get("product_title") or item_name
+                        lowest_p = agg.get("lowest_price") or 24999.0
+                        img_url = (
+                            agg.get("primary_image")
+                            or "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600"
+                        )
+                        new_p = Product(
+                            id=uuid.uuid4(),
+                            name=p_title,
+                            brand=agg.get("specifications", {}).get("brand", "Brand"),
+                            category=agg.get("category", "Electronics"),
+                            base_price=Decimal(str(lowest_p)),
+                            description=(
+                                f"{p_title} - Price comparison across 8 Indian marketplaces."
+                            ),
+                            image_url=img_url,
+                            stock_status="in_stock",
+                            rating=Decimal("4.6"),
+                            review_count=1200,
+                            popularity_score=90.0,
+                            search_keywords=item_name.lower(),
+                        )
+                        self.db.add(new_p)
+                        await self.db.flush()
 
-                logger.info("Database product catalog is empty. Running database seeder...")
-                await seed_database()
+                        for lst_d in agg.get("listings", []):
+                            self.db.add(
+                                ProductListing(
+                                    id=uuid.uuid4(),
+                                    product_id=new_p.id,
+                                    price=Decimal(str(lst_d.get("price", lowest_p))),
+                                    original_price=Decimal(
+                                        str(lst_d.get("original_price", lowest_p * 1.15))
+                                    ),
+                                    discount_percentage=Decimal(
+                                        str(lst_d.get("discount_percent", 10.0))
+                                    ),
+                                    listing_url=lst_d.get("listing_url", "https://www.amazon.in"),
+                                    seller_name=lst_d.get("seller_name", "Verified Seller"),
+                                    is_available=True,
+                                    stock_status="IN_STOCK",
+                                )
+                            )
+                    except Exception as sub_exc:
+                        logger.warning("Failed to inline seed '%s': %s", item_name, sub_exc)
+
+                await self.db.commit()
                 products = await self.repo.search_products(skip=skip, limit=limit)
             except Exception as exc:
                 logger.warning("Failed to auto-seed database: %s", exc)
