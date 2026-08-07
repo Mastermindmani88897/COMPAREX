@@ -141,16 +141,18 @@ class ProductService:
                 await self.db.flush()
 
                 for lst_data in agg.get("listings", []):
+                    l_price = float(lst_data.get("price") or lowest_price)
+                    l_orig = float(lst_data.get("original_price") or (l_price * 1.15))
+                    l_disc = float(lst_data.get("discount_percent") or 10.0)
+
                     lst = ProductListing(
                         id=uuid.uuid4(),
                         product_id=new_product.id,
-                        price=Decimal(str(lst_data.get("price", lowest_price))),
-                        original_price=Decimal(
-                            str(lst_data.get("original_price", lowest_price * 1.15))
-                        ),
-                        discount_percentage=Decimal(str(lst_data.get("discount_percent", 10.0))),
-                        listing_url=lst_data.get("listing_url", "https://www.amazon.in"),
-                        seller_name=lst_data.get("seller_name", "Verified Seller"),
+                        price=Decimal(str(l_price)),
+                        original_price=Decimal(str(l_orig)),
+                        discount_percentage=Decimal(str(l_disc)),
+                        listing_url=lst_data.get("listing_url") or "https://www.amazon.in",
+                        seller_name=lst_data.get("seller_name") or "Verified Seller",
                         is_available=True,
                         stock_status="IN_STOCK",
                     )
@@ -216,19 +218,19 @@ class ProductService:
                         await self.db.flush()
 
                         for lst_d in agg.get("listings", []):
+                            lp = float(lst_d.get("price") or lowest_p)
+                            lo = float(lst_d.get("original_price") or (lp * 1.15))
+                            ld = float(lst_d.get("discount_percent") or 10.0)
+
                             self.db.add(
                                 ProductListing(
                                     id=uuid.uuid4(),
                                     product_id=new_p.id,
-                                    price=Decimal(str(lst_d.get("price", lowest_p))),
-                                    original_price=Decimal(
-                                        str(lst_d.get("original_price", lowest_p * 1.15))
-                                    ),
-                                    discount_percentage=Decimal(
-                                        str(lst_d.get("discount_percent", 10.0))
-                                    ),
-                                    listing_url=lst_d.get("listing_url", "https://www.amazon.in"),
-                                    seller_name=lst_d.get("seller_name", "Verified Seller"),
+                                    price=Decimal(str(lp)),
+                                    original_price=Decimal(str(lo)),
+                                    discount_percentage=Decimal(str(ld)),
+                                    listing_url=lst_d.get("listing_url") or "https://www.amazon.in",
+                                    seller_name=lst_d.get("seller_name") or "Verified Seller",
                                     is_available=True,
                                     stock_status="IN_STOCK",
                                 )
