@@ -137,7 +137,9 @@ class WishlistService:
                         detail="Product not found",
                     )
 
-        product = await self.product_repo.get_by_id(product_id)
+        product = await self.product_repo.get_with_relations(product_id)
+        if not product:
+            product = await self.product_repo.get_by_id(product_id)
         if not product:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

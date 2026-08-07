@@ -2,6 +2,7 @@
 COMPAREX Backend – Product Service
 """
 
+import difflib
 from typing import Optional
 from uuid import UUID
 
@@ -14,6 +15,36 @@ from app.schemas.product import ProductCreate, ProductPublic, ProductUpdate
 
 logger = get_logger(__name__)
 
+# Synonym expansion map for search engine
+SYNONYM_MAP = {
+    "phone": ["mobile", "cellphone", "smartphone", "android", "iphone"],
+    "mobile": ["phone", "cellphone", "smartphone"],
+    "laptop": ["notebook", "macbook", "computer"],
+    "macbook": ["apple laptop", "laptop"],
+    "tv": ["television", "oled", "smart tv", "4k"],
+    "television": ["tv", "smart tv"],
+    "headphone": ["headphones", "earbuds", "earphones", "headset", "airpods"],
+    "earbuds": ["headphones", "tws", "earphones"],
+    "watch": ["smartwatch", "fitness band", "clock"],
+    "smartwatch": ["watch", "fitness tracker"],
+    "shoe": ["shoes", "sneakers", "footwear"],
+    "sneakers": ["shoes", "running shoes", "footwear"],
+    "ac": ["air conditioner", "split ac"],
+    "fridge": ["refrigerator", "freezer"],
+    "washing machine": ["washer", "laundry"],
+    "vacuum": ["cleaner", "cordless vacuum"],
+    "serum": ["skincare", "moisturizer"],
+    "chair": ["office chair", "furniture"],
+    "bed": ["queen bed", "furniture"],
+    "sofa": ["couch", "furniture"],
+    "dal": ["pulses", "groceries"],
+    "oil": ["olive oil", "sunflower oil"],
+    "book": ["novel", "paperback"],
+    "toy": ["lego", "doll", "kids"],
+    "racket": ["badminton", "sports"],
+    "tyre": ["car tyre", "automotive"],
+}
+
 
 class ProductService:
     """Service handling Product business operations."""
@@ -21,6 +52,20 @@ class ProductService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.repo = ProductRepository(db)
+
+    def _get_synonyms(self, query: str) -> list[str]:
+        """Expand search terms using synonym dictionary."""
+        words = query.lower().strip().split()
+        synonyms = []
+        for word in words:
+            if word in SYNONYM_MAP:
+                synonyms.extend(SYNONYM_MAP[word])
+            else:
+                # Fuzzy match against synonym keys for typo correction
+                matches = difflib.get_close_matches(word, SYNONYM_MAP.keys(), n=1, cutoff=0.75)
+                if matches:
+                    synonyms.extend(SYNONYM_MAP[matches[0]])
+        return list(set(synonyms))
 
     async def list_products(
         self,
@@ -31,62 +76,66 @@ class ProductService:
         brand: Optional[str] = None,
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
+        min_rating: Optional[float] = None,
+        in_stock_only: Optional[bool] = None,
+        sort_by: Optional[str] = None,
     ) -> list[ProductPublic]:
-        """List products with optional search query, category, brand, and price filter."""
-        products = await self.repo.get_all(skip=skip, limit=limit)
-        
-        filtered = []
-        for p in products:
-            if query and query.strip():
-                q = query.lower().strip()
-                p_name = p.name.lower()
-                p_brand = (p.brand or "").lower()
-                p_cat = (p.category or "").lower()
-                if q not in p_name and q not in p_brand and q not in p_cat:
-                    continue
-            if category and category.lower() != "all":
-                if not p.category or category.lower() not in p.category.lower():
-                    continue
-            if brand and brand.strip():
-                if not p.brand or brand.lower() not in p.brand.lower():
-                    continue
-            if min_price is not None and p.base_price and float(p.base_price) < min_price:
-                continue
-            if max_price is not None and p.base_price and float(p.base_price) > max_price:
-                continue
+        """List products using fast database-level search, synonyms, and filters."""
+        synonyms = self._get_synonyms(query) if query else None
 
-            filtered.append(p)
+        products = await self.repo.search_products(
+            skip=skip,
+            limit=limit,
+            query=query,
+            category=category,
+            brand=brand,
+            min_price=min_price,
+            max_price=max_price,
+            min_rating=min_rating,
+            in_stock_only=in_stock_only,
+            sort_by=sort_by,
+            synonyms=synonyms,
+        )
 
-        return [ProductPublic.model_validate(p) for p in filtered]
+        return [ProductPublic.model_validate(p) for p in products]
 
     async def autocomplete_suggestions(self, query: str, limit: int = 8) -> list[dict]:
-        """Generate fast search autocomplete suggestions for search bar."""
+        """Generate fast, typo-tolerant search autocomplete suggestions."""
         if not query or not query.strip():
             return []
-        q = query.lower().strip()
-        products = await self.repo.get_all(skip=0, limit=100)
-        
+
+        q_clean = query.lower().strip()
+        synonyms = self._get_synonyms(q_clean)
+
+        products = await self.repo.search_products(
+            skip=0,
+            limit=limit * 2,
+            query=q_clean,
+            synonyms=synonyms,
+        )
+
         suggestions = []
         seen = set()
         for p in products:
             name = p.name
             brand = p.brand or ""
             cat = p.category or ""
-            if q in name.lower() or q in brand.lower() or q in cat.lower():
-                if name not in seen:
-                    seen.add(name)
-                    suggestions.append({
+
+            if name not in seen:
+                seen.add(name)
+                suggestions.append(
+                    {
                         "id": str(p.id),
                         "name": name,
                         "brand": brand,
                         "category": cat,
                         "base_price": float(p.base_price) if p.base_price else None,
                         "image_url": p.image_url,
-                    })
-                    if len(suggestions) >= limit:
-                        break
+                    }
+                )
+                if len(suggestions) >= limit:
+                    break
 
-        # Fallback default suggestions for common queries
         if not suggestions:
             defaults = [
                 {"id": "auto-1", "name": f"{query.title()} 5G", "brand": "POCO", "category": "Mobiles", "base_price": 20999.0},
@@ -99,8 +148,10 @@ class ProductService:
         return suggestions
 
     async def get_product_by_id(self, product_id: UUID) -> ProductPublic:
-        """Get product by ID."""
-        product = await self.repo.get_by_id(product_id)
+        """Get product by ID eagerly loading relations."""
+        product = await self.repo.get_with_relations(product_id)
+        if not product:
+            product = await self.repo.get_by_id(product_id)
         if not product:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

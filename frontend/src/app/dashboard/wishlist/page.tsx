@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -18,9 +18,6 @@ import {
   GitCompare,
   Sparkles,
   Loader2,
-  AlertCircle,
-  Tag,
-  CheckCircle2,
   Trash2,
   Plus,
 } from "lucide-react";
@@ -89,17 +86,21 @@ export default function WishlistDashboardPage() {
   const [sortBy, setSortBy] = useState<string>("date_added");
 
   useEffect(() => {
+    let isCancelled = false;
     apiClient
       .get("/categories")
       .then((res) => {
-        if (res.data?.data) {
+        if (!isCancelled && res.data?.data) {
           setCategories(res.data.data);
         }
       })
       .catch(() => {});
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
-  const loadWishlist = async () => {
+  const loadWishlist = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
@@ -122,10 +123,42 @@ export default function WishlistDashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [searchQuery, selectedCategory, sortBy]);
 
   useEffect(() => {
-    loadWishlist();
+    let isCancelled = false;
+    async function fetchData() {
+      setIsLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (searchQuery.trim()) params.append("search", searchQuery.trim());
+        if (selectedCategory !== "all") params.append("category", selectedCategory);
+        if (sortBy) params.append("sort_by", sortBy);
+
+        const res = await apiClient.get(`/wishlist?${params.toString()}`);
+        const data = res.data?.data;
+        if (!isCancelled && data) {
+          setItems(data.items || []);
+          setTotalItems(data.total_items || 0);
+          setTotalSavings(Number(data.total_savings || 0));
+          if (data.ai_recommendations) {
+            setAiRecs(data.ai_recommendations);
+          }
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          console.error("Failed to load wishlist:", err);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+    fetchData();
+    return () => {
+      isCancelled = true;
+    };
   }, [searchQuery, selectedCategory, sortBy]);
 
   const handleRemoveItem = async (itemId: string) => {
@@ -280,10 +313,20 @@ export default function WishlistDashboardPage() {
                     style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" }}
                   >
                     <option value="all">All Categories</option>
-                    <option value="mobiles">Mobiles</option>
-                    <option value="laptops">Laptops</option>
-                    <option value="headphones">Headphones</option>
-                    <option value="electronics">Electronics</option>
+                    {categories.length > 0
+                      ? categories.map((cat) => (
+                          <option key={cat.id} value={cat.name.toLowerCase()}>
+                            {cat.name}
+                          </option>
+                        ))
+                      : (
+                        <>
+                          <option value="mobiles">Mobiles</option>
+                          <option value="laptops">Laptops</option>
+                          <option value="headphones">Headphones</option>
+                          <option value="electronics">Electronics</option>
+                        </>
+                      )}
                   </select>
                 </div>
 

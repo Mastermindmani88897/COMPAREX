@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.product import Product
 from app.models.wishlist import Wishlist
 from app.repositories.base import BaseRepository
 
@@ -23,7 +24,9 @@ class WishlistRepository(BaseRepository[Wishlist]):
         stmt = (
             select(Wishlist)
             .where(Wishlist.user_id == user_id)
-            .options(selectinload(Wishlist.product))
+            .options(
+                selectinload(Wishlist.product).selectinload(Product.images),
+            )
             .order_by(Wishlist.created_at.desc())
         )
         res = await self.db.execute(stmt)
@@ -33,8 +36,12 @@ class WishlistRepository(BaseRepository[Wishlist]):
         self, user_id: uuid.UUID, product_id: uuid.UUID
     ) -> Optional[Wishlist]:
         """Fetch wishlist item for a specific user and product combination."""
-        stmt = select(Wishlist).where(
-            Wishlist.user_id == user_id, Wishlist.product_id == product_id
+        stmt = (
+            select(Wishlist)
+            .where(Wishlist.user_id == user_id, Wishlist.product_id == product_id)
+            .options(
+                selectinload(Wishlist.product).selectinload(Product.images),
+            )
         )
         res = await self.db.execute(stmt)
         return res.scalars().first()
@@ -46,7 +53,9 @@ class WishlistRepository(BaseRepository[Wishlist]):
         stmt = (
             select(Wishlist)
             .where(Wishlist.id == wishlist_id, Wishlist.user_id == user_id)
-            .options(selectinload(Wishlist.product))
+            .options(
+                selectinload(Wishlist.product).selectinload(Product.images),
+            )
         )
         res = await self.db.execute(stmt)
         return res.scalars().first()

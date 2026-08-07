@@ -7,9 +7,14 @@ import pytest
 from httpx import AsyncClient
 
 
+from unittest.mock import patch
+
+
 @pytest.mark.anyio
-async def test_wishlist_full_crud_flow(async_client: AsyncClient):
+@patch("app.services.wishlist_service.MarketplaceAggregatorService.aggregate_search")
+async def test_wishlist_full_crud_flow(mock_agg, async_client: AsyncClient):
     """Test full wishlist CRUD lifecycle: add, get, patch, delete, and price alert sync."""
+    mock_agg.return_value = {"lowest_price": 49999.0}
     random_id = str(uuid.uuid4())[:8]
     test_email = f"wishlist_{random_id}@example.com"
     test_password = "SecurePassword123!"

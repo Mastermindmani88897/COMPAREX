@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,6 +25,12 @@ class Wishlist(Base):
     """User wishlist / favorites model."""
 
     __tablename__ = "wishlist_items"
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "product_id", name="uq_user_product_wishlist"),
+        Index("ix_wishlist_user_created", "user_id", "created_at"),
+    )
+
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

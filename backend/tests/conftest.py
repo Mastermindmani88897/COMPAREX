@@ -61,3 +61,22 @@ async def async_client():
     from httpx import ASGITransport, AsyncClient
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
+
+
+@pytest.fixture
+async def db_session():
+    """Yield an async database session bound to the test SQLite in-memory engine."""
+    from app.api.deps import get_db
+    override = app.dependency_overrides.get(get_db)
+    if override:
+        async for session in override():
+            yield session
+    else:
+        test_engine = create_async_engine(
+            TEST_DATABASE_URL,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        async_session = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+        async with async_session() as session:
+            yield session

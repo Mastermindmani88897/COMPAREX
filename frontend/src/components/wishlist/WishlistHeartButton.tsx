@@ -35,9 +35,8 @@ export function WishlistHeartButton({
 
   useEffect(() => {
     let isMounted = true;
-    setIsWishlisted(initialIsWishlisted);
 
-    if (user && productId && !initialIsWishlisted) {
+    if (user && productId) {
       apiClient
         .get("/wishlist")
         .then((res) => {
@@ -60,7 +59,7 @@ export function WishlistHeartButton({
     return () => {
       isMounted = false;
     };
-  }, [user, productId, initialIsWishlisted]);
+  }, [user, productId]);
 
   const handleToggle = async (e: React.MouseEvent) => {
     e.preventDefault();

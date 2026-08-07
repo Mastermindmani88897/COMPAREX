@@ -1,7 +1,7 @@
 """
-COMPAREX Backend - Idempotent Production Catalog Seeding Pipeline
+COMPAREX Backend - High-Scale Idempotent Catalog Seeding Pipeline (>100,000 Products)
 
-Populates product catalog with >1,500 products (100+ per category) across 15 categories:
+Populates product catalog with >=100,000 products (scalable to millions) across 15 categories:
 Mobiles, Laptops, Tablets, Smart Watches, Headphones, TVs, Home Appliances,
 Fashion, Beauty, Furniture, Groceries, Books, Toys, Sports, Automotive.
 
@@ -17,6 +17,7 @@ Each product includes:
 - Cross-Marketplace Listings (Amazon, Flipkart, Croma, Reliance Digital)
 """
 
+import argparse
 import asyncio
 import os
 import random
@@ -27,9 +28,7 @@ from decimal import Decimal
 # Ensure backend path is on sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from sqlalchemy import select, func
 from app.db.session import AsyncSessionLocal
 from app.models.brand import Brand
 from app.models.category import Category
@@ -39,17 +38,26 @@ from app.models.product_image import ProductImage
 from app.models.product_listing import ProductListing
 from app.models.product_specification import ProductSpecification
 
-# 15 Required Categories
+# 15 Required Categories & Rich Spec Generation Metadata
 CATEGORIES_DATA = {
     "Mobiles": {
         "slug": "mobiles",
-        "brands": ["Apple", "Samsung", "POCO", "Xiaomi", "OnePlus", "Google", "Realme", "iQOO", "Vivo", "Motorola"],
-        "price_range": (12999, 149900),
+        "brands": ["Apple", "Samsung", "POCO", "Xiaomi", "OnePlus", "Google", "Realme", "iQOO", "Vivo", "Motorola", "Nothing", "Honor"],
+        "price_range": (8999, 159900),
+        "keywords": ["5g", "smartphone", "camera", "oled", "fast charging", "gaming", "amoled", "snapdragon", "bionic"],
+        "specs": [
+            ("Processor", ["Snapdragon 8 Gen 3", "Apple A17 Pro", "Dimensity 9300", "Snapdragon 7+ Gen 3", "Exynos 2400"]),
+            ("Display", ["6.7-inch Super AMOLED 120Hz", "6.1-inch Super Retina XDR", "6.78-inch LTPO OLED", "6.67-inch FHD+ 144Hz"]),
+            ("Camera", ["200MP + 50MP + 12MP Triple", "48MP Main + 12MP UltraWide", "50MP Sony LYT-900 OIS", "108MP Quad Camera"]),
+            ("Battery", ["5000 mAh 120W HyperCharge", "4422 mAh MagSafe", "5500 mAh 100W SUPERVOOC", "4800 mAh 67W Turbo"]),
+            ("RAM & Storage", ["8GB / 128GB", "12GB / 256GB", "16GB / 512GB", "16GB / 1TB"]),
+            ("OS", ["Android 14 / Funtouch 14", "iOS 17", "OxygenOS 14", "One UI 6.1", "HyperOS"]),
+        ],
         "templates": [
-            "{brand} Galaxy S{num} Ultra 5G", "{brand} Pro Max 5G ({ram}GB, {storage}GB)",
-            "{brand} Phone {num} 5G", "{brand} Note {num} Pro Plus", "{brand} Edge {num} Ultra",
+            "{brand} Galaxy S{num} Ultra 5G", "{brand} iPhone {num} Pro Max ({ram}GB)",
+            "{brand} Phone {num} Pro 5G", "{brand} Note {num} Pro Plus", "{brand} Edge {num} Ultra",
             "{brand} Neo {num} 5G", "{brand} Nord CE {num}", "{brand} GT {num} Pro",
-            "{brand} Pixel {num} Pro 5G", "{brand} Z Flip {num}"
+            "{brand} Pixel {num} Pro 5G", "{brand} Z Flip {num}", "{brand} Magic {num} Pro"
         ],
         "images": [
             "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=800&q=80",
@@ -57,12 +65,23 @@ CATEGORIES_DATA = {
             "https://images.unsplash.com/photo-1565849904461-04a58ad377e0?w=800&q=80",
             "https://images.unsplash.com/photo-1574944985070-8f30c4397e3c?w=800&q=80",
             "https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800&q=80",
+            "https://images.unsplash.com/photo-1580910051074-3eb694886505?w=800&q=80",
+            "https://images.unsplash.com/photo-1533228876829-65c94e7b5025?w=800&q=80",
+            "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?w=800&q=80",
         ]
     },
     "Laptops": {
         "slug": "laptops",
-        "brands": ["Apple", "Dell", "ASUS", "HP", "Lenovo", "Acer", "MSI", "Samsung"],
-        "price_range": (34990, 249900),
+        "brands": ["Apple", "Dell", "ASUS", "HP", "Lenovo", "Acer", "MSI", "Samsung", "Razer", "Gigabyte"],
+        "price_range": (29990, 329900),
+        "keywords": ["laptop", "notebook", "macbook", "gaming", "intel i9", "ryzen 9", "rtx 4090", "thin and light", "oled"],
+        "specs": [
+            ("Processor", ["Intel Core i9-14900HX", "Apple M3 Max", "AMD Ryzen 9 7945HX", "Intel Core Ultra 7", "Apple M3 Pro"]),
+            ("Graphics", ["NVIDIA RTX 4090 16GB", "Apple 38-core GPU", "NVIDIA RTX 4070 8GB", "NVIDIA RTX 4060 8GB", "Intel Arc"]),
+            ("RAM", ["16GB LPDDR5X", "32GB DDR5 5600MHz", "64GB DDR5", "128GB Unified"]),
+            ("Storage", ["512GB PCIe 4.0 NVMe SSD", "1TB Gen4 SSD", "2TB NVMe M.2 SSD", "4TB SSD"]),
+            ("Display", ["16-inch 3.2K 165Hz Mini-LED", "14.2-inch Liquid Retina XDR", "15.6-inch QHD 240Hz", "13.6-inch Retina"]),
+        ],
         "templates": [
             "{brand} MacBook Air M{num} ({ram}GB, {storage}GB)", "{brand} XPS {num} OLED Laptop",
             "{brand} ROG Zephyrus G{num}", "{brand} ThinkPad X1 Carbon Gen {num}",
@@ -75,12 +94,19 @@ CATEGORIES_DATA = {
             "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&q=80",
             "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=800&q=80",
             "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=800&q=80",
+            "https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=800&q=80",
         ]
     },
     "Tablets": {
         "slug": "tablets",
-        "brands": ["Apple", "Samsung", "Lenovo", "Xiaomi", "OnePlus", "Realme"],
-        "price_range": (14999, 119900),
+        "brands": ["Apple", "Samsung", "Lenovo", "Xiaomi", "OnePlus", "Realme", "Honor"],
+        "price_range": (11999, 139900),
+        "keywords": ["tablet", "ipad", "stylus", "drawing", "amoled", "4k", "keyboard", "portable"],
+        "specs": [
+            ("Screen", ["13-inch Ultra Retina Tandem OLED", "12.4-inch Dynamic AMOLED 2X", "11-inch 2.5K 144Hz", "10.9-inch Liquid Retina"]),
+            ("Chipset", ["Apple M4", "Snapdragon 8 Gen 2", "MediaTek Dimensity 9000", "Apple M2"]),
+            ("Battery", ["10090 mAh 45W", "8820 mAh 67W", "7600 mAh 33W"]),
+        ],
         "templates": [
             "{brand} iPad Air M{num} Wi-Fi", "{brand} Galaxy Tab S{num} Ultra",
             "{brand} Pad {num} Pro Tablet", "{brand} Tab P{num} Pro 11-inch",
@@ -95,8 +121,14 @@ CATEGORIES_DATA = {
     },
     "Smart Watches": {
         "slug": "smart-watches",
-        "brands": ["Apple", "Samsung", "Garmin", "boAt", "Noise", "Amazfit", "Fire-Boltt"],
-        "price_range": (1499, 49990),
+        "brands": ["Apple", "Samsung", "Garmin", "boAt", "Noise", "Amazfit", "Fire-Boltt", "Fitbit", "Fossil"],
+        "price_range": (1299, 69990),
+        "keywords": ["smartwatch", "fitness tracker", "heart rate", "gps", "amoled", "ecg", "calling", "sports"],
+        "specs": [
+            ("Display", ["1.96-inch HD AMOLED 600 nits", "1.4-inch Sapphire Crystal", "1.39-inch Circular Retina"]),
+            ("Sensors", ["ECG + Heart Rate + SpO2 + Temperature", "BioTracker 4.0 PPG", "Multi-GNSS Dual-Band GPS"]),
+            ("Battery Life", ["Up to 14 Days", "Up to 36 Hours Normal Use", "Up to 7 Days Heavy Use"]),
+        ],
         "templates": [
             "{brand} Watch Series {num} GPS", "{brand} Galaxy Watch {num} Classic",
             "{brand} Fenix {num} Pro Multisport", "{brand} Wave Call {num} Smartwatch",
@@ -111,8 +143,14 @@ CATEGORIES_DATA = {
     },
     "Headphones": {
         "slug": "headphones",
-        "brands": ["Sony", "Bose", "Sennheiser", "boAt", "JBL", "Realme", "OnePlus", "Apple"],
-        "price_range": (1299, 39900),
+        "brands": ["Sony", "Bose", "Sennheiser", "boAt", "JBL", "Realme", "OnePlus", "Apple", "Marshall", "Anker"],
+        "price_range": (999, 49900),
+        "keywords": ["headphones", "earbuds", "wireless", "bluetooth", "noise cancellation", "anc", "bass", "audio"],
+        "specs": [
+            ("Driver", ["40mm Neodymium Driver", "11mm Dynamic Driver + 6mm Planar", "30mm Precision Engineered"]),
+            ("Active Noise Cancellation", ["Industry-leading HD Noise Cancelling Processor QN1", "Customizable Active ANC 45dB", "Spatial Audio with Dynamic Head Tracking"]),
+            ("Battery Life", ["30 Hours Playtime with Fast Charge", "40 Hours Playback", "24 Hours Total with Charging Case"]),
+        ],
         "templates": [
             "{brand} WH-1000XM{num} Wireless ANC", "{brand} QuietComfort {num} Headphones",
             "{brand} Momentum {num} Wireless", "{brand} Rockerz {num} Over Ear",
@@ -127,8 +165,14 @@ CATEGORIES_DATA = {
     },
     "TVs": {
         "slug": "tvs",
-        "brands": ["LG", "Samsung", "Sony", "TCL", "Xiaomi", "Hisense", "OnePlus"],
-        "price_range": (14990, 199900),
+        "brands": ["LG", "Samsung", "Sony", "TCL", "Xiaomi", "Hisense", "OnePlus", "VU", "Acer"],
+        "price_range": (11990, 249900),
+        "keywords": ["tv", "television", "smart tv", "4k", "oled", "qled", "hdr10+", "dolby vision", "google tv"],
+        "specs": [
+            ("Display Panel", ["4K Ultra HD OLED EVO Panel 120Hz", "Neo QLED 4K Quantum Matrix", "4K HDR Dolby Vision Atmos"]),
+            ("Audio", ["60W 4.2 Channel Dolby Atmos", "40W Sound by Onkyo", "20W Stereo Speakers DTS Virtual:X"]),
+            ("Smart OS", ["Google TV", "webOS 24", "Tizen OS", "Fire TV Edition"]),
+        ],
         "templates": [
             "{brand} C{num} {size}-inch 4K OLED Smart TV", "{brand} Neo QLED {size}-inch 4K TV",
             "{brand} Bravia XR {size}-inch Google TV", "{brand} QLED {size}-inch 4K Android TV",
@@ -142,8 +186,14 @@ CATEGORIES_DATA = {
     },
     "Home Appliances": {
         "slug": "home-appliances",
-        "brands": ["Dyson", "Philips", "Bosch", "IFB", "LG", "Whirlpool", "Samsung", "Haier"],
-        "price_range": (3499, 89900),
+        "brands": ["Dyson", "Philips", "Bosch", "IFB", "LG", "Whirlpool", "Samsung", "Haier", "Voltas", "Panasonic"],
+        "price_range": (2999, 119900),
+        "keywords": ["appliance", "washing machine", "refrigerator", "air conditioner", "ac", "vacuum", "air fryer"],
+        "specs": [
+            ("Energy Rating", ["5 Star BEE Certified", "4 Star Inverter Efficiency", "3 Star Energy Saver"]),
+            ("Capacity", ["8.0 kg Front Load", "550 Litres Side-by-Side", "1.5 Ton Inverter Dual Split", "7.2 Litres XXL"]),
+            ("Technology", ["AI Direct Drive Motor", "Digital Inverter Compressor", "HEPA H13 Air Filtration"]),
+        ],
         "templates": [
             "{brand} V{num} Detect Cordless Vacuum", "{brand} Air Fryer XXL 7.{num}L",
             "{brand} Front Load Washing Machine {size}kg", "{brand} Frost Free Double Door Refrigerator",
@@ -157,8 +207,13 @@ CATEGORIES_DATA = {
     },
     "Fashion": {
         "slug": "fashion",
-        "brands": ["Nike", "Adidas", "Puma", "Levi's", "Zara", "H&M", "Tommy Hilfiger"],
-        "price_range": (999, 14999),
+        "brands": ["Nike", "Adidas", "Puma", "Levi's", "Zara", "H&M", "Tommy Hilfiger", "Calvin Klein", "Under Armour"],
+        "price_range": (699, 19999),
+        "keywords": ["fashion", "clothing", "sneakers", "shoes", "hoodie", "jeans", "apparel", "wearable"],
+        "specs": [
+            ("Material", ["100% Organic Cotton", "Breathable Mesh + Cushion Poly", "Stretch Denim"]),
+            ("Fit Type", ["Regular Fit", "Slim Fit", "Athletic Active Fit"]),
+        ],
         "templates": [
             "{brand} Air Force {num} '07 Sneakers", "{brand} Trefoil Cotton Hoodie",
             "{brand} Slim Fit Stretch Jeans", "{brand} Running Shoes Pro {num}",
@@ -173,8 +228,13 @@ CATEGORIES_DATA = {
     },
     "Beauty": {
         "slug": "beauty",
-        "brands": ["Estée Lauder", "L'Oréal", "Maybelline", "Nivea", "The Body Shop", "Neutrogena"],
-        "price_range": (399, 8900),
+        "brands": ["Estée Lauder", "L'Oréal", "Maybelline", "Nivea", "The Body Shop", "Neutrogena", "MAC", "Clinique"],
+        "price_range": (299, 12900),
+        "keywords": ["beauty", "skincare", "makeup", "serum", "foundation", "moisturizer", "dermatologist approved"],
+        "specs": [
+            ("Skin Type", ["All Skin Types", "Sensitive & Dry Skin", "Oily & Combination Skin"]),
+            ("Volume", ["50ml", "100ml", "30ml Bottle"]),
+        ],
         "templates": [
             "{brand} Advanced Night Repair Serum {size}ml", "{brand} Revitalift Hyaluronic Acid Cream",
             "{brand} Fit Me Matte Foundation", "{brand} Soft Light Moisture Cream",
@@ -188,8 +248,13 @@ CATEGORIES_DATA = {
     },
     "Furniture": {
         "slug": "furniture",
-        "brands": ["Featherlite", "IKEA", "Wakefit", "Godrej Interio", "Nilkamal", "Durian"],
-        "price_range": (2999, 49990),
+        "brands": ["Featherlite", "IKEA", "Wakefit", "Godrej Interio", "Nilkamal", "Durian", "Pepperfry"],
+        "price_range": (1999, 79990),
+        "keywords": ["furniture", "chair", "bed", "sofa", "table", "desk", "home decor", "wood"],
+        "specs": [
+            ("Primary Material", ["Solid Sheesham Wood", "High-Grade Engineered Wood + Metal Frame", "Breathable Mesh + Memory Foam"]),
+            ("Warranty", ["3 Years Manufacturer Warranty", "5 Years Structural Guarantee"]),
+        ],
         "templates": [
             "{brand} Ergonomic Mesh Office Chair", "{brand} Solid Wood Queen Bed",
             "{brand} 3-Seater Fabric Sofa", "{brand} Study Table with Storage",
@@ -203,8 +268,13 @@ CATEGORIES_DATA = {
     },
     "Groceries": {
         "slug": "groceries",
-        "brands": ["Borges", "Tata Sampann", "Fortune", "Nestlé", "Amul", "Kellogg's"],
-        "price_range": (150, 1499),
+        "brands": ["Borges", "Tata Sampann", "Fortune", "Nestlé", "Amul", "Kellogg's", "Dabur", "Organic India"],
+        "price_range": (99, 1999),
+        "keywords": ["groceries", "food", "olive oil", "dal", "pulses", "organic", "health", "staples"],
+        "specs": [
+            ("Pack Size", ["1 Kg", "5 Kg", "1 Litre Bottle", "Pack of 3"]),
+            ("Shelf Life", ["12 Months", "18 Months", "6 Months"]),
+        ],
         "templates": [
             "{brand} Extra Virgin Olive Oil 1L", "{brand} Organic Unpolished Arhar Dal 1kg",
             "{brand} Sunlite Refined Sunflower Oil 5L", "{brand} Everyday Dairy Whitener",
@@ -217,8 +287,13 @@ CATEGORIES_DATA = {
     },
     "Books": {
         "slug": "books",
-        "brands": ["Penguin", "HarperCollins", "Rupa", "Bloomsbury", "Oxford"],
-        "price_range": (299, 1299),
+        "brands": ["Penguin", "HarperCollins", "Rupa", "Bloomsbury", "Oxford", "Simon & Schuster"],
+        "price_range": (199, 1999),
+        "keywords": ["books", "novel", "bestseller", "reading", "paperback", "hardcover", "education", "literature"],
+        "specs": [
+            ("Format", ["Paperback", "Hardcover Collector Edition"]),
+            ("Language", ["English"]),
+        ],
         "templates": [
             "Atomic Habits by James Clear Vol {num}", "The Psychology of Money Edition {num}",
             "Rich Dad Poor Dad Guide {num}", "Sapiens Masterpiece Vol {num}",
@@ -231,8 +306,13 @@ CATEGORIES_DATA = {
     },
     "Toys": {
         "slug": "toys",
-        "brands": ["LEGO", "Hot Wheels", "Barbie", "Nerf", "Fisher-Price", "Hamleys"],
-        "price_range": (499, 34999),
+        "brands": ["LEGO", "Hot Wheels", "Barbie", "Nerf", "Fisher-Price", "Hamleys", "Hasbro"],
+        "price_range": (399, 49999),
+        "keywords": ["toys", "kids", "games", "lego", "building blocks", "dolls", "action figures"],
+        "specs": [
+            ("Age Range", ["8+ Years", "3-6 Years", "10+ Years"]),
+            ("Safety", ["Non-Toxic BPA Free Plastic"]),
+        ],
         "templates": [
             "{brand} Technic Bugatti Chiron Set {num}", "{brand} Die-Cast Track Builder Set {num}",
             "{brand} Dreamhouse Dollhouse Edition {num}", "{brand} Elite Blaster Gun V{num}", "{brand} Learning Activity Table"
@@ -244,8 +324,12 @@ CATEGORIES_DATA = {
     },
     "Sports": {
         "slug": "sports",
-        "brands": ["Yonex", "Decathlon", "Cosco", "Nivia", "Vector X", "Puma Sports"],
-        "price_range": (499, 14990),
+        "brands": ["Yonex", "Decathlon", "Cosco", "Nivia", "Vector X", "Puma Sports", "Under Armour"],
+        "price_range": (399, 24990),
+        "keywords": ["sports", "fitness", "gym", "racket", "football", "cricket", "yoga", "workout"],
+        "specs": [
+            ("Sport Type", ["Badminton", "Fitness & Gym", "Football", "Cricket"]),
+        ],
         "templates": [
             "{brand} Astrox {num} Pro Badminton Racket", "{brand} Seamless Fitness Yoga Mat {num}mm",
             "{brand} Country Football Size {num}", "{brand} Cricket Bat English Willow {num}",
@@ -258,8 +342,12 @@ CATEGORIES_DATA = {
     },
     "Automotive": {
         "slug": "automotive",
-        "brands": ["70mai", "Bosch", "Michelin", "Philips Automotive", "CEAT"],
-        "price_range": (899, 18990),
+        "brands": ["70mai", "Bosch", "Michelin", "Philips Automotive", "CEAT", "Apollo Tyres"],
+        "price_range": (799, 29990),
+        "keywords": ["automotive", "car accessories", "dashcam", "tyres", "car washer", "led bulbs", "inflator"],
+        "specs": [
+            ("Vehicle Type", ["Car & SUV", "Universal Fit"]),
+        ],
         "templates": [
             "{brand} Dash Cam Pro Plus A{num}", "{brand} High Pressure Car Washer V{num}",
             "{brand} Tubeless Car Tyre 195/55 R16 Gen {num}", "{brand} LED Headlight Bulb Pair {num}W",
@@ -280,10 +368,10 @@ MARKETPLACES_SEED = [
 ]
 
 
-async def seed_large_catalog():
-    """Seed >1,500 products (100+ per category) across 15 categories idempotently."""
+async def seed_scalable_catalog(target_count: int = 100000, batch_size: int = 5000):
+    """Seed target_count products across 15 categories with batch transactions."""
     print("==================================================================")
-    print("COMPAREX Production Catalog Expansion (Target: >1,500 Products)")
+    print(f"COMPAREX Scalable Catalog Generator (Target: {target_count:,} Products)")
     print("==================================================================")
 
     async with AsyncSessionLocal() as session:
@@ -345,54 +433,64 @@ async def seed_large_catalog():
 
         await session.commit()
 
-        # 3. Check existing catalog count
-        res = await session.execute(select(Product))
-        existing_products = res.scalars().all()
-        existing_eans = {p.ean for p in existing_products if p.ean}
-        existing_names = {p.name.lower() for p in existing_products if p.name}
-        print(f"Current catalog size: {len(existing_products)} products.")
+        # Check existing count
+        count_stmt = select(func.count()).select_from(Product)
+        current_count = (await session.execute(count_stmt)).scalar() or 0
+        print(f"Current catalog size in DB: {current_count:,} products.")
 
+        if current_count >= target_count:
+            print(f"Catalog already has {current_count:,} products (>= target {target_count:,}). No action needed.")
+            return
+
+        needed = target_count - current_count
+        print(f"Generating {needed:,} products in batches of {batch_size:,}...")
+
+        cat_keys = list(CATEGORIES_DATA.keys())
         total_created = 0
 
-        for cat_idx, (cat_name, data) in enumerate(CATEGORIES_DATA.items()):
-            print(f"Seeding category '{cat_name}' (Target >= 100 products)...")
-            created_for_cat = 0
-            brands = data["brands"]
-            templates = data["templates"]
-            img_pool = data["images"]
-            min_p, max_p = data["price_range"]
-            cat_obj = category_map[cat_name]
+        # Batch generator loop
+        while total_created < needed:
+            chunk_products = []
+            chunk_images = []
+            chunk_specs = []
+            chunk_listings = []
 
-            cat_items = []
-            # 125 products per category across 15 categories = 1,875 products total
-            for i in range(1, 126):
-                brand = brands[i % len(brands)]
+            chunk_target = min(batch_size, needed - total_created)
+
+            for idx in range(chunk_target):
+                global_idx = current_count + total_created + idx + 1
+                cat_name = cat_keys[global_idx % len(cat_keys)]
+                c_data = CATEGORIES_DATA[cat_name]
+
+                brand = c_data["brands"][global_idx % len(c_data["brands"])]
                 brand_obj = brand_map.get(brand)
-                template = templates[i % len(templates)]
+                cat_obj = category_map[cat_name]
 
+                template = c_data["templates"][global_idx % len(c_data["templates"])]
                 prod_name = template.format(
                     brand=brand,
-                    num=i,
+                    num=global_idx,
                     ram=random.choice([8, 12, 16, 32]),
                     storage=random.choice([128, 256, 512, 1024]),
                     size=random.choice([14, 15, 43, 55, 65, 75, 8, 10]),
                 )
 
-                if prod_name.lower() in existing_names:
-                    continue
-
-                ean_code = f"890{cat_idx+1:02d}{(i % 99)+1:02d}{total_created+1:05d}"
-                if ean_code in existing_eans:
-                    continue
-
+                ean_code = f"890{(global_idx % 90)+10:02d}{(global_idx % 99999):05d}{(global_idx % 999):03d}"
+                min_p, max_p = c_data["price_range"]
                 base_price = Decimal(str(random.randint(min_p, max_p)))
-                primary_img = img_pool[i % len(img_pool)]
+                img_pool = c_data["images"]
+                primary_img = img_pool[global_idx % len(img_pool)]
+
+                rating = round(random.uniform(3.5, 5.0), 1)
+                reviews = random.randint(15, 12500)
+                pop_score = round(random.uniform(50.0, 99.9), 1)
+                keywords = f"{cat_name.lower()}, {brand.lower()}, " + ", ".join(c_data.get("keywords", []))
 
                 prod_id = uuid.uuid4()
-                product = Product(
+                p = Product(
                     id=prod_id,
                     name=prod_name,
-                    description=f"High performance {cat_name} product by {brand}. Features top-tier quality, official manufacturer warranty, and competitive marketplace pricing across top Indian stores.",
+                    description=f"Authentic {cat_name} product by {brand}. Features top performance, official brand warranty, and price comparison across major marketplaces.",
                     category_id=cat_obj.id,
                     brand_id=brand_obj.id if brand_obj else None,
                     category=cat_name,
@@ -400,94 +498,83 @@ async def seed_large_catalog():
                     image_url=primary_img,
                     ean=ean_code,
                     base_price=base_price,
+                    rating=rating,
+                    review_count=reviews,
+                    popularity_score=pop_score,
+                    search_keywords=keywords,
+                    stock_status="in_stock",
+                    discount_percentage=round(random.uniform(5.0, 40.0), 1),
                 )
-                cat_items.append(product)
+                chunk_products.append(p)
 
-                # Add 5 HD Gallery Images
-                for img_idx in range(5):
-                    img_url = img_pool[(i + img_idx) % len(img_pool)]
-                    cat_items.append(
+                # 5 gallery images per product
+                for img_i in range(5):
+                    sub_img = img_pool[(global_idx + img_i) % len(img_pool)]
+                    chunk_images.append(
                         ProductImage(
                             id=uuid.uuid4(),
                             product_id=prod_id,
-                            url=img_url,
-                            is_primary=(img_idx == 0),
+                            url=sub_img,
+                            alt_text=f"{prod_name} view {img_i+1}",
+                            is_primary=(img_i == 0),
                         )
                     )
 
-                # Add Specifications
-                cat_items.append(
-                    ProductSpecification(
-                        id=uuid.uuid4(),
-                        product_id=prod_id,
-                        key="Brand",
-                        value=brand,
-                    )
-                )
-                cat_items.append(
-                    ProductSpecification(
-                        id=uuid.uuid4(),
-                        product_id=prod_id,
-                        key="Category",
-                        value=cat_name,
-                    )
-                )
-                cat_items.append(
-                    ProductSpecification(
-                        id=uuid.uuid4(),
-                        product_id=prod_id,
-                        key="Warranty",
-                        value="1 Year Official Brand Warranty",
-                    )
-                )
+                # Specifications
+                chunk_specs.append(ProductSpecification(id=uuid.uuid4(), product_id=prod_id, key="Brand", value=brand))
+                chunk_specs.append(ProductSpecification(id=uuid.uuid4(), product_id=prod_id, key="Category", value=cat_name))
+                for spec_k, spec_vals in c_data.get("specs", []):
+                    val = random.choice(spec_vals)
+                    chunk_specs.append(ProductSpecification(id=uuid.uuid4(), product_id=prod_id, key=spec_k, value=val))
 
-                # Add Cross-Marketplace Price Listings
+                # Marketplace Listings
                 for mp_idx, mp in enumerate(marketplaces):
-                    var_factor = Decimal(str(round(1.0 + (mp_idx * 0.03) - 0.02, 2)))
+                    var_factor = Decimal(str(round(1.0 + (mp_idx * 0.02) - 0.01, 2)))
                     m_price = round(base_price * var_factor, 2)
-                    orig_price = round(m_price * Decimal("1.2"), 2)
-                    discount = Decimal("16.67")
+                    orig_price = round(m_price * Decimal("1.25"), 2)
 
-                    cat_items.append(
+                    chunk_listings.append(
                         ProductListing(
                             id=uuid.uuid4(),
                             product_id=prod_id,
                             marketplace_id=mp.id,
-                            marketplace_product_id=f"MP-{mp.slug[:3]}-{i}",
+                            marketplace_product_id=f"MP-{mp.slug[:3]}-{global_idx}",
                             price=m_price,
                             original_price=orig_price,
-                            discount_percent=discount,
+                            discount_percent=Decimal("20.00"),
                             currency="INR",
-                            listing_url=f"{mp.base_url}/dp/B0{i:07d}",
+                            listing_url=f"{mp.base_url}/dp/B0{global_idx:07d}",
                             seller_name=f"{brand} Authorized Store",
                             is_available=True,
                             is_prime=True,
                             stock_status="IN_STOCK",
-                            delivery_estimate="Tomorrow, Free Delivery",
-                            rating=Decimal(str(round(4.0 + (i % 10) * 0.1, 1))),
-                            review_count=150 + i * 12,
+                            delivery_estimate="Express Delivery Available",
+                            rating=Decimal(str(rating)),
+                            review_count=reviews,
                         )
                     )
 
-                existing_names.add(prod_name.lower())
-                existing_eans.add(ean_code)
-                created_for_cat += 1
-                total_created += 1
+            # Insert batch
+            async with AsyncSessionLocal() as batch_session:
+                batch_session.add_all(chunk_products)
+                batch_session.add_all(chunk_images)
+                batch_session.add_all(chunk_specs)
+                batch_session.add_all(chunk_listings)
+                await batch_session.commit()
 
-            if cat_items:
-                async with AsyncSessionLocal() as cat_session:
-                    cat_session.add_all(cat_items)
-                    await cat_session.commit()
+            total_created += chunk_target
+            print(f"  -> Successfully seeded batch of {chunk_target:,} products. Total seeded: {total_created:,} / {needed:,}")
 
-            print(f"  -> Added {created_for_cat} new products for category '{cat_name}'.")
-
-        # Verify final catalog size
-        res_final = await session.execute(select(Product))
-        final_products = res_final.scalars().all()
+        final_count = (await session.execute(select(func.count()).select_from(Product))).scalar() or 0
         print("==================================================================")
-        print(f"Seeding completed cleanly! Final Catalog Size: {len(final_products)} products.")
+        print(f"Seeding process finished! Final catalog size: {final_count:,} products.")
         print("==================================================================")
 
 
 if __name__ == "__main__":
-    asyncio.run(seed_large_catalog())
+    parser = argparse.ArgumentParser(description="COMPAREX Catalog Seeding Pipeline")
+    parser.add_argument("--count", type=int, default=100000, help="Target number of products to seed")
+    parser.add_argument("--batch", type=int, default=5000, help="Batch size for DB commits")
+    args = parser.parse_args()
+
+    asyncio.run(seed_scalable_catalog(target_count=args.count, batch_size=args.batch))
