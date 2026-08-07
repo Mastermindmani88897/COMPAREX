@@ -159,6 +159,10 @@ class ProductService:
                     self.db.add(lst)
 
                 await self.db.commit()
+                try:
+                    await self.db.refresh(new_product)
+                except Exception:
+                    pass
 
                 # Re-query DB after caching
                 products = await self.repo.search_products(

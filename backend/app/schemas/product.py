@@ -71,8 +71,14 @@ class ProductPublic(ProductBase):
         if hasattr(data, "__table__"):
             try:
                 state = sa_inspect(data)
-                d = {c.key: getattr(data, c.key) for c in state.mapper.column_attrs}
-                if "images" in state.unloaded:
+                d = {}
+                for c in state.mapper.column_attrs:
+                    try:
+                        d[c.key] = getattr(data, c.key)
+                    except Exception:
+                        d[c.key] = None
+
+                if hasattr(state, "unloaded") and "images" in state.unloaded:
                     d["images"] = []
                 else:
                     try:
