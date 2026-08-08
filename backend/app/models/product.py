@@ -61,6 +61,8 @@ class Product(Base):
     rating: Mapped[float | None] = mapped_column(Float, nullable=True, default=4.5)
     review_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     popularity_score: Mapped[float | None] = mapped_column(Float, nullable=True, default=0.0)
+    normalized_name: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True)
+    model_name: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     search_keywords: Mapped[str | None] = mapped_column(Text, nullable=True)
     stock_status: Mapped[str | None] = mapped_column(String(50), nullable=True, default="in_stock")
     discount_percentage: Mapped[float | None] = mapped_column(Float, nullable=True, default=0.0)

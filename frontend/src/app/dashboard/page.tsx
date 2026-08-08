@@ -26,8 +26,9 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useWishlist } from "@/context/WishlistContext";
 import { AuthGuard } from "@/components/shared/AuthGuard";
-import apiClient, { wishlistService, alertsService } from "@/services/api";
+import apiClient, { alertsService } from "@/services/api";
 import type { Product, PriceAlertItem } from "@/types";
 import { getUserDisplayName, getUserFirstName, getUserInitials } from "@/utils/user";
 import { PriceAlertModal } from "@/components/alerts/PriceAlertModal";
@@ -42,6 +43,7 @@ const sidebarItems = [
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
+  const { wishlistItems, wishlistCount, refetchWishlist } = useWishlist();
   const [productCount, setProductCount] = useState<number | null>(null);
   const [recentProducts, setRecentProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -62,7 +64,6 @@ export default function DashboardPage() {
     tracked_products_count: 0,
   });
 
-  const [wishlistItems, setWishlistItems] = useState<any[]>([]);
   const [priceAlerts, setPriceAlerts] = useState<PriceAlertItem[]>([]);
   const [activeAlertProduct, setActiveAlertProduct] = useState<Product | null>(null);
 
@@ -75,13 +76,8 @@ export default function DashboardPage() {
         setDashboardStats(sumRes.data.data.stats);
       }
 
-      // 2. Fetch user wishlist
-      const wlRes = await wishlistService.getWishlist();
-      if (wlRes.data?.data?.items) {
-        setWishlistItems(wlRes.data.data.items);
-      } else {
-        setWishlistItems([]);
-      }
+      // 2. Refresh wishlist context
+      await refetchWishlist();
 
       // 3. Fetch user price alerts
       const alRes = await alertsService.getAlerts();
@@ -106,6 +102,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchDashboardData();
+
+    const handleUpdate = () => {
+      fetchDashboardData();
+    };
+    window.addEventListener("wishlist:updated", handleUpdate);
+    return () => window.removeEventListener("wishlist:updated", handleUpdate);
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {

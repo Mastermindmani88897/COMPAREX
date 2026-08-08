@@ -17,6 +17,7 @@ class SuccessResponse(BaseModel, Generic[T]):
     success: bool = True
     message: str = "Operation successful"
     data: Optional[T] = None
+    pagination: Optional[dict] = None
 
 
 class PaginationMeta(BaseModel):

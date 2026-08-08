@@ -44,8 +44,14 @@ class DashboardService:
         pa_res = await db.execute(pa_stmt)
         active_alerts_count = pa_res.scalar() or 0
 
+        from sqlalchemy.orm import selectinload
+
         # 3. Calculate Total Savings dynamically from triggered alerts / wishlist savings
-        wl_items = await db.execute(select(Wishlist).where(Wishlist.user_id == user_id))
+        wl_items = await db.execute(
+            select(Wishlist)
+            .where(Wishlist.user_id == user_id)
+            .options(selectinload(Wishlist.product))
+        )
         raw_wl = list(wl_items.scalars().all())
 
         total_saved = Decimal("0.0")

@@ -51,8 +51,8 @@ export default function ProductsCatalogPage() {
       }
 
       const endpoint = query.trim()
-        ? `/products?query=${encodeURIComponent(query)}&limit=100`
-        : `/products?limit=100`;
+        ? `/products?query=${encodeURIComponent(query)}&page=${page}&limit=24`
+        : `/products?page=${page}&limit=24`;
 
       const prodRes = await apiClient.get(endpoint);
       setProducts(prodRes.data.data || []);
@@ -88,8 +88,8 @@ export default function ProductsCatalogPage() {
       // Load products catalog
       try {
         const endpoint = query.trim()
-          ? `/products?query=${encodeURIComponent(query)}&limit=100`
-          : `/products?limit=100`;
+          ? `/products?query=${encodeURIComponent(query)}&page=${page}&limit=24`
+          : `/products?page=${page}&limit=24`;
 
         const prodRes = await apiClient.get(endpoint);
         if (!isCancelled) {
@@ -116,7 +116,7 @@ export default function ProductsCatalogPage() {
     return () => {
       isCancelled = true;
     };
-  }, [query]);
+  }, [query, page]);
 
   // Client-side filtering & sorting
   const filteredProducts = products

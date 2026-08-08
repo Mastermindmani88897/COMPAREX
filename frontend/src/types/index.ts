@@ -400,3 +400,18 @@ export interface PriceAlertItem {
   triggered: boolean;
   created_at?: string | null;
 }
+
+export interface WishlistItem {
+  id: string;
+  user_id: string;
+  product_id: string;
+  preferred_marketplace?: string;
+  target_price?: number;
+  current_price?: number;
+  savings?: number;
+  price_drop_alert?: boolean;
+  notes?: string;
+  created_at: string;
+  updated_at?: string;
+  product?: Product;
+}

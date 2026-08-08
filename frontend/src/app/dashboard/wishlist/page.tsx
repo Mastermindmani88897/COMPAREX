@@ -22,6 +22,7 @@ import {
   Plus,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useWishlist } from "@/context/WishlistContext";
 import { AuthGuard } from "@/components/shared/AuthGuard";
 import apiClient from "@/services/api";
 import { getUserDisplayName, getUserInitials } from "@/utils/user";
@@ -44,6 +45,7 @@ interface WishlistItem {
     category?: string;
     image_url?: string;
     base_price?: number;
+    listings?: Array<{ listing_url?: string }>;
   };
 }
 
@@ -66,6 +68,7 @@ const sidebarItems = [
 
 export default function WishlistDashboardPage() {
   const { user, logout } = useAuth();
+  const { removeFromWishlist } = useWishlist();
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [totalItems, setTotalItems] = useState<number>(0);
   const [totalSavings, setTotalSavings] = useState<number>(0);
@@ -126,46 +129,20 @@ export default function WishlistDashboardPage() {
   }, [searchQuery, selectedCategory, sortBy]);
 
   useEffect(() => {
-    let isCancelled = false;
-    async function fetchData() {
-      setIsLoading(true);
-      try {
-        const params = new URLSearchParams();
-        if (searchQuery.trim()) params.append("search", searchQuery.trim());
-        if (selectedCategory !== "all") params.append("category", selectedCategory);
-        if (sortBy) params.append("sort_by", sortBy);
+    loadWishlist();
 
-        const res = await apiClient.get(`/wishlist?${params.toString()}`);
-        const data = res.data?.data;
-        if (!isCancelled && data) {
-          setItems(data.items || []);
-          setTotalItems(data.total_items || 0);
-          setTotalSavings(Number(data.total_savings || 0));
-          if (data.ai_recommendations) {
-            setAiRecs(data.ai_recommendations);
-          }
-        }
-      } catch (err) {
-        if (!isCancelled) {
-          console.error("Failed to load wishlist:", err);
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-    fetchData();
-    return () => {
-      isCancelled = true;
+    const handleUpdate = () => {
+      loadWishlist();
     };
-  }, [searchQuery, selectedCategory, sortBy]);
+    window.addEventListener("wishlist:updated", handleUpdate);
+    return () => window.removeEventListener("wishlist:updated", handleUpdate);
+  }, [loadWishlist]);
 
-  const handleRemoveItem = async (itemId: string) => {
+  const handleRemoveItem = async (itemId: string, productId?: string) => {
     try {
-      await apiClient.delete(`/wishlist/${itemId}`);
-      setItems((prev) => prev.filter((i) => i.id !== itemId));
+      setItems((prev) => prev.filter((i) => i.id !== itemId && i.product_id !== productId));
       setTotalItems((prev) => Math.max(0, prev - 1));
+      await removeFromWishlist(itemId);
     } catch (err) {
       console.error("Failed to remove item:", err);
     }
@@ -434,7 +411,7 @@ export default function WishlistDashboardPage() {
                           </Link>
 
                           <a
-                            href={`https://www.amazon.in/s?k=${encodeURIComponent(prod.name)}`}
+                            href={prod.listings?.[0]?.listing_url || `/products/${prod.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold gradient-bg text-white"
@@ -443,7 +420,7 @@ export default function WishlistDashboardPage() {
                           </a>
 
                           <button
-                            onClick={() => handleRemoveItem(item.id)}
+                            onClick={() => handleRemoveItem(item.id, item.product_id)}
                             className="p-2 text-gray-400 hover:text-red-400 transition-colors"
                             title="Remove from Wishlist"
                           >

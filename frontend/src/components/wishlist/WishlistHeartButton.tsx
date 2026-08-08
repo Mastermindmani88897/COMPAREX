@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Heart } from "lucide-react";
-import apiClient from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
+import { useWishlist } from "@/context/WishlistContext";
 
 interface WishlistHeartButtonProps {
   productId: string;
@@ -16,50 +16,21 @@ interface WishlistHeartButtonProps {
 
 export function WishlistHeartButton({
   productId,
-  initialIsWishlisted = false,
-  wishlistItemId,
   onToggle,
   className = "",
   size = "md",
 }: WishlistHeartButtonProps) {
   const { user } = useAuth();
-  const [isWishlisted, setIsWishlisted] = useState<boolean>(initialIsWishlisted);
-  const [itemId, setItemId] = useState<string | undefined>(wishlistItemId);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const { isInWishlist, addToWishlist, removeFromWishlist } = useWishlist();
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  const isWishlisted = isInWishlist(productId);
 
   const iconSizes = {
     sm: "h-4 w-4",
     md: "h-5 w-5",
     lg: "h-6 w-6",
   };
-
-  useEffect(() => {
-    let isMounted = true;
-
-    if (user && productId) {
-      apiClient
-        .get("/wishlist")
-        .then((res) => {
-          if (!isMounted) return;
-          const items = res.data?.data?.items || [];
-          const match = items.find(
-            (i: { product_id: string; product?: { id: string }; id: string }) =>
-              i.product_id === productId || i.product?.id === productId
-          );
-          if (match) {
-            setIsWishlisted(true);
-            setItemId(match.id);
-          }
-        })
-        .catch(() => {
-          // Ignore error silently on initial state check
-        });
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [user, productId]);
 
   const handleToggle = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -70,36 +41,17 @@ export function WishlistHeartButton({
       return;
     }
 
-    const nextState = !isWishlisted;
-    setIsWishlisted(nextState);
-    setIsLoading(true);
-
+    setIsSubmitting(true);
     try {
-      if (nextState) {
-        // Add to wishlist
-        const res = await apiClient.post("/wishlist", {
-          product_id: productId,
-          preferred_marketplace: "Amazon",
-        });
-        if (res.data?.data?.id) {
-          setItemId(res.data.data.id);
-        }
+      if (isWishlisted) {
+        await removeFromWishlist(productId);
+        if (onToggle) onToggle(false);
       } else {
-        // Remove from wishlist
-        const targetId = itemId || wishlistItemId || productId;
-        await apiClient.delete(`/wishlist/${targetId}`);
-        setItemId(undefined);
+        await addToWishlist(productId);
+        if (onToggle) onToggle(true);
       }
-
-      if (onToggle) {
-        onToggle(nextState);
-      }
-    } catch (err) {
-      console.error("Failed to update wishlist:", err);
-      // Revert on error
-      setIsWishlisted(!nextState);
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -107,7 +59,7 @@ export function WishlistHeartButton({
     <button
       type="button"
       onClick={handleToggle}
-      disabled={isLoading}
+      disabled={isSubmitting}
       className={`p-2 rounded-xl transition-all duration-200 ${
         isWishlisted
           ? "bg-rose-500/10 text-rose-500 border border-rose-500/20 scale-105"

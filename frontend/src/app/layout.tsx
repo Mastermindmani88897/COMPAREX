@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { AuthProvider } from "@/context/AuthContext";
+import { WishlistProvider } from "@/context/WishlistContext";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { siteConfig } from "@/config/site";
@@ -53,9 +54,11 @@ export default function RootLayout({
       <body className="page-wrapper font-sans antialiased">
         <ThemeProvider>
           <AuthProvider>
-            <Navbar />
-            <main className="content-wrapper">{children}</main>
-            <Footer />
+            <WishlistProvider>
+              <Navbar />
+              <main className="content-wrapper">{children}</main>
+              <Footer />
+            </WishlistProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

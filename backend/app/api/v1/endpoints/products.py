@@ -49,7 +49,8 @@ async def autocomplete_products(
 )
 async def list_products(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
+    page: Optional[int] = Query(None, ge=1, description="Page number (1-indexed)"),
+    limit: int = Query(24, ge=1, le=100),
     query: Optional[str] = Query(None, description="Search term for product name"),
     category: Optional[str] = Query(None, description="Category filter"),
     brand: Optional[str] = Query(None, description="Brand filter"),
@@ -65,14 +66,20 @@ async def list_products(
     from app.core.logging import get_logger
     endpoint_logger = get_logger(__name__)
 
+    if page is not None:
+        skip = (page - 1) * limit
+    else:
+        page = (skip // limit) + 1
+
     endpoint_logger.info(
         "SEARCH REQUEST: query='%s', category='%s', brand='%s', min_price=%s, "
-        "max_price=%s, skip=%d, limit=%d",
+        "max_price=%s, page=%d, skip=%d, limit=%d",
         query,
         category,
         brand,
         min_price,
         max_price,
+        page,
         skip,
         limit,
     )
@@ -90,9 +97,17 @@ async def list_products(
             in_stock_only=in_stock_only,
             sort_by=sort_by,
         )
+        has_next = len(products) == limit
         return SuccessResponse(
             message="Products retrieved successfully",
             data=products,
+            pagination={
+                "page": page,
+                "limit": limit,
+                "total": len(products),
+                "has_next": has_next,
+                "has_previous": page > 1,
+            },
         )
     except Exception as exc:
         endpoint_logger.error(
@@ -101,6 +116,13 @@ async def list_products(
         return SuccessResponse(
             message="Products retrieved with fallback",
             data=[],
+            pagination={
+                "page": page,
+                "limit": limit,
+                "total": 0,
+                "has_next": False,
+                "has_previous": page > 1,
+            },
         )
 
 

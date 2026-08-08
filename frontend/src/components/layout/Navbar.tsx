@@ -8,6 +8,7 @@ import { Menu, X, Zap, LogOut, LayoutDashboard, User, Heart } from "lucide-react
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { siteConfig } from "@/config/site";
 import { useAuth } from "@/context/AuthContext";
+import { useWishlist } from "@/context/WishlistContext";
 
 import { getUserDisplayName, getUserFirstName, getUserInitials } from "@/utils/user";
 
@@ -19,6 +20,7 @@ export function Navbar() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const pathname = usePathname();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { wishlistCount } = useWishlist();
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -104,11 +106,16 @@ export function Navbar() {
                   <NotificationBell />
                   <Link
                     href="/dashboard/wishlist"
-                    className="p-2 rounded-xl border hover:text-rose-400 hover:border-rose-400/30 transition-colors"
+                    className="relative p-2 rounded-xl border hover:text-rose-400 hover:border-rose-400/30 transition-colors"
                     style={{ borderColor: "var(--border)", background: "var(--card)", color: "var(--foreground-muted)" }}
                     title="My Wishlist & Favorites"
                   >
                     <Heart className="h-4 w-4 text-rose-500 fill-rose-500/20" />
+                    {wishlistCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-extrabold text-white animate-pulse">
+                        {wishlistCount}
+                      </span>
+                    )}
                   </Link>
                 </>
               )}
