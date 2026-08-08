@@ -51,17 +51,37 @@ async def verify_and_migrate_db_schema():
         logger.info("Environment Variables Verified: All 9 required keys present.")
 
     try:
+        import os
+        from alembic import command
+        from alembic.config import Config
         from sqlalchemy import inspect, text
         from app.db.base import Base
         from app.db.session import engine
         import app.models  # noqa: F401
         from app.models.product import Product
 
-        # 1. Create all missing ORM tables safely
+        # 1. Programmatically run Alembic upgrade head
+        def run_alembic(sync_conn):
+            try:
+                main_dir = os.path.dirname(os.path.abspath(__file__))
+                base_dir = os.path.dirname(os.path.dirname(main_dir))
+                ini_path = os.path.join(base_dir, "alembic.ini")
+                if os.path.exists(ini_path):
+                    cfg = Config(ini_path)
+                    if settings.DATABASE_URL:
+                        raw_url = settings.DATABASE_URL
+                        db_url = raw_url.replace("postgresql+asyncpg://", "postgresql://")
+                        cfg.set_main_option("sqlalchemy.url", db_url)
+                    command.upgrade(cfg, "head")
+                    logger.info("Alembic programmatic migration upgrade to head succeeded.")
+            except Exception as a_exc:
+                logger.warning("Alembic programmatic migration notice: %s", a_exc)
+
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(run_alembic)
 
-        # 2. Inspect products table columns dynamically
+        # 2. Inspect products table columns dynamically and self-heal
         async with engine.begin() as conn:
             def get_cols(sync_conn):
                 inspector = inspect(sync_conn)
@@ -70,14 +90,18 @@ async def verify_and_migrate_db_schema():
                 return []
 
             existing_cols = await conn.run_sync(get_cols)
-            logger.info("Products table columns: %s", existing_cols)
+            logger.info("Products table columns in DB: %s", existing_cols)
 
             expected_cols = [c.name for c in Product.__table__.columns]
             missing_cols = [c for c in expected_cols if c not in existing_cols]
-            logger.info("Missing columns: %s", missing_cols)
 
-            # Column DDL Mappings for Products table
             column_ddls = {
+                "normalized_name": (
+                    "ALTER TABLE products ADD COLUMN IF NOT EXISTS normalized_name VARCHAR(500);"
+                ),
+                "model_name": (
+                    "ALTER TABLE products ADD COLUMN IF NOT EXISTS model_name VARCHAR(255);"
+                ),
                 "rating": "ALTER TABLE products ADD COLUMN IF NOT EXISTS rating FLOAT DEFAULT 4.5;",
                 "review_count": (
                     "ALTER TABLE products ADD COLUMN IF NOT EXISTS review_count INTEGER DEFAULT 0;"
@@ -109,6 +133,11 @@ async def verify_and_migrate_db_schema():
 
             index_ddls = [
                 (
+                    "CREATE INDEX IF NOT EXISTS ix_products_normalized_name ON products"
+                    " (normalized_name);"
+                ),
+                "CREATE INDEX IF NOT EXISTS ix_products_model_name ON products (model_name);",
+                (
                     "CREATE INDEX IF NOT EXISTS ix_products_category_brand ON products (category,"
                     " brand);"
                 ),
@@ -123,9 +152,12 @@ async def verify_and_migrate_db_schema():
                 "CREATE INDEX IF NOT EXISTS ix_products_category ON products (category);",
                 "CREATE INDEX IF NOT EXISTS ix_products_brand ON products (brand);",
                 "CREATE INDEX IF NOT EXISTS ix_products_ean ON products (ean);",
+                (
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_user_product_wishlist ON wishlist_items"
+                    " (user_id, product_id);"
+                ),
             ]
 
-            # Additional System Table Alterations
             other_ddls = [
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);",
                 "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_id ON users (google_id);",
@@ -151,44 +183,30 @@ async def verify_and_migrate_db_schema():
                     "ALTER TABLE price_history ADD COLUMN IF NOT EXISTS marketplace_slug"
                     " VARCHAR(100);"
                 ),
-                (
-                    "CREATE INDEX IF NOT EXISTS ix_price_history_product_id ON price_history"
-                    " (product_id);"
-                ),
-                (
-                    "CREATE INDEX IF NOT EXISTS ix_price_history_marketplace_slug ON price_history"
-                    " (marketplace_slug);"
-                ),
-                (
-                    "CREATE INDEX IF NOT EXISTS ix_notifications_user_id ON notifications"
-                    " (user_id);"
-                ),
-                (
-                    "CREATE INDEX IF NOT EXISTS ix_notifications_is_read ON notifications"
-                    " (is_read);"
-                ),
             ]
 
-            executed_any = False
             for col in missing_cols:
                 if col in column_ddls:
                     await conn.execute(text(column_ddls[col]))
-                    executed_any = True
 
             for idx_stmt in index_ddls + other_ddls:
                 await conn.execute(text(idx_stmt))
 
-            if executed_any:
-                logger.info(
-                    "Migration executed: Added missing columns (%s) to products table.",
-                    missing_cols,
-                )
-            else:
-                logger.info("Migration executed: Schema up to date, all Product columns present.")
+            # Final validation check
+            final_existing_cols = await conn.run_sync(get_cols)
+            still_missing = [c for c in expected_cols if c not in final_existing_cols]
 
-        logger.info("Schema validation completed.")
+            if still_missing:
+                err_msg = f"DATABASE SCHEMA FAILURE: Missing Product columns: {still_missing}"
+                logger.error(err_msg)
+                raise RuntimeError(err_msg)
+
+            logger.info("Products table schema verification SUCCESS: All columns present.")
+
+        logger.info("Schema validation completed successfully.")
     except Exception as exc:
-        logger.warning("Startup database schema verification warning: %s", exc)
+        logger.error("Startup database schema verification failure: %s", exc, exc_info=True)
+        raise exc
 
 
 @asynccontextmanager

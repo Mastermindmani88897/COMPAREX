@@ -19,16 +19,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add search & canonical fields to products
-    op.add_column('products', sa.Column('normalized_name', sa.String(length=500), nullable=True))
-    op.add_column('products', sa.Column('model_name', sa.String(length=255), nullable=True))
-    
-    op.create_index(op.f('ix_products_normalized_name'), 'products', ['normalized_name'], unique=False)
-    op.create_index(op.f('ix_products_model_name'), 'products', ['model_name'], unique=False)
+    # Safely add missing columns to products table if they do not exist
+    op.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS normalized_name VARCHAR(500);")
+    op.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS model_name VARCHAR(255);")
+
+    # Safely create indexes if they do not exist
+    op.execute("CREATE INDEX IF NOT EXISTS ix_products_normalized_name ON products (normalized_name);")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_products_model_name ON products (model_name);")
+    op.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_user_product_wishlist ON wishlist_items (user_id, product_id);")
 
 
 def downgrade() -> None:
-    op.drop_index(op.f('ix_products_model_name'), table_name='products')
-    op.drop_index(op.f('ix_products_normalized_name'), table_name='products')
-    op.drop_column('products', 'model_name')
-    op.drop_column('products', 'normalized_name')
+    op.execute("DROP INDEX IF EXISTS ix_products_model_name;")
+    op.execute("DROP INDEX IF EXISTS ix_products_normalized_name;")
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS model_name;")
+    op.execute("ALTER TABLE products DROP COLUMN IF EXISTS normalized_name;")
