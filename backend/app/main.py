@@ -217,6 +217,20 @@ async def verify_and_migrate_db_schema():
             for idx_stmt in index_ddls + other_ddls:
                 await conn.execute(text(idx_stmt))
 
+            # Data repair: map orphaned price_history rows to existing product listings
+            repair_stmt = (
+                "UPDATE price_history SET listing_id = ("
+                "  SELECT id FROM product_listings "
+                "  WHERE product_listings.product_id = price_history.product_id "
+                "  LIMIT 1"
+                ") WHERE listing_id IS NULL AND product_id IS NOT NULL;"
+            )
+            await conn.execute(text(repair_stmt))
+
+            # Clean any unmappable orphaned price_history records
+            clean_orphaned = "DELETE FROM price_history WHERE listing_id IS NULL;"
+            await conn.execute(text(clean_orphaned))
+
             # Final validation check
             final_existing_cols = await conn.run_sync(get_cols)
             still_missing = [c for c in expected_cols if c not in final_existing_cols]

@@ -1,4 +1,4 @@
-﻿"""
+"""
 COMPAREX Backend - ProductListing Service
 
 Handles business logic for creating, updating, and fetching product
@@ -99,11 +99,24 @@ class ProductListingService:
         return PriceCompareResult(**matrix)
 
     async def _record_price_history(self, listing_id: UUID, price: Decimal, currency: str) -> None:
-        """Write a PriceHistory record if we have a new price point."""
+        """Write a PriceHistory record for a valid listing."""
+        if not listing_id:
+            logger.warning("Cannot record price history without a valid listing_id")
+            return
         try:
+            listing = await self.listing_repo.get_by_id(listing_id)
+            product_id = listing.product_id if listing else None
+            mp_slug = (
+                listing.marketplace.slug
+                if listing and listing.marketplace
+                else "store"
+            )
+
             await self.history_repo.create(
                 {
                     "listing_id": listing_id,
+                    "product_id": product_id,
+                    "marketplace_slug": mp_slug,
                     "price": price,
                     "currency": currency,
                 }

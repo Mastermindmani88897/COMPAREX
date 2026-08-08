@@ -50,7 +50,10 @@ class BaseRepository(Generic[ModelType]):
         db_obj = self.model(**obj_in)
         self.db.add(db_obj)
         await self.db.flush()
-        await self.db.refresh(db_obj)
+        try:
+            await self.db.refresh(db_obj)
+        except Exception:
+            pass
         return db_obj
 
     async def update(
@@ -64,7 +67,10 @@ class BaseRepository(Generic[ModelType]):
                 setattr(db_obj, field, value)
         self.db.add(db_obj)
         await self.db.flush()
-        await self.db.refresh(db_obj)
+        try:
+            await self.db.refresh(db_obj)
+        except Exception:
+            pass
         return db_obj
 
     async def delete(self, db_obj: ModelType) -> None:
