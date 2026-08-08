@@ -29,6 +29,9 @@ class User(Base):
         index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    username: Mapped[str | None] = mapped_column(
+        String(50), unique=True, nullable=True, index=True
+    )
     hashed_password: Mapped[str | None] = mapped_column(Text, nullable=True)
     google_id: Mapped[str | None] = mapped_column(
         String(255), unique=True, nullable=True, index=True

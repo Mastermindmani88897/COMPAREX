@@ -44,6 +44,8 @@ export const metadata: Metadata = {
   },
 };
 
+import { UsernameSetupModal } from "@/components/auth/UsernameSetupModal";
+
 export default function RootLayout({
   children,
 }: {
@@ -55,6 +57,7 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <WishlistProvider>
+              <UsernameSetupModal />
               <Navbar />
               <main className="content-wrapper">{children}</main>
               <Footer />

@@ -31,3 +31,18 @@ class UserRepository(BaseRepository[User]):
         """Fetch a user by Google OAuth ID."""
         result = await self.db.execute(select(User).where(User.google_id == google_id))
         return result.scalar_one_or_none()
+
+    async def get_by_username(self, username: str) -> Optional[User]:
+        """Fetch a user by case-insensitive username."""
+        if not username or not username.strip():
+            return None
+        from sqlalchemy import func
+        clean = username.strip().lower()
+        stmt = select(User).where(func.lower(User.username) == clean)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def username_exists(self, username: str) -> bool:
+        """Check if a username is already taken (case-insensitive)."""
+        user = await self.get_by_username(username)
+        return user is not None

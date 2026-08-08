@@ -159,6 +159,12 @@ async def verify_and_migrate_db_schema():
             ]
 
             other_ddls = [
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(50);",
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_username ON users (username);",
+                (
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_username_lower ON users"
+                    " (LOWER(username));"
+                ),
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);",
                 "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_id ON users (google_id);",
                 (

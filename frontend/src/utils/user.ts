@@ -17,6 +17,9 @@ export interface UserLike {
  */
 export function getUserDisplayName(user?: UserLike | null): string {
   if (!user) return "User";
+  if (user.username && !user.username.toLowerCase().startsWith("user1")) {
+    return user.username.trim();
+  }
   const rawName = (user.name || user.full_name || user.username || "").trim();
   if (rawName && rawName.toLowerCase() !== "google user" && rawName.toLowerCase() !== "user") {
     return rawName;

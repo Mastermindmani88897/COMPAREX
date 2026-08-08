@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_active_user, get_db
 from app.models.user import User
 from app.schemas.common import SuccessResponse
-from app.schemas.user import UserPublic, UserUpdate
+from app.schemas.user import UserPublic, UserUpdate, UsernameSetupRequest
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -50,6 +50,27 @@ async def update_my_profile(
     return SuccessResponse(
         message="Profile updated successfully",
         data=updated_profile,
+    )
+
+
+@router.post(
+    "/me/username",
+    response_model=SuccessResponse[UserPublic],
+    summary="Setup / Update Username",
+    description="Set or update the user's unique username.",
+)
+async def setup_username(
+    req: UsernameSetupRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Setup username endpoint."""
+    from app.services.auth_service import AuthService
+    auth_service = AuthService(db)
+    updated_user = await auth_service.setup_username(current_user, req.username)
+    return SuccessResponse(
+        message="Username updated successfully",
+        data=updated_user,
     )
 
 

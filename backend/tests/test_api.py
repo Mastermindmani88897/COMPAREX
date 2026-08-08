@@ -51,7 +51,7 @@ async def test_full_auth_and_user_flow():
 
         # Duplicate registration error
         dup_res = await ac.post("/api/v1/auth/register", json=reg_payload)
-        assert dup_res.status_code == 400
+        assert dup_res.status_code == 409
 
         # 2. Login
         login_payload = {"email": test_email, "password": test_password}

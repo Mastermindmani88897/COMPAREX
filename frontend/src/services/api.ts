@@ -229,11 +229,20 @@ export const authService = {
     google_id?: string;
     email?: string;
     name?: string;
+    full_name?: string;
+    given_name?: string;
+    family_name?: string;
     avatar_url?: string;
   }) =>
     apiClient.post<{ data: TokenResponse; message: string; success: boolean }>(
       "/auth/google",
       payload
+    ),
+
+  setupUsername: (username: string) =>
+    apiClient.post<{ data: UserPublic; message: string; success: boolean }>(
+      "/users/me/username",
+      { username }
     ),
 };
 

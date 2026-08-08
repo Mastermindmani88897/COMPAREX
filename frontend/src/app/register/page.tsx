@@ -44,15 +44,17 @@ export default function RegisterPage() {
     setError(null);
     setIsLoading(true);
     try {
+      const timestamp = Date.now();
       const googlePayload = {
-        google_id: `google_user_${Date.now()}`,
-        email: `user.${Date.now()}@gmail.com`,
-        name: "Google User",
+        google_id: `google_user_${timestamp}`,
+        email: `mahesh.${timestamp}@gmail.com`,
+        name: "Mahesh Gangiredla",
+        full_name: "Mahesh Gangiredla",
         avatar_url: "https://lh3.googleusercontent.com/a/default-user",
       };
       await googleLogin(googlePayload);
       router.push("/dashboard");
-    } catch (err: unknown) {
+    } catch {
       setError("Google authentication failed. Please try again.");
     } finally {
       setIsLoading(false);
@@ -75,16 +77,25 @@ export default function RegisterPage() {
     } catch (err: unknown) {
       let msg = "Registration failed. Please try again.";
       if (typeof err === "object" && err !== null && "response" in err) {
-        const res = (err as { response?: { data?: { detail?: unknown; message?: string } } }).response;
+        const res = (err as {
+          response?: {
+            data?: {
+              detail?: unknown;
+              message?: string;
+              errors?: Array<{ message?: string; field?: string }>;
+            };
+          };
+        }).response;
         if (res?.data) {
-          const detail = res.data.detail;
-          if (typeof detail === "string") {
-            msg = detail;
-          } else if (Array.isArray(detail)) {
-            msg = detail
+          if (Array.isArray(res.data.errors) && res.data.errors.length > 0) {
+            msg = res.data.errors.map((e) => e.message || JSON.stringify(e)).join("; ");
+          } else if (typeof res.data.detail === "string") {
+            msg = res.data.detail;
+          } else if (Array.isArray(res.data.detail)) {
+            msg = res.data.detail
               .map((item: { msg?: string; loc?: string[] }) => item.msg || JSON.stringify(item))
               .join("; ");
-          } else if (res.data.message) {
+          } else if (res.data.message && res.data.message !== "Request validation failed") {
             msg = res.data.message;
           }
         }

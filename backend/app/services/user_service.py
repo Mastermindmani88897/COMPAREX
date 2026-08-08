@@ -31,6 +31,17 @@ class UserService:
         if not fields_to_update:
             return UserPublic.model_validate(user)
 
+        if "username" in fields_to_update and fields_to_update["username"]:
+            new_un = fields_to_update["username"].strip()
+            existing = await self.user_repo.get_by_username(new_un)
+            if existing and existing.id != user.id:
+                from fastapi import HTTPException, status
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="That username is already taken. Please choose another.",
+                )
+            fields_to_update["username"] = new_un
+
         updated_user = await self.user_repo.update(user, fields_to_update)
         logger.info("Updated profile for user: %s", user.id)
         return UserPublic.model_validate(updated_user)

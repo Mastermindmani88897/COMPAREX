@@ -25,6 +25,9 @@ interface AuthContextType extends AuthState {
     google_id?: string;
     email?: string;
     name?: string;
+    full_name?: string;
+    given_name?: string;
+    family_name?: string;
     avatar_url?: string;
   }) => Promise<void>;
   register: (
@@ -33,6 +36,7 @@ interface AuthContextType extends AuthState {
     password: string,
     confirmPassword: string
   ) => Promise<void>;
+  setupUsername: (username: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (user: UserPublic) => void;
 }
@@ -124,6 +128,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       google_id?: string;
       email?: string;
       name?: string;
+      full_name?: string;
+      given_name?: string;
+      family_name?: string;
       avatar_url?: string;
     }): Promise<void> => {
       const res = await apiClient.post("/auth/google", payload);
@@ -152,6 +159,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [login]
   );
 
+  const setupUsername = useCallback(async (username: string): Promise<void> => {
+    const res = await apiClient.post("/users/me/username", { username });
+    const updatedUser: UserPublic = res.data.data;
+    setState((prev) => ({ ...prev, user: updatedUser }));
+  }, []);
+
   const logout = useCallback(async (): Promise<void> => {
     try {
       const token = getStoredAccessToken();
@@ -172,7 +185,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, googleLogin, register, logout, updateUser }}>
+    <AuthContext.Provider
+      value={{
+        ...state,
+        login,
+        googleLogin,
+        register,
+        setupUsername,
+        logout,
+        updateUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

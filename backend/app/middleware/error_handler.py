@@ -47,24 +47,44 @@ async def validation_exception_handler(
 ) -> JSONResponse:
     """Handle Pydantic validation errors (422 Unprocessable Entity)."""
     request_id = str(uuid.uuid4())
-    errors = [
-        ErrorDetail(
-            field=" -> ".join(str(loc) for loc in error["loc"]),
-            message=error["msg"],
-            code=error["type"],
+    errors = []
+    user_messages = []
+
+    for error in exc.errors():
+        field_path = " -> ".join(str(loc) for loc in error["loc"])
+        raw_msg = error["msg"]
+        code = error["type"]
+
+        clean_msg = raw_msg
+        if "email" in field_path.lower():
+            clean_msg = "Invalid email address."
+        elif "password" in field_path.lower() and "too_short" in code:
+            clean_msg = "Password must contain at least 8 characters."
+        elif "confirm" in field_path.lower():
+            clean_msg = "Passwords do not match."
+
+        user_messages.append(clean_msg)
+        errors.append(
+            ErrorDetail(
+                field=field_path,
+                message=clean_msg,
+                code=code,
+            )
         )
-        for error in exc.errors()
-    ]
+
+    primary_message = user_messages[0] if user_messages else "Invalid input data."
+
     logger.warning(
-        "Validation error | path=%s | errors=%d | request_id=%s",
+        "Validation error | path=%s | primary=%s | errors=%d | request_id=%s",
         request.url.path,
+        primary_message,
         len(errors),
         request_id,
     )
     return JSONResponse(
         status_code=422,
         content=ErrorResponse(
-            message="Request validation failed",
+            message=primary_message,
             errors=errors,
             request_id=request_id,
         ).model_dump(),

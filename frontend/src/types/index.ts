@@ -33,12 +33,14 @@ export interface UserPublic {
   id: string;
   email: string;
   name: string;
+  username?: string | null;
   google_id?: string | null;
   login_provider?: string;
   avatar_url?: string | null;
   role: string;
   is_active: boolean;
   is_verified: boolean;
+  needs_username_setup?: boolean;
   created_at?: string | null;
   updated_at?: string | null;
 }
