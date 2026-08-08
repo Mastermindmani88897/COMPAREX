@@ -25,3 +25,4 @@ from app.models.user import User  # noqa: F401
 from app.models.notification import Notification  # noqa: F401
 from app.models.watchlist import Watchlist  # noqa: F401
 from app.models.wishlist import Wishlist  # noqa: F401
+from app.models.product_view import ProductView  # noqa: F401

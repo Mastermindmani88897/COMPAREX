@@ -111,11 +111,6 @@ export function Navbar() {
                     title="My Wishlist & Favorites"
                   >
                     <Heart className="h-4 w-4 text-rose-500 fill-rose-500/20" />
-                    {wishlistCount > 0 && (
-                      <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-extrabold text-white animate-pulse">
-                        {wishlistCount}
-                      </span>
-                    )}
                   </Link>
                 </>
               )}

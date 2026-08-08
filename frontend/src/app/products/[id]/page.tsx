@@ -130,7 +130,9 @@ export default function ProductDetailPage() {
             queryTerm = prodRes.data.data.name;
           }
           if (prodRes.data?.data?.id) {
-            setRealProductId(prodRes.data.data.id);
+            const pId = prodRes.data.data.id;
+            setRealProductId(pId);
+            apiClient.post(`/products/${pId}/view`).catch(() => {});
           }
         } catch {
           queryTerm = "Poco X5 Pro 5G";
@@ -139,7 +141,9 @@ export default function ProductDetailPage() {
         try {
           const prodRes = await apiClient.get(`/products?query=${encodeURIComponent(queryTerm)}&limit=1`);
           if (prodRes.data?.data?.[0]?.id) {
-            setRealProductId(prodRes.data.data[0].id);
+            const pId = prodRes.data.data[0].id;
+            setRealProductId(pId);
+            apiClient.post(`/products/${pId}/view`).catch(() => {});
           }
         } catch {
           // keep rawId fallback

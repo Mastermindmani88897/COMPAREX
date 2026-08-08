@@ -26,6 +26,7 @@ import { useWishlist } from "@/context/WishlistContext";
 import { AuthGuard } from "@/components/shared/AuthGuard";
 import apiClient from "@/services/api";
 import { getUserDisplayName, getUserInitials } from "@/utils/user";
+import { ProductActionButtons } from "@/components/products/ProductActionButtons";
 
 interface WishlistItem {
   id: string;
@@ -50,10 +51,17 @@ interface WishlistItem {
 }
 
 interface AIRecommendationItem {
+  id?: string;
+  product_id?: string;
   title: string;
+  name?: string;
   brand?: string;
+  category?: string;
   price: number;
+  image_url?: string;
+  rating?: number;
   marketplace?: string;
+  listing_url?: string | null;
   savings?: string;
   reason?: string;
 }
@@ -453,37 +461,52 @@ export default function WishlistDashboardPage() {
                   {/* You May Also Like */}
                   <div className="space-y-3 p-4 rounded-2xl border" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
                     <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">You May Also Like</h3>
-                    {aiRecs.you_may_also_like.map((rec, i) => (
-                      <div key={i} className="p-3 rounded-xl border bg-card/50 space-y-1">
-                        <p className="text-xs font-bold truncate" style={{ color: "var(--foreground)" }}>{rec.title}</p>
-                        <p className="text-xs text-emerald-400 font-semibold">₹{rec.price.toLocaleString("en-IN")}</p>
-                        {rec.reason && <p className="text-[11px]" style={{ color: "var(--foreground-muted)" }}>{rec.reason}</p>}
-                      </div>
-                    ))}
+                    {aiRecs.you_may_also_like && aiRecs.you_may_also_like.length > 0 ? (
+                      aiRecs.you_may_also_like.map((rec, i) => (
+                        <div key={rec.id || i} className="p-3.5 rounded-xl border space-y-2" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                          <p className="text-xs font-bold line-clamp-1" style={{ color: "var(--foreground)" }}>{rec.title || rec.name}</p>
+                          <p className="text-xs text-emerald-400 font-extrabold">₹{Number(rec.price).toLocaleString("en-IN")}</p>
+                          {rec.reason && <p className="text-[11px]" style={{ color: "var(--foreground-muted)" }}>{rec.reason}</p>}
+                          <ProductActionButtons product={{ id: rec.id || rec.product_id || "", name: rec.title || rec.name, price: rec.price, listing_url: rec.listing_url }} compact />
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs italic" style={{ color: "var(--foreground-muted)" }}>No recommendations available yet.</p>
+                    )}
                   </div>
 
                   {/* Cheaper Alternative */}
                   <div className="space-y-3 p-4 rounded-2xl border" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
                     <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Cheaper Alternative</h3>
-                    {aiRecs.cheaper_alternative.map((rec, i) => (
-                      <div key={i} className="p-3 rounded-xl border bg-card/50 space-y-1">
-                        <p className="text-xs font-bold truncate" style={{ color: "var(--foreground)" }}>{rec.title}</p>
-                        <p className="text-xs text-emerald-400 font-semibold">₹{rec.price.toLocaleString("en-IN")}</p>
-                        {rec.savings && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-bold">{rec.savings}</span>}
-                      </div>
-                    ))}
+                    {aiRecs.cheaper_alternative && aiRecs.cheaper_alternative.length > 0 ? (
+                      aiRecs.cheaper_alternative.map((rec, i) => (
+                        <div key={rec.id || i} className="p-3.5 rounded-xl border space-y-2" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                          <p className="text-xs font-bold line-clamp-1" style={{ color: "var(--foreground)" }}>{rec.title || rec.name}</p>
+                          <p className="text-xs text-emerald-400 font-extrabold">₹{Number(rec.price).toLocaleString("en-IN")}</p>
+                          {rec.reason && <p className="text-[11px]" style={{ color: "var(--foreground-muted)" }}>{rec.reason}</p>}
+                          <ProductActionButtons product={{ id: rec.id || rec.product_id || "", name: rec.title || rec.name, price: rec.price, listing_url: rec.listing_url }} compact />
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs italic" style={{ color: "var(--foreground-muted)" }}>No cheaper alternatives found.</p>
+                    )}
                   </div>
 
                   {/* Best Value */}
                   <div className="space-y-3 p-4 rounded-2xl border" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
                     <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider">Best Value</h3>
-                    {aiRecs.best_value.map((rec, i) => (
-                      <div key={i} className="p-3 rounded-xl border bg-card/50 space-y-1">
-                        <p className="text-xs font-bold truncate" style={{ color: "var(--foreground)" }}>{rec.title}</p>
-                        <p className="text-xs text-emerald-400 font-semibold">₹{rec.price.toLocaleString("en-IN")}</p>
-                        {rec.reason && <p className="text-[11px]" style={{ color: "var(--foreground-muted)" }}>{rec.reason}</p>}
-                      </div>
-                    ))}
+                    {aiRecs.best_value && aiRecs.best_value.length > 0 ? (
+                      aiRecs.best_value.map((rec, i) => (
+                        <div key={rec.id || i} className="p-3.5 rounded-xl border space-y-2" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                          <p className="text-xs font-bold line-clamp-1" style={{ color: "var(--foreground)" }}>{rec.title || rec.name}</p>
+                          <p className="text-xs text-emerald-400 font-extrabold">₹{Number(rec.price).toLocaleString("en-IN")}</p>
+                          {rec.reason && <p className="text-[11px]" style={{ color: "var(--foreground-muted)" }}>{rec.reason}</p>}
+                          <ProductActionButtons product={{ id: rec.id || rec.product_id || "", name: rec.title || rec.name, price: rec.price, listing_url: rec.listing_url }} compact />
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs italic" style={{ color: "var(--foreground-muted)" }}>No best value picks available yet.</p>
+                    )}
                   </div>
                 </div>
               </div>

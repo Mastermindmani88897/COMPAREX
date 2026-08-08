@@ -189,6 +189,25 @@ async def verify_and_migrate_db_schema():
                     "ALTER TABLE price_history ADD COLUMN IF NOT EXISTS marketplace_slug"
                     " VARCHAR(100);"
                 ),
+                (
+                    "CREATE TABLE IF NOT EXISTS product_views ("
+                    " id UUID PRIMARY KEY DEFAULT gen_random_uuid(),"
+                    " user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+                    " product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,"
+                    " viewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+                    " price_at_view NUMERIC(12, 2),"
+                    " CONSTRAINT uq_user_product_view UNIQUE (user_id, product_id)"
+                    ");"
+                ),
+                "CREATE INDEX IF NOT EXISTS ix_product_views_user_id ON product_views (user_id);",
+                (
+                    "CREATE INDEX IF NOT EXISTS ix_product_views_product_id ON product_views "
+                    "(product_id);"
+                ),
+                (
+                    "CREATE INDEX IF NOT EXISTS ix_product_views_viewed_at ON product_views "
+                    "(viewed_at DESC);"
+                ),
             ]
 
             for col in missing_cols:

@@ -39,6 +39,45 @@ async def autocomplete_products(
 
 
 @router.get(
+    "/recently-viewed",
+    response_model=SuccessResponse[list[ProductPublic]],
+    summary="Get Recently Viewed Products",
+    description="Retrieve top 20 recently viewed products for the current user.",
+)
+async def get_recently_viewed(
+    limit: int = Query(20, ge=1, le=50),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Recently viewed products endpoint."""
+    service = ProductService(db)
+    products = await service.get_recently_viewed(user_id=current_user.id, limit=limit)
+    return SuccessResponse(
+        message="Recently viewed products retrieved",
+        data=products,
+    )
+
+
+@router.get(
+    "/trending",
+    response_model=SuccessResponse[list[ProductPublic]],
+    summary="Get Dynamic Trending Products",
+    description="Retrieve top trending products from the database.",
+)
+async def get_trending_products(
+    limit: int = Query(12, ge=1, le=24),
+    db: AsyncSession = Depends(get_db),
+):
+    """Trending products endpoint."""
+    service = ProductService(db)
+    products = await service.get_trending_products(limit=limit)
+    return SuccessResponse(
+        message="Trending products retrieved",
+        data=products,
+    )
+
+
+@router.get(
     "",
     response_model=SuccessResponse[list[ProductPublic]],
     summary="List Products",
@@ -163,6 +202,26 @@ async def get_product(
     return SuccessResponse(
         message="Product details retrieved",
         data=product,
+    )
+
+
+@router.post(
+    "/{product_id}/view",
+    response_model=SuccessResponse[None],
+    summary="Record Product View",
+    description="Record user product view for recently viewed tracking.",
+)
+async def record_product_view(
+    product_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Record product view endpoint."""
+    service = ProductService(db)
+    await service.record_product_view(user_id=current_user.id, product_id=product_id)
+    return SuccessResponse(
+        message="Product view recorded",
+        data=None,
     )
 
 

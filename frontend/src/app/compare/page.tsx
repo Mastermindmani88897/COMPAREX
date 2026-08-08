@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
@@ -87,13 +87,28 @@ export default function AggregatedComparePage() {
   useEffect(() => {
     let isCancelled = false;
     async function loadResults() {
-      if (!query.trim()) return;
       setIsLoading(true);
       setError(null);
       try {
+        let searchQueryToRun = query;
+        const idsParam = searchParams.get("ids");
+        if (idsParam && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(idsParam)) {
+          try {
+            const pRes = await apiClient.get(`/products/${idsParam}`);
+            if (pRes.data?.data?.name) {
+              searchQueryToRun = pRes.data.data.name;
+              setQuery(searchQueryToRun);
+            }
+          } catch {
+            // fallback to current query
+          }
+        }
+
+        if (!searchQueryToRun.trim()) return;
+
         const catParam = activeCategory === "all" ? "" : activeCategory;
         const res = await apiClient.get(
-          `/comparison/aggregate?q=${encodeURIComponent(query)}&category=${encodeURIComponent(catParam)}&sort_by=${sortBy}&in_stock_only=${inStockOnly}`
+          `/comparison/aggregate?q=${encodeURIComponent(searchQueryToRun)}&category=${encodeURIComponent(catParam)}&sort_by=${sortBy}&in_stock_only=${inStockOnly}`
         );
         if (!isCancelled) {
           setAggregatorData(res.data.data);
@@ -112,7 +127,7 @@ export default function AggregatedComparePage() {
     return () => {
       isCancelled = true;
     };
-  }, [query, activeCategory, sortBy, inStockOnly]);
+  }, [query, activeCategory, sortBy, inStockOnly, searchParams]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();

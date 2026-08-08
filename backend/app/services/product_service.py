@@ -9,11 +9,14 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.logging import get_logger
 from app.models.product import Product
 from app.models.product_listing import ProductListing
+from app.models.product_view import ProductView
 from app.repositories.product_repository import ProductRepository
 from app.schemas.product import ProductCreate, ProductPublic, ProductUpdate
 from app.services.aggregator_service import MarketplaceAggregatorService
@@ -375,3 +378,72 @@ class ProductService:
             )
         await self.repo.delete(product)
         logger.info("Product deleted: %s", product_id)
+
+    async def record_product_view(
+        self, user_id: UUID, product_id: UUID, price: Optional[Decimal] = None
+    ) -> None:
+        """Record or update product view timestamp for logged-in user."""
+        try:
+            stmt = select(ProductView).where(
+                ProductView.user_id == user_id, ProductView.product_id == product_id
+            )
+            res = await self.db.execute(stmt)
+            existing = res.scalars().first()
+
+            if existing:
+                existing.viewed_at = func.now()
+                if price:
+                    existing.price_at_view = price
+            else:
+                view = ProductView(
+                    user_id=user_id,
+                    product_id=product_id,
+                    price_at_view=price,
+                )
+                self.db.add(view)
+            await self.db.commit()
+        except Exception as exc:
+            await self.db.rollback()
+            logger.warning(
+                "Failed to record product view for user %s product %s: %s",
+                user_id,
+                product_id,
+                exc,
+            )
+
+    async def get_recently_viewed(self, user_id: UUID, limit: int = 20) -> list[ProductPublic]:
+        """Fetch recently viewed products for user, ordered by viewed_at DESC."""
+        stmt = (
+            select(Product)
+            .join(ProductView, ProductView.product_id == Product.id)
+            .where(ProductView.user_id == user_id)
+            .options(
+                selectinload(Product.listings),
+                selectinload(Product.images),
+                selectinload(Product.specifications),
+            )
+            .order_by(ProductView.viewed_at.desc())
+            .limit(limit)
+        )
+        res = await self.db.execute(stmt)
+        products = res.scalars().unique().all()
+        return [ProductPublic.model_validate(p) for p in products]
+
+    async def get_trending_products(self, limit: int = 12) -> list[ProductPublic]:
+        """Fetch dynamic trending products based on popularity, rating, and recency."""
+        stmt = (
+            select(Product)
+            .options(
+                selectinload(Product.listings),
+                selectinload(Product.images),
+                selectinload(Product.specifications),
+            )
+            .order_by(
+                Product.popularity_score.desc().nullslast(),
+                Product.rating.desc().nullslast(),
+            )
+            .limit(limit)
+        )
+        res = await self.db.execute(stmt)
+        products = res.scalars().unique().all()
+        return [ProductPublic.model_validate(p) for p in products]

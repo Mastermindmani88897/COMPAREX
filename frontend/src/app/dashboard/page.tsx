@@ -24,6 +24,7 @@ import {
   Plus,
   Tag,
   RefreshCw,
+  Zap,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useWishlist } from "@/context/WishlistContext";
@@ -32,6 +33,7 @@ import apiClient, { alertsService } from "@/services/api";
 import type { Product, PriceAlertItem } from "@/types";
 import { getUserDisplayName, getUserFirstName, getUserInitials } from "@/utils/user";
 import { PriceAlertModal } from "@/components/alerts/PriceAlertModal";
+import { ProductActionButtons } from "@/components/products/ProductActionButtons";
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: "Overview", href: "/dashboard", active: true },
@@ -44,9 +46,13 @@ const sidebarItems = [
 export default function DashboardPage() {
   const { user, logout } = useAuth();
   const { wishlistItems, wishlistCount, refetchWishlist } = useWishlist();
-  const [productCount, setProductCount] = useState<number | null>(null);
-  const [recentProducts, setRecentProducts] = useState<Product[]>([]);
+
   const [searchQuery, setSearchQuery] = useState("");
+  const [recentProducts, setRecentProducts] = useState<Product[]>([]);
+  const [recentlyViewed, setRecentlyViewed] = useState<Product[]>([]);
+  const [trendingProducts, setTrendingProducts] = useState<Product[]>([]);
+  const [personalizedRecs, setPersonalizedRecs] = useState<Product[]>([]);
+  const [productCount, setProductCount] = useState<number>(0);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
 
   // Dynamic DB Dashboard States
@@ -87,11 +93,27 @@ export default function DashboardPage() {
         setPriceAlerts([]);
       }
 
-      // 4. Fetch catalog sample
-      const prodRes = await apiClient.get("/products?skip=0&limit=4");
+      // 4. Fetch Recently Viewed Products
+      try {
+        const rvRes = await apiClient.get("/products/recently-viewed?limit=12");
+        setRecentlyViewed(rvRes.data?.data || []);
+      } catch {
+        setRecentlyViewed([]);
+      }
+
+      // 5. Fetch Dynamic Trending Products
+      try {
+        const trRes = await apiClient.get("/products/trending?limit=12");
+        setTrendingProducts(trRes.data?.data || []);
+      } catch {
+        setTrendingProducts([]);
+      }
+
+      // 6. Fetch Catalog sample
+      const prodRes = await apiClient.get("/products?skip=0&limit=6");
       setRecentProducts(prodRes.data?.data || []);
-      const countRes = await apiClient.get("/products?skip=0&limit=100");
-      setProductCount(countRes.data?.data?.length || 0);
+      setPersonalizedRecs(prodRes.data?.data || []);
+      setProductCount(prodRes.data?.data?.length || 0);
 
     } catch (err) {
       console.error("Dashboard dynamic load error:", err);
@@ -377,7 +399,96 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column */}
               <div className="lg:col-span-2 space-y-6">
-                {/* Recent Searches */}
+                {/* Recently Viewed Section */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-2xl border p-6 space-y-4"
+                  style={{ background: "var(--card)", borderColor: "var(--border)" }}
+                >
+                  <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-indigo-400" />
+                      <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
+                        Recently Viewed
+                      </h2>
+                    </div>
+                    <span className="text-xs font-medium" style={{ color: "var(--foreground-muted)" }}>
+                      {recentlyViewed.length} items
+                    </span>
+                  </div>
+
+                  {recentlyViewed.length === 0 ? (
+                    <div className="text-center py-6 border rounded-xl" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
+                      <Clock className="h-8 w-8 text-gray-500/40 mx-auto mb-2" />
+                      <p className="text-xs font-bold" style={{ color: "var(--foreground)" }}>
+                        No recently viewed products yet.
+                      </p>
+                      <p className="text-[11px] mt-0.5" style={{ color: "var(--foreground-muted)" }}>
+                        Browse products to track your view history here!
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {recentlyViewed.slice(0, 6).map((p) => (
+                        <div key={p.id} className="p-3.5 rounded-xl border flex flex-col justify-between" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
+                          <div className="flex items-start gap-3">
+                            {p.image_url ? (
+                              <img src={p.image_url} alt={p.name} className="h-12 w-12 object-contain shrink-0 rounded-lg border p-1" style={{ borderColor: "var(--border)" }} />
+                            ) : (
+                              <Package className="h-10 w-10 text-indigo-400 shrink-0" />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold line-clamp-1" style={{ color: "var(--foreground)" }}>{p.name}</p>
+                              <p className="text-xs font-black text-emerald-400 mt-1">₹{Number(p.base_price || 0).toLocaleString("en-IN")}</p>
+                            </div>
+                          </div>
+                          <ProductActionButtons product={p} compact />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+
+                {/* Dynamic Trending Now Section */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="rounded-2xl border p-6 space-y-4"
+                  style={{ background: "var(--card)", borderColor: "var(--border)" }}
+                >
+                  <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-amber-400" />
+                      <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
+                        🔥 Trending Now
+                      </h2>
+                    </div>
+                    <Link href="/products" className="text-xs font-bold text-indigo-400 hover:underline">Browse All</Link>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {trendingProducts.slice(0, 6).map((p) => (
+                      <div key={p.id} className="p-3.5 rounded-xl border flex flex-col justify-between" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
+                        <div className="flex items-start gap-3">
+                          {p.image_url ? (
+                            <img src={p.image_url} alt={p.name} className="h-12 w-12 object-contain shrink-0 rounded-lg border p-1" style={{ borderColor: "var(--border)" }} />
+                          ) : (
+                            <Package className="h-10 w-10 text-amber-400 shrink-0" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold line-clamp-1" style={{ color: "var(--foreground)" }}>{p.name}</p>
+                            <p className="text-xs font-black text-emerald-400 mt-1">₹{Number(p.base_price || 0).toLocaleString("en-IN")}</p>
+                          </div>
+                        </div>
+                        <ProductActionButtons product={p} compact />
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+
+                {/* Popular Catalog Searches */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}

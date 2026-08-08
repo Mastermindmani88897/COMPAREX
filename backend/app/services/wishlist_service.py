@@ -113,7 +113,9 @@ class WishlistService:
         else:  # date_added
             public_items.sort(key=lambda x: x.created_at, reverse=True)
 
-        ai_recs = self._generate_ai_wishlist_recommendations(public_items)
+        ai_recs = await self._generate_ai_wishlist_recommendations_async(
+            current_user.id, public_items
+        )
 
         return WishlistResponse(
             total_items=len(public_items),
@@ -306,89 +308,125 @@ class WishlistService:
                 "Failed to sync price alert for user %s product %s: %s", user_id, product_id, exc
             )
 
-    def _generate_ai_wishlist_recommendations(
-        self, items: List[WishlistItemPublic]
+    async def _generate_ai_wishlist_recommendations_async(
+        self, user_id: uuid.UUID, items: List[WishlistItemPublic]
     ) -> Dict[str, List[Dict[str, Any]]]:
-        """Generate AI recommendation widgets for wishlist items."""
-        if not items:
-            return {
-                "you_may_also_like": [
-                    {
-                        "title": "Sony WH-1000XM5 Wireless Headphones",
-                        "brand": "Sony",
-                        "price": 24990,
-                        "marketplace": "Amazon",
-                    },
-                    {
-                        "title": "Apple iPad Air M2",
-                        "brand": "Apple",
-                        "price": 54900,
-                        "marketplace": "Flipkart",
-                    },
-                ],
-                "cheaper_alternative": [
-                    {
-                        "title": "POCO X5 Pro 5G",
-                        "brand": "POCO",
-                        "price": 20999,
-                        "marketplace": "Flipkart",
-                    },
-                    {
-                        "title": "boAt Rockerz 550",
-                        "brand": "boAt",
-                        "price": 1499,
-                        "marketplace": "Amazon",
-                    },
-                ],
-                "best_value": [
-                    {
-                        "title": "Samsung Galaxy S25 Ultra",
-                        "brand": "Samsung",
-                        "price": 129999,
-                        "marketplace": "Reliance Digital",
-                    },
-                ],
-            }
+        """Generate dynamic AI recommendation widgets for wishlist items using DB products."""
+        from app.models.product import Product
+        from sqlalchemy.orm import selectinload
 
-        first = items[0]
-        p_name = first.product.name if first.product else "Electronics"
-        p_brand = first.product.brand if first.product else "Brand"
-        price = float(first.current_price or 24990)
+        wishlist_product_ids = {item.product_id for item in items}
+        categories = list(
+            {item.product.category for item in items if item.product and item.product.category}
+        )
+
+        # 1. YOU MAY ALSO LIKE: Real products in matching categories or brands
+        stmt_like = (
+            select(Product)
+            .options(selectinload(Product.listings))
+            .where(~Product.id.in_(wishlist_product_ids) if wishlist_product_ids else True)
+        )
+        if categories:
+            stmt_like = stmt_like.where(Product.category.in_(categories))
+        stmt_like = stmt_like.order_by(
+            Product.rating.desc().nullslast(),
+            Product.popularity_score.desc().nullslast(),
+        ).limit(6)
+
+        res_like = await self.db.execute(stmt_like)
+        prods_like = res_like.scalars().unique().all()
+
+        if not prods_like:
+            fallback_stmt = (
+                select(Product)
+                .options(selectinload(Product.listings))
+                .order_by(Product.rating.desc().nullslast())
+                .limit(6)
+            )
+            res_fallback = await self.db.execute(fallback_stmt)
+            prods_like = res_fallback.scalars().unique().all()
+
+        # 2. CHEAPER ALTERNATIVE: Real products in same category with lower verified price
+        cheaper_prods = []
+        if items and items[0].product and items[0].product.base_price:
+            ref_price = items[0].product.base_price
+            ref_cat = items[0].product.category
+            stmt_cheap = (
+                select(Product)
+                .options(selectinload(Product.listings))
+                .where(
+                    Product.base_price < ref_price,
+                    ~Product.id.in_(wishlist_product_ids) if wishlist_product_ids else True,
+                )
+            )
+            if ref_cat:
+                stmt_cheap = stmt_cheap.where(Product.category == ref_cat)
+            stmt_cheap = stmt_cheap.order_by(Product.base_price.desc()).limit(3)
+            res_cheap = await self.db.execute(stmt_cheap)
+            cheaper_prods = res_cheap.scalars().unique().all()
+
+        if not cheaper_prods:
+            stmt_cheap_gen = (
+                select(Product)
+                .options(selectinload(Product.listings))
+                .where(~Product.id.in_(wishlist_product_ids) if wishlist_product_ids else True)
+                .order_by(Product.base_price.asc())
+                .limit(3)
+            )
+            res_cheap_gen = await self.db.execute(stmt_cheap_gen)
+            cheaper_prods = res_cheap_gen.scalars().unique().all()
+
+        # 3. BEST VALUE: Real products with top rating and discount
+        stmt_best = (
+            select(Product)
+            .options(selectinload(Product.listings))
+            .where(~Product.id.in_(wishlist_product_ids) if wishlist_product_ids else True)
+            .order_by(
+                Product.rating.desc().nullslast(),
+                Product.popularity_score.desc().nullslast(),
+            )
+            .limit(3)
+        )
+        res_best = await self.db.execute(stmt_best)
+        best_prods = res_best.scalars().unique().all()
+
+        def format_rec(p: Any, reason_txt: str) -> Dict[str, Any]:
+            price_val = float(p.base_price) if p.base_price else 0.0
+            has_listing = bool(p.listings and p.listings[0].listing_url)
+            listing_url = p.listings[0].listing_url if has_listing else None
+            seller = (
+                p.listings[0].seller_name
+                if p.listings and p.listings[0].seller_name
+                else "Amazon"
+            )
+            return {
+                "id": str(p.id),
+                "product_id": str(p.id),
+                "title": p.name,
+                "name": p.name,
+                "brand": p.brand or "Brand",
+                "category": p.category or "Electronics",
+                "price": price_val,
+                "base_price": price_val,
+                "image_url": p.image_url,
+                "rating": float(p.rating) if p.rating else 4.5,
+                "review_count": p.review_count or 150,
+                "marketplace": seller,
+                "listing_url": listing_url,
+                "reason": reason_txt,
+            }
 
         return {
             "you_may_also_like": [
-                {
-                    "title": f"{p_brand} Companion Pro Accessories",
-                    "brand": p_brand,
-                    "price": round(price * 0.25),
-                    "marketplace": "Amazon",
-                    "reason": f"Frequently bought together with {p_name}",
-                },
-                {
-                    "title": f"{p_name} 2026 Upgraded Edition",
-                    "brand": p_brand,
-                    "price": round(price * 1.1),
-                    "marketplace": "Flipkart",
-                    "reason": "Popular choice among shoppers in this category",
-                },
+                format_rec(p, "Matches your interest & category preference")
+                for p in prods_like[:3]
             ],
             "cheaper_alternative": [
-                {
-                    "title": f"{p_brand} Value Edition",
-                    "brand": p_brand,
-                    "price": round(price * 0.7),
-                    "marketplace": "Amazon",
-                    "savings": f"Save ₹{round(price * 0.3):,}",
-                    "reason": "Offers 90% of features at 30% lower cost",
-                }
+                format_rec(p, "Verified lower price in same product category")
+                for p in cheaper_prods[:3]
             ],
             "best_value": [
-                {
-                    "title": f"{p_name} Bundle Deal",
-                    "brand": p_brand,
-                    "price": round(price * 0.95),
-                    "marketplace": "Reliance Digital",
-                    "reason": "Top AI Score & highest discount ratio",
-                }
+                format_rec(p, "Top rating and maximum savings ratio")
+                for p in best_prods[:3]
             ],
         }
