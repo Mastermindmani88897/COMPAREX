@@ -246,6 +246,25 @@ class SearchEngineService:
         p_brand = (getattr(product, "brand", "") or "").strip()
         p_cat = (getattr(product, "category", "") or "").strip()
 
+        # 0. Quarantined Exclusion
+        if getattr(product, "is_quarantined", False) is True:
+            return 0.0
+
+        # 0b. Generic Product Rejection (PART 2)
+        has_generic_brand = p_brand.lower() in ("generic", "consumer electronics", "brand")
+        is_generic_brand = has_generic_brand or "generic" in p_name_norm
+        is_generic_cat = p_cat.lower() == "consumer electronics"
+        has_specific_intent = bool(
+            intent.brand or intent.model or intent.family or intent.tokens
+        )
+        if (is_generic_brand or is_generic_cat) and has_specific_intent:
+            score -= 200.0
+
+        # 0c. Galaxy Brand Enforcement (PART 5 - Galaxy is Samsung family)
+        if intent.family == "Galaxy" or "galaxy" in intent.normalized_query:
+            if p_brand.lower() != "samsung" and "samsung" not in p_name_norm:
+                score -= 200.0
+
         # 1. Exact Name Match
         if intent.normalized_query == p_name_norm:
             score += 100.0

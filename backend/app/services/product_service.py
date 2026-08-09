@@ -105,79 +105,84 @@ class ProductService:
 
         # If DB returned 0 products AND query provided, trigger live aggregation & auto-cache in DB
         if not products and query and query.strip():
-            logger.info(
-                "Search query '%s' yielded 0 DB hits. Triggering live aggregation...",
-                query,
-            )
             try:
                 agg = await MarketplaceAggregatorService.aggregate_search(
                     query=query, use_cache=True
                 )
-                p_title = agg.get("product_title") or query.title()
-                p_cat = agg.get("category") or category or "Electronics"
-                p_brand = agg.get("specifications", {}).get("brand") or brand or "Brand"
-                lowest_price = agg.get("lowest_price") or 19999.0
-                primary_img = (
-                    agg.get("primary_image")
-                    or "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600"
-                )
+                listings_list = agg.get("listings", [])
+                if listings_list:
+                    p_title = agg.get("product_title") or query.title()
+                    p_cat = agg.get("category") or category or "Electronics"
+                    p_brand = agg.get("specifications", {}).get("brand") or brand or "Brand"
+                    raw_lowest = agg.get("lowest_price") or listings_list[0].get("price") or 0.0
+                    lowest_price = float(raw_lowest)
 
-                desc_str = (
-                    f"{p_title} - Price comparison across Amazon, Flipkart, Croma, "
-                    "Reliance Digital, Tata Cliq, Meesho, Myntra & Vijay Sales."
-                )
-                new_product = Product(
-                    id=uuid.uuid4(),
-                    name=p_title,
-                    brand=p_brand,
-                    category=p_cat,
-                    base_price=Decimal(str(lowest_price)),
-                    description=desc_str,
-                    image_url=primary_img,
-                    stock_status="in_stock",
-                    rating=Decimal("4.6"),
-                    review_count=1840,
-                    popularity_score=88.0,
-                    search_keywords=f"{query.lower()} {p_brand.lower()} {p_cat.lower()}",
-                )
-                self.db.add(new_product)
-                await self.db.flush()
-
-                for lst_data in agg.get("listings", []):
-                    l_price = float(lst_data.get("price") or lowest_price)
-                    l_orig = float(lst_data.get("original_price") or (l_price * 1.15))
-                    l_disc = float(lst_data.get("discount_percent") or 10.0)
-
-                    lst = ProductListing(
-                        id=uuid.uuid4(),
-                        product_id=new_product.id,
-                        price=Decimal(str(l_price)),
-                        original_price=Decimal(str(l_orig)),
-                        discount_percentage=Decimal(str(l_disc)),
-                        listing_url=lst_data.get("listing_url") or "https://www.amazon.in",
-                        seller_name=lst_data.get("seller_name") or "Verified Seller",
-                        is_available=True,
-                        stock_status="IN_STOCK",
+                    primary_img = (
+                        agg.get("primary_image")
+                        or "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600"
                     )
-                    self.db.add(lst)
 
-                await self.db.commit()
-                try:
-                    await self.db.refresh(new_product)
-                except Exception:
-                    pass
+                    desc_str = (
+                        f"{p_title} - Price comparison across Amazon, Flipkart, Croma, "
+                        "Reliance Digital, Tata Cliq, Meesho, Myntra & Vijay Sales."
+                    )
+                    b_price = Decimal(str(lowest_price)) if lowest_price > 0 else Decimal("0.0")
+                    new_product = Product(
+                        id=uuid.uuid4(),
+                        name=p_title,
+                        brand=p_brand,
+                        category=p_cat,
+                        base_price=b_price,
+                        description=desc_str,
+                        image_url=primary_img,
+                        stock_status="in_stock",
+                        rating=Decimal("4.6"),
+                        review_count=1840,
+                        popularity_score=88.0,
+                        search_keywords=f"{query.lower()} {p_brand.lower()} {p_cat.lower()}",
+                    )
+                    self.db.add(new_product)
+                    await self.db.flush()
 
-                # Re-query DB after caching
-                products = await self.repo.search_products(
-                    skip=skip,
-                    limit=limit,
-                    query=query,
-                    category=category,
-                    brand=brand,
-                    synonyms=synonyms,
-                )
-                if not products:
-                    products = [new_product]
+                    for lst_data in listings_list:
+                        l_price = float(lst_data.get("price") or 0.0)
+                        if l_price <= 0:
+                            continue
+                        l_orig = float(lst_data.get("original_price") or l_price)
+                        l_disc = float(lst_data.get("discount_percent") or 0.0)
+                        default_url = f"https://www.google.com/search?q={query}"
+
+                        lst = ProductListing(
+                            id=uuid.uuid4(),
+                            product_id=new_product.id,
+                            price=Decimal(str(l_price)),
+                            original_price=Decimal(str(l_orig)),
+                            discount_percentage=Decimal(str(l_disc)),
+                            listing_url=lst_data.get("listing_url") or default_url,
+                            seller_name=lst_data.get("seller_name") or "Verified Seller",
+                            is_available=True,
+                            stock_status="IN_STOCK",
+                            verification_status="verified",
+                        )
+                        self.db.add(lst)
+
+                    await self.db.commit()
+                    try:
+                        await self.db.refresh(new_product)
+                    except Exception:
+                        pass
+
+                    # Re-query DB after caching
+                    products = await self.repo.search_products(
+                        skip=skip,
+                        limit=limit,
+                        query=query,
+                        category=category,
+                        brand=brand,
+                        synonyms=synonyms,
+                    )
+                    if not products:
+                        products = [new_product]
             except Exception as exc:
                 logger.error(
                     "Failed to dynamically aggregate and cache search '%s': %s", query, exc

@@ -171,12 +171,28 @@ export default function ProductDetailPage() {
           }
           setGalleryImages(imgs);
 
-          // Build initial listings from DB (filter only valid entries)
+          // Build initial listings from DB (filter only verified entries)
           const dbListings = pData.listings || [];
-          setListings(dbListings);
+          const verifiedDbListings = dbListings.filter(
+            (lst) => lst.verification_status !== "unverified" && lst.is_exact_url !== false
+          );
+          setListings(verifiedDbListings);
 
-          const baseP = Number(pData.base_price || 0);
-          setLowestPrice(baseP > 0 ? baseP : null);
+          if (verifiedDbListings.length > 0) {
+            const prices = verifiedDbListings.map((l) => Number(l.price)).filter((p) => p > 0);
+            if (prices.length > 0) {
+              const minVal = Math.min(...prices);
+              const avgVal = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+              setLowestPrice(minVal);
+              setAvgPrice(avgVal);
+            } else {
+              setLowestPrice(null);
+              setAvgPrice(null);
+            }
+          } else {
+            setLowestPrice(null);
+            setAvgPrice(null);
+          }
 
           setSpecs({
             brand: pData.brand || "Official Brand",
@@ -194,12 +210,12 @@ export default function ProductDetailPage() {
           if (isMounted && aggData) {
             if (aggData.listings && aggData.listings.length > 0) {
               setListings(aggData.listings);
-            }
-            if (aggData.lowest_price) {
-              setLowestPrice(aggData.lowest_price);
-            }
-            if (aggData.average_price) {
-              setAvgPrice(aggData.average_price);
+              setLowestPrice(aggData.lowest_price || null);
+              setAvgPrice(aggData.average_price || null);
+            } else {
+              setListings([]);
+              setLowestPrice(null);
+              setAvgPrice(null);
             }
             if (aggData.image_gallery && aggData.image_gallery.length > 0) {
               setGalleryImages((prev) => Array.from(new Set([...aggData.image_gallery, ...prev])));
@@ -212,7 +228,12 @@ export default function ProductDetailPage() {
             }
           }
         } catch {
-          // Live provider unavailable — preserve verified DB product data cleanly
+          // Live provider unavailable — reset price summary to unavailable state
+          if (isMounted) {
+            setListings([]);
+            setLowestPrice(null);
+            setAvgPrice(null);
+          }
         }
 
         apiClient.post(`/products/${pData.id}/view`).catch(() => {});
@@ -315,8 +336,8 @@ export default function ProductDetailPage() {
   const productName = product.name;
 
   // Filter listings to separate verified exact listings vs unverified
-  const verifiedListings = listings.filter((l) => l.verification_status !== "unverified");
-  const minP = lowestPrice || Number(product.base_price || 0) || (verifiedListings.length > 0 ? Math.min(...verifiedListings.map((l) => l.price)) : 0);
+  const verifiedListings = listings.filter((l) => l.verification_status !== "unverified" && l.is_exact_url !== false);
+  const minP = (listings.length > 0 && lowestPrice && lowestPrice > 0) ? lowestPrice : (verifiedListings.length > 0 ? Math.min(...verifiedListings.map((l) => l.price)) : 0);
   const currentImage = galleryImages[activeImageIndex] || galleryImages[0] || product.image_url || "";
 
   return (
@@ -437,13 +458,13 @@ export default function ProductDetailPage() {
                 <span className="text-xs font-semibold block" style={{ color: "var(--foreground-muted)" }}>
                   Verified Best Price
                 </span>
-                {minP > 0 ? (
+                {lowestPrice && lowestPrice > 0 && listings.length > 0 ? (
                   <p className="text-3xl font-black text-emerald-400">
-                    ₹{minP.toLocaleString("en-IN")}
+                    ₹{Number(lowestPrice).toLocaleString("en-IN")}
                   </p>
                 ) : (
                   <p className="text-sm font-bold text-amber-400">
-                    Price unavailable — unable to verify current listing
+                    Unavailable
                   </p>
                 )}
               </div>
@@ -453,7 +474,9 @@ export default function ProductDetailPage() {
                   Market Average
                 </span>
                 <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                  {minP > 0 ? `₹${(minP * 1.06).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "N/A"}
+                  {avgPrice && avgPrice > 0 && listings.length > 0
+                    ? `₹${Number(avgPrice).toLocaleString("en-IN")}`
+                    : "Unavailable"}
                 </p>
               </div>
 
