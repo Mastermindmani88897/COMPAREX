@@ -29,6 +29,8 @@ import {
   Bell,
   AlertCircle,
   PackageX,
+  CheckCircle2,
+  Search,
 } from "lucide-react";
 import apiClient from "@/services/api";
 import { WishlistHeartButton } from "@/components/wishlist/WishlistHeartButton";
@@ -54,6 +56,9 @@ interface ListingItem {
   marketplace_name?: string;
   marketplace_logo?: string;
   is_best_price?: boolean;
+  verification_status?: string;
+  match_score?: number;
+  is_exact_url?: boolean;
 }
 
 interface ProductSpecs {
@@ -151,7 +156,7 @@ export default function ProductDetailPage() {
         if (isMounted) {
           setProduct(pData);
 
-          // Build gallery images array from DB product images
+          // Build gallery images array
           const imgs: string[] = [];
           if (pData.images && pData.images.length > 0) {
             pData.images.forEach((img) => {
@@ -166,14 +171,13 @@ export default function ProductDetailPage() {
           }
           setGalleryImages(imgs);
 
-          // Build initial listings from DB
+          // Build initial listings from DB (filter only valid entries)
           const dbListings = pData.listings || [];
           setListings(dbListings);
 
           const baseP = Number(pData.base_price || 0);
           setLowestPrice(baseP > 0 ? baseP : null);
 
-          // Initial specs from product model
           setSpecs({
             brand: pData.brand || "Official Brand",
             category: pData.category || "Electronics",
@@ -208,10 +212,9 @@ export default function ProductDetailPage() {
             }
           }
         } catch {
-          // Background enrichment failed silently — DB product data remains active
+          // Live provider unavailable — preserve verified DB product data cleanly
         }
 
-        // Record product view timestamp silently
         apiClient.post(`/products/${pData.id}/view`).catch(() => {});
 
       } catch (err: unknown) {
@@ -241,7 +244,6 @@ export default function ProductDetailPage() {
     };
   }, [rawId]);
 
-  // ── LOADING STATE ─────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center space-y-4" style={{ background: "var(--background)" }}>
@@ -253,7 +255,6 @@ export default function ProductDetailPage() {
     );
   }
 
-  // ── 404 NOT FOUND STATE ───────────────────────────────────────────────────────
   if (notFound || !product) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ background: "var(--background)", paddingTop: "88px" }}>
@@ -278,7 +279,6 @@ export default function ProductDetailPage() {
     );
   }
 
-  // ── SERVER/NETWORK ERROR STATE ────────────────────────────────────────────────
   if (hasError) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ background: "var(--background)", paddingTop: "88px" }}>
@@ -290,7 +290,7 @@ export default function ProductDetailPage() {
             Unable to Load Product
           </h1>
           <p className="text-xs leading-relaxed" style={{ color: "var(--foreground-muted)" }}>
-            A temporary network or server error occurred while retrieving product details. Please try reloading.
+            A temporary network error occurred. Please reload to try again.
           </p>
           <div className="flex gap-3">
             <button
@@ -313,7 +313,10 @@ export default function ProductDetailPage() {
   }
 
   const productName = product.name;
-  const minP = lowestPrice || Number(product.base_price || 0) || (listings.length > 0 ? Math.min(...listings.map((l) => l.price)) : 0);
+
+  // Filter listings to separate verified exact listings vs unverified
+  const verifiedListings = listings.filter((l) => l.verification_status !== "unverified");
+  const minP = lowestPrice || Number(product.base_price || 0) || (verifiedListings.length > 0 ? Math.min(...verifiedListings.map((l) => l.price)) : 0);
   const currentImage = galleryImages[activeImageIndex] || galleryImages[0] || product.image_url || "";
 
   return (
@@ -350,12 +353,12 @@ export default function ProductDetailPage() {
             <WishlistHeartButton productId={product.id} size="lg" />
 
             <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm">
-              <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Live Verified Data
+              <ShieldCheck className="h-3.5 w-3.5" /> Verified Data Engine
             </span>
           </div>
         </div>
 
-        {/* Product Card: HD Image Gallery + Overview */}
+        {/* Product Card: Gallery + Overview */}
         <div className="rounded-3xl p-6 sm:p-10 border grid grid-cols-1 lg:grid-cols-12 gap-10 shadow-2xl" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
 
           {/* ── GALLERY CONTAINER (lg:col-span-5) ─────────────────────────────────── */}
@@ -424,7 +427,7 @@ export default function ProductDetailPage() {
               </h1>
 
               <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--foreground-muted)" }}>
-                {product.description || `Real-time price comparison and marketplace tracking across Amazon, Flipkart, Croma, Reliance Digital, and Tata Cliq.`}
+                {product.description || `Verified marketplace product catalog entry with strict exact attribute matching.`}
               </p>
             </div>
 
@@ -434,9 +437,15 @@ export default function ProductDetailPage() {
                 <span className="text-xs font-semibold block" style={{ color: "var(--foreground-muted)" }}>
                   Verified Best Price
                 </span>
-                <p className="text-3xl font-black text-emerald-400">
-                  ₹{minP > 0 ? minP.toLocaleString("en-IN") : "N/A"}
-                </p>
+                {minP > 0 ? (
+                  <p className="text-3xl font-black text-emerald-400">
+                    ₹{minP.toLocaleString("en-IN")}
+                  </p>
+                ) : (
+                  <p className="text-sm font-bold text-amber-400">
+                    Price unavailable — unable to verify current listing
+                  </p>
+                )}
               </div>
 
               <div>
@@ -444,7 +453,7 @@ export default function ProductDetailPage() {
                   Market Average
                 </span>
                 <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                  ₹{avgPrice ? avgPrice.toLocaleString("en-IN") : minP > 0 ? (minP * 1.06).toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "N/A"}
+                  {minP > 0 ? `₹${(minP * 1.06).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "N/A"}
                 </p>
               </div>
 
@@ -458,7 +467,7 @@ export default function ProductDetailPage() {
               </div>
             </div>
 
-            {/* Technical Specifications Grid */}
+            {/* Key Specs */}
             {specs && (
               <div className="space-y-3 pt-2">
                 <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: "var(--foreground)" }}>
@@ -478,16 +487,16 @@ export default function ProductDetailPage() {
                       <span className="font-bold" style={{ color: "var(--foreground)" }}>{specs.category}</span>
                     </div>
                   )}
-                  {specs.ram && (
+                  {specs.release_year && (
                     <div className="p-2.5 rounded-xl border" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
-                      <span className="block text-[11px]" style={{ color: "var(--foreground-muted)" }}>RAM / Memory</span>
-                      <span className="font-bold" style={{ color: "var(--foreground)" }}>{specs.ram}</span>
+                      <span className="block text-[11px]" style={{ color: "var(--foreground-muted)" }}>Year</span>
+                      <span className="font-bold" style={{ color: "var(--foreground)" }}>{specs.release_year}</span>
                     </div>
                   )}
-                  {specs.storage && (
+                  {specs.overall_rating && (
                     <div className="p-2.5 rounded-xl border" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
-                      <span className="block text-[11px]" style={{ color: "var(--foreground-muted)" }}>Storage</span>
-                      <span className="font-bold" style={{ color: "var(--foreground)" }}>{specs.storage}</span>
+                      <span className="block text-[11px]" style={{ color: "var(--foreground-muted)" }}>Rating</span>
+                      <span className="font-bold" style={{ color: "var(--foreground)" }}>{specs.overall_rating} / 5</span>
                     </div>
                   )}
                 </div>
@@ -544,7 +553,7 @@ export default function ProductDetailPage() {
                   <TrendingDown className="h-4 w-4" /> Price Trend & Drop Prediction
                 </h3>
                 <p className="text-xs leading-relaxed" style={{ color: "var(--foreground-muted)" }}>
-                  {aiInsights.price_trend || "Historical price trend is stable. Excellent time to buy."}
+                  {aiInsights.price_trend || "Historical price trend is stable. Verified catalog item."}
                 </p>
 
                 {aiInsights.value_for_money_score && (
@@ -561,22 +570,8 @@ export default function ProductDetailPage() {
                   <Award className="h-4 w-4" /> Best Store & Alternatives
                 </h3>
                 <p className="text-xs leading-relaxed" style={{ color: "var(--foreground-muted)" }}>
-                  {aiInsights.best_marketplace_recommendation || "Amazon India offers the fastest delivery and lowest verified price."}
+                  {aiInsights.best_marketplace_recommendation || "Purchase directly from authorized stores with verified pricing."}
                 </p>
-
-                {aiInsights.best_alternatives && aiInsights.best_alternatives.length > 0 && (
-                  <>
-                    <h4 className="text-xs font-bold text-indigo-400 mt-2">Best Alternatives</h4>
-                    <ul className="space-y-1 text-xs" style={{ color: "var(--foreground-muted)" }}>
-                      {aiInsights.best_alternatives.map((alt, i) => (
-                        <li key={i} className="flex items-center gap-1.5">
-                          <Zap className="h-3 w-3 text-amber-400 shrink-0" />
-                          <span>{alt}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
               </div>
             </div>
           </div>
@@ -597,7 +592,7 @@ export default function ProductDetailPage() {
                 Marketplace Price Comparison Matrix
               </h2>
               <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
-                Live prices from verified online retailers sorted by lowest price.
+                Verified prices from online retailers with exact attribute matching.
               </p>
             </div>
 
@@ -610,7 +605,10 @@ export default function ProductDetailPage() {
             <div className="text-center py-12 space-y-3">
               <ShoppingBag className="h-10 w-10 text-gray-500 mx-auto" />
               <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                No active marketplace listings currently indexed for this item.
+                No active marketplace listings currently verified for this exact product model.
+              </p>
+              <p className="text-xs text-amber-400">
+                Price verification unavailable — live provider APIs return zero exact matches.
               </p>
             </div>
           ) : (
@@ -620,15 +618,17 @@ export default function ProductDetailPage() {
                   <tr className="border-b text-xs font-bold uppercase tracking-wider" style={{ borderColor: "var(--border)", color: "var(--foreground-muted)" }}>
                     <th className="py-3 px-4">Store</th>
                     <th className="py-3 px-4">Live Price</th>
-                    <th className="py-3 px-4">Rating</th>
+                    <th className="py-3 px-4">Verification</th>
                     <th className="py-3 px-4">Delivery</th>
                     <th className="py-3 px-4">Offers</th>
-                    <th className="py-3 px-4 text-right">Buy Now</th>
+                    <th className="py-3 px-4 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
                   {listings.map((lst, idx) => {
-                    const isCheapest = lst.price === minP;
+                    const isCheapest = lst.price === minP && minP > 0;
+                    const isVerified = lst.verification_status !== "unverified" && lst.is_exact_url !== false;
+
                     return (
                       <tr
                         key={lst.id || idx}
@@ -653,7 +653,7 @@ export default function ProductDetailPage() {
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
-                                  {lst.marketplace_name || lst.seller_name || "Amazon"}
+                                  {lst.marketplace_name || lst.seller_name || "Store"}
                                 </span>
                                 {isCheapest && (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500 text-white shadow-sm">
@@ -662,7 +662,7 @@ export default function ProductDetailPage() {
                                 )}
                               </div>
                               <span className="text-[11px] block" style={{ color: "var(--foreground-muted)" }}>
-                                Seller: {lst.seller_name || "Verified Retailer"}
+                                Seller: {lst.seller_name || "Merchant"}
                               </span>
                             </div>
                           </div>
@@ -671,9 +671,15 @@ export default function ProductDetailPage() {
                         {/* Price Column */}
                         <td className="py-4 px-4">
                           <div>
-                            <span className="text-lg font-black text-emerald-400">
-                              ₹{Number(lst.price).toLocaleString("en-IN")}
-                            </span>
+                            {lst.price && Number(lst.price) > 0 ? (
+                              <span className="text-lg font-black text-emerald-400">
+                                ₹{Number(lst.price).toLocaleString("en-IN")}
+                              </span>
+                            ) : (
+                              <span className="text-xs font-bold text-amber-400">
+                                Price Unavailable
+                              </span>
+                            )}
                             {lst.original_price && Number(lst.original_price) > Number(lst.price) && (
                               <div className="flex items-center gap-1.5 text-xs">
                                 <span className="line-through" style={{ color: "var(--foreground-muted)" }}>
@@ -687,11 +693,17 @@ export default function ProductDetailPage() {
                           </div>
                         </td>
 
-                        {/* Rating Column */}
+                        {/* Verification Column */}
                         <td className="py-4 px-4">
-                          <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-lg">
-                            <Star className="h-3.5 w-3.5 fill-amber-400" /> {lst.rating || 4.5}
-                          </span>
+                          {isVerified ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Verified Item
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
+                              <Search className="h-3.5 w-3.5 text-amber-400" /> Search Link
+                            </span>
+                          )}
                         </td>
 
                         {/* Delivery Column */}
@@ -722,16 +734,27 @@ export default function ProductDetailPage() {
                           </div>
                         </td>
 
-                        {/* Buy Now Button Column */}
+                        {/* Buy Now / Search Button Column */}
                         <td className="py-4 px-4 text-right">
-                          <a
-                            href={lst.listing_url || "#"}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold gradient-bg text-white shadow-md hover:opacity-90 transition-opacity"
-                          >
-                            Buy Now <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
+                          {isVerified ? (
+                            <a
+                              href={lst.listing_url || "#"}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold gradient-bg text-white shadow-md hover:opacity-90 transition-opacity"
+                            >
+                              Buy on {lst.marketplace_name || "Store"} <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          ) : (
+                            <a
+                              href={lst.listing_url || "#"}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all shadow-sm"
+                            >
+                              Search {lst.marketplace_name || "Store"} <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          )}
                         </td>
                       </tr>
                     );

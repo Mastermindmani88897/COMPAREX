@@ -10,7 +10,9 @@ import uuid
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, Numeric, String, Text
+from datetime import datetime, timezone
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -73,6 +75,18 @@ class ProductListing(Base):
     delivery_estimate: Mapped[str | None] = mapped_column(String(255), nullable=True)
     rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 1), nullable=True)
     review_count: Mapped[int | None] = mapped_column(nullable=True)
+
+    # Verification & Match Scoring Metadata
+    verification_status: Mapped[str] = mapped_column(
+        String(50), default="verified", nullable=False, index=True
+    )
+    match_score: Mapped[Decimal] = mapped_column(
+        Numeric(5, 4), default=Decimal("1.0000"), nullable=False
+    )
+    is_exact_url: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    retrieved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=True
+    )
 
     # Relationships
     product: Mapped["Product"] = relationship("Product", back_populates="listings")

@@ -139,6 +139,30 @@ async def verify_and_migrate_db_schema():
                 "ean": "ALTER TABLE products ADD COLUMN IF NOT EXISTS ean VARCHAR(50);",
             }
 
+            listing_ddls = [
+                (
+                    "ALTER TABLE product_listings ADD COLUMN IF NOT EXISTS "
+                    "verification_status VARCHAR(50) DEFAULT 'verified';"
+                ),
+                (
+                    "ALTER TABLE product_listings ADD COLUMN IF NOT EXISTS "
+                    "match_score NUMERIC(5, 4) DEFAULT 1.0000;"
+                ),
+                (
+                    "ALTER TABLE product_listings ADD COLUMN IF NOT EXISTS "
+                    "is_exact_url BOOLEAN DEFAULT TRUE;"
+                ),
+                (
+                    "ALTER TABLE product_listings ADD COLUMN IF NOT EXISTS "
+                    "retrieved_at TIMESTAMP WITH TIME ZONE;"
+                ),
+            ]
+            for l_ddl in listing_ddls:
+                try:
+                    await conn.execute(text(l_ddl))
+                except Exception as exc:
+                    logger.warning("Migration DDL notice for listing column: %s", exc)
+
             index_ddls = [
                 (
                     "CREATE INDEX IF NOT EXISTS ix_products_normalized_name ON products"

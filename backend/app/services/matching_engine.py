@@ -1,12 +1,178 @@
 """
-COMPAREX Backend – Product Matching Engine Service
+COMPAREX Backend – Product Matching & Exact Verification Engine Service
 
-Algorithmic fuzzy matching, specification matching, and duplicate detection
-without external AI dependencies.
+Deterministic attribute parsing, exact model matching, variant verification,
+and accessory rejection for canonical products and marketplace listings.
 """
 
 import re
-from typing import Any
+from typing import Any, Dict, Tuple
+
+ACCESSORY_KEYWORDS = {
+    "case",
+    "cover",
+    "back cover",
+    "guard",
+    "screen guard",
+    "tempered glass",
+    "pouch",
+    "charger",
+    "cable",
+    "adapter",
+    "battery",
+    "laptop battery",
+    "cartridge",
+    "skin",
+    "stand",
+    "holder",
+    "strap",
+    "protector",
+    "lens protector",
+}
+
+
+class ExactProductMatchEngine:
+    """Deterministic exact attribute matching & verification engine."""
+
+    @staticmethod
+    def clean_text(text: str) -> str:
+        if not text:
+            return ""
+        t = text.lower().strip()
+        t = re.sub(r"(\d+)\s*(gb|tb|mb)", r"\1\2", t)
+        t = re.sub(r"\s+", " ", t)
+        return t
+
+    @classmethod
+    def extract_attributes(cls, text: str) -> Dict[str, Any]:
+        """Extract brand, family, model number, variant suffix, storage, and accessory status."""
+        t = cls.clean_text(text)
+
+        # 1. Accessory check
+        is_acc = any(
+            re.search(r"\b" + re.escape(acc) + r"\b", t) for acc in ACCESSORY_KEYWORDS
+        )
+
+        # 2. Storage extraction
+        storage_match = re.search(r"\b(64gb|128gb|256gb|512gb|1tb|2tb)\b", t)
+        storage = storage_match.group(1) if storage_match else None
+
+        # 3. Family / Brand extraction
+        family = None
+        brand = None
+        if "iphone" in t:
+            family = "iphone"
+            brand = "apple"
+        elif "macbook" in t:
+            family = "macbook"
+            brand = "apple"
+        elif "galaxy" in t:
+            family = "galaxy"
+            brand = "samsung"
+        elif "pixel" in t:
+            family = "pixel"
+            brand = "google"
+        elif "poco" in t:
+            family = "poco"
+            brand = "poco"
+        elif "thinkpad" in t or "legion" in t:
+            family = "thinkpad" if "thinkpad" in t else "legion"
+            brand = "lenovo"
+        elif "rog" in t or "zenbook" in t:
+            family = "rog" if "rog" in t else "zenbook"
+            brand = "asus"
+
+        # 4. Specific iPhone model extraction
+        iphone_num = None
+        if "iphone" in t:
+            num_match = re.search(r"\biphone\s*(\d{1,2})\b", t)
+            if num_match:
+                iphone_num = num_match.group(1)
+
+        # 5. Variant Suffixes
+        variant_suffix = None
+        if "pro max" in t:
+            variant_suffix = "pro max"
+        elif "pro" in t:
+            variant_suffix = "pro"
+        elif "plus" in t:
+            variant_suffix = "plus"
+        elif "ultra" in t:
+            variant_suffix = "ultra"
+        elif "air" in t:
+            variant_suffix = "air"
+        elif "mini" in t:
+            variant_suffix = "mini"
+        elif "fe" in t:
+            variant_suffix = "fe"
+
+        return {
+            "raw_clean": t,
+            "brand": brand,
+            "family": family,
+            "iphone_num": iphone_num,
+            "variant_suffix": variant_suffix,
+            "storage": storage,
+            "is_accessory": is_acc,
+        }
+
+    @classmethod
+    def evaluate_marketplace_match(
+        cls,
+        query: str,
+        candidate_title: str,
+    ) -> Tuple[bool, float, str]:
+        """
+        Evaluate if a candidate marketplace listing is an EXACT match for query.
+
+        Returns:
+            (is_exact_match: bool, match_score: float, rejection_reason: str)
+        """
+        q_attrs = cls.extract_attributes(query)
+        c_attrs = cls.extract_attributes(candidate_title)
+
+        # Rule 1: Accessory Rejection
+        if c_attrs["is_accessory"] and not q_attrs["is_accessory"]:
+            return False, 0.0, "ACCESSORY_MISMATCH"
+
+        # Rule 2: Brand Mismatch
+        if q_attrs["brand"] and c_attrs["brand"] and q_attrs["brand"] != c_attrs["brand"]:
+            if not (q_attrs["brand"] == "poco" and c_attrs["brand"] == "xiaomi"):
+                return False, 0.0, f"BRAND_MISMATCH ({q_attrs['brand']} != {c_attrs['brand']})"
+
+        # Rule 3: Specific iPhone Model Mismatch (e.g. iPhone 15 vs 17 / 16 / Air)
+        if q_attrs["iphone_num"] and c_attrs["iphone_num"]:
+            if q_attrs["iphone_num"] != c_attrs["iphone_num"]:
+                q_num = q_attrs["iphone_num"]
+                c_num = c_attrs["iphone_num"]
+                return False, 0.0, f"IPHONE_MODEL_MISMATCH (iPhone {q_num} != iPhone {c_num})"
+        elif q_attrs["iphone_num"] and not c_attrs["iphone_num"]:
+            if "air" in c_attrs["raw_clean"] or "se" in c_attrs["raw_clean"]:
+                q_num = q_attrs["iphone_num"]
+                return False, 0.0, f"IPHONE_VARIANT_MISMATCH (iPhone {q_num} vs candidate)"
+
+        # Rule 4: Pro / Pro Max / Plus / Ultra Variant Suffix Mismatch
+        if q_attrs["variant_suffix"] != c_attrs["variant_suffix"]:
+            if q_attrs["variant_suffix"] is None and c_attrs["variant_suffix"] is not None:
+                c_suf = c_attrs["variant_suffix"]
+                return False, 0.0, f"VARIANT_SUFFIX_MISMATCH (Query standard vs Candidate {c_suf})"
+            if (
+                q_attrs["variant_suffix"] is not None
+                and c_attrs["variant_suffix"] != q_attrs["variant_suffix"]
+            ):
+                q_suf = q_attrs["variant_suffix"]
+                c_suf = c_attrs["variant_suffix"]
+                return False, 0.0, f"VARIANT_SUFFIX_MISMATCH ({q_suf} != {c_suf})"
+
+        # Rule 5: Storage Mismatch (128GB vs 256GB / 512GB)
+        if q_attrs["storage"] and c_attrs["storage"]:
+            if q_attrs["storage"] != c_attrs["storage"]:
+                q_st = q_attrs["storage"]
+                c_st = c_attrs["storage"]
+                return False, 0.3, f"STORAGE_MISMATCH ({q_st} != {c_st})"
+
+        # Calculate high exact match score
+        return True, 1.0, "EXACT_VERIFIED_MATCH"
 
 
 class ProductMatchingEngine:
@@ -14,21 +180,15 @@ class ProductMatchingEngine:
 
     @staticmethod
     def _clean_title(text: str) -> str:
-        """Normalize title by removing punctuation, normalizing spacing, and lowercasing."""
         if not text:
             return ""
         text = text.lower()
-        # Separate numbers and units like 256gb -> 256 gb
         text = re.sub(r"(\d+)([a-zA-Z]+)", r"\1 \2", text)
         text = re.sub(r"[^\w\s]", " ", text)
         return " ".join(text.split())
 
     @classmethod
     def calculate_title_similarity(cls, title1: str, title2: str) -> float:
-        """
-        Calculate token-based fuzzy similarity ratio between two product titles (0.0 to 1.0).
-        Uses Jaccard token overlap combined with length character ratio.
-        """
         t1_clean = cls._clean_title(title1)
         t2_clean = cls._clean_title(title2)
 
@@ -45,8 +205,6 @@ class ProductMatchingEngine:
         union = tokens1.union(tokens2)
 
         jaccard_score = len(intersection) / len(union) if union else 0.0
-
-        # Substring token containment score
         shorter_tokens = tokens1 if len(tokens1) <= len(tokens2) else tokens2
         containment_score = len(intersection) / len(shorter_tokens) if shorter_tokens else 0.0
 
@@ -58,13 +216,6 @@ class ProductMatchingEngine:
         spec1: dict[str, Any],
         spec2: dict[str, Any],
     ) -> float:
-        """
-        Compare normalized product specification key-values.
-
-        :param spec1: Dict of specs (e.g., {'ram': '16GB', 'storage': '512GB'})
-        :param spec2: Dict of specs
-        :return: Match score ratio between 0.0 and 1.0
-        """
         if not spec1 or not spec2:
             return 0.0
 
@@ -88,18 +239,9 @@ class ProductMatchingEngine:
         product2: dict[str, Any],
         threshold: float = 0.75,
     ) -> dict[str, Any]:
-        """
-        Evaluate whether two product entries represent the same canonical product.
-
-        Checks:
-        1. EAN/UPC exact match (100% match if present and equal)
-        2. Brand match + title fuzzy similarity
-        3. Specification match score
-        """
         ean1 = product1.get("ean")
         ean2 = product2.get("ean")
 
-        # 1. Exact Barcode / EAN Match
         if ean1 and ean2 and str(ean1).strip() == str(ean2).strip():
             return {
                 "is_duplicate": True,
@@ -122,7 +264,6 @@ class ProductMatchingEngine:
             product2.get("specifications", {}),
         )
 
-        # Weighted combination
         overall_confidence = round(
             (title_score * 0.5) + (brand_score * 0.3) + (spec_score * 0.2), 4
         )

@@ -188,10 +188,14 @@ class PriceMonitorService:
                                     await session.flush()
 
                                 # C. Insert PriceHistory with GUARANTEED VALID NON-NULL listing_id
-                                if not listing_obj or not listing_obj.id:
+                                if (
+                                    not listing_obj
+                                    or not listing_obj.id
+                                    or lst.get("verification_status") != "verified"
+                                ):
                                     skipped_listings += 1
-                                    logger.warning(
-                                        "Could not resolve listing ID for product '%s' store '%s'",
+                                    logger.info(
+                                        "Skipping price history for unverified listing: '%s' (%s)",
                                         product_name,
                                         mp_name,
                                     )

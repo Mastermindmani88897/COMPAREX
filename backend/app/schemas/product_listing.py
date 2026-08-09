@@ -42,6 +42,18 @@ class ProductListingBase(BaseModel):
     delivery_estimate: Optional[str] = Field(None, description="Delivery timeframe estimate")
     rating: Optional[Decimal] = Field(None, ge=0, le=5)
     review_count: Optional[int] = Field(None, ge=0)
+    verification_status: str = Field(
+        default="verified", description="verified, unverified, or unavailable"
+    )
+    match_score: Decimal = Field(
+        default=Decimal("1.0000"), description="Attribute match confidence score (0 to 1)"
+    )
+    is_exact_url: bool = Field(
+        default=True, description="True if direct item URL, False if generic search URL"
+    )
+    retrieved_at: Optional[datetime] = Field(
+        None, description="Timestamp when listing was fetched from provider"
+    )
 
 
 class ProductListingCreate(ProductListingBase):

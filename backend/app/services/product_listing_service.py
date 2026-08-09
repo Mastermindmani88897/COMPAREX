@@ -86,6 +86,14 @@ class ProductListingService:
                         if m
                         else None
                     ),
+                    "verification_status": getattr(lst, "verification_status", "verified"),
+                    "match_score": (
+                        float(lst.match_score) if getattr(lst, "match_score", None) else 1.0
+                    ),
+                    "is_exact_url": getattr(lst, "is_exact_url", True),
+                    "retrieved_at": (
+                        lst.retrieved_at.isoformat() if getattr(lst, "retrieved_at", None) else None
+                    ),
                     "created_at": lst.created_at,
                     "updated_at": lst.updated_at,
                 }
