@@ -80,23 +80,27 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
 
                         logo = STORE_LOGOS.get(merchant.lower(), "")
 
-                        delivery = item.get("delivery", "Standard Delivery 2-3 Days")
-                        rating = float(item.get("rating", 4.5)) if item.get("rating") else 4.5
-                        reviews = int(item.get("reviews", 95)) if item.get("reviews") else 95
+                        delivery = item.get("delivery") or "Standard Delivery"
+                        rating = float(item["rating"]) if item.get("rating") else None
+                        reviews = int(item["reviews"]) if item.get("reviews") else None
+
+                        item_url = (
+                            item.get("link")
+                            or item.get("product_link")
+                            or f"https://www.google.com/search?q={query}"
+                        )
 
                         listings.append(
                             {
                                 "title": item.get("title", f"{query} on {merchant}"),
                                 "price": float(extracted_price),
-                                "original_price": float(extracted_price * 1.10),
-                                "discount_percent": 10.0,
+                                "original_price": None,
+                                "discount_percent": None,
                                 "currency": "INR",
                                 "seller_name": merchant,
-                                "listing_url": item.get("link")
-                                or item.get("product_link")
-                                or "https://shopping.google.com",
+                                "listing_url": item_url,
                                 "marketplace_product_id": item.get(
-                                    "product_id", f"SERP-{hash(merchant) % 1000}"
+                                    "product_id", f"SERP-{abs(hash(merchant)) % 1000}"
                                 ),
                                 "is_available": True,
                                 "stock_status": "IN_STOCK",
@@ -133,6 +137,12 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
         slug = raw_data.get("marketplace_slug") or merchant.lower().replace(" ", "_")
         logo = raw_data.get("marketplace_logo") or STORE_LOGOS.get(merchant.lower(), "")
 
+        r_val = raw_data.get("rating")
+        rating = float(r_val) if r_val is not None else None
+
+        rev_val = raw_data.get("review_count")
+        review_count = int(rev_val) if rev_val is not None else None
+
         return {
             "title": raw_data.get("title", f"Listing on {merchant}"),
             "price": float(raw_data.get("price", 0.0)),
@@ -151,9 +161,9 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
             "is_available": bool(raw_data.get("is_available", True)),
             "is_prime": False,
             "stock_status": raw_data.get("stock_status", "IN_STOCK"),
-            "delivery_estimate": raw_data.get("delivery_estimate", "Delivery in 2 Days"),
-            "rating": float(raw_data.get("rating", 4.5)),
-            "review_count": int(raw_data.get("review_count", 90)),
+            "delivery_estimate": raw_data.get("delivery_estimate", "Standard Delivery"),
+            "rating": rating,
+            "review_count": review_count,
             "image_url": raw_data.get("image_url", ""),
             "marketplace_slug": slug,
             "marketplace_name": merchant,

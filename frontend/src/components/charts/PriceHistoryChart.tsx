@@ -78,8 +78,29 @@ export function PriceHistoryChart({
     );
   }
 
-  if (!historyData || !historyData.price_points || historyData.price_points.length === 0) {
-    return null;
+  if (
+    !historyData ||
+    historyData.has_sufficient_history === false ||
+    !historyData.points ||
+    historyData.points.length < 2
+  ) {
+    return (
+      <div
+        className="rounded-3xl border p-8 text-center space-y-3 shadow-xl"
+        style={{ background: "var(--card)", borderColor: "var(--border)" }}
+      >
+        <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-400 w-12 h-12 mx-auto flex items-center justify-center border border-indigo-500/20">
+          <Calendar className="h-6 w-6" />
+        </div>
+        <h3 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
+          Price History & Market Trend
+        </h3>
+        <p className="text-xs max-w-md mx-auto leading-relaxed text-amber-400 font-semibold">
+          {historyData?.message ||
+            "Insufficient verified price history. History graph will appear after verified marketplace prices are collected."}
+        </p>
+      </div>
+    );
   }
 
   const {

@@ -76,10 +76,10 @@ class RainforestAdapter(BaseMarketplaceAdapter):
                             {
                                 "title": title,
                                 "price": float(raw_price),
-                                "original_price": float(raw_price * 1.15),
-                                "discount_percent": 13.0,
+                                "original_price": None,
+                                "discount_percent": None,
                                 "currency": "INR",
-                                "seller_name": "Amazon Retailer",
+                                "seller_name": "Amazon Merchant",
                                 "listing_url": listing_url,
                                 "marketplace_product_id": asin,
                                 "is_available": True,

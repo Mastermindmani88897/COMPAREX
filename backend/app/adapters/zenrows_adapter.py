@@ -34,7 +34,7 @@ class ZenRowsAdapter(BaseMarketplaceAdapter):
         logger.info("MARKETPLACE API REQUEST: provider='ZenRows', query='%s'", query)
         target_url = f"https://www.google.com/search?q={query}+price+in+india+buy+online"
         params = {
-            "api_key": self.api_key,
+            "apikey": self.api_key,
             "url": target_url,
             "js_render": "true",
             "premium_proxy": "true",
@@ -44,29 +44,9 @@ class ZenRowsAdapter(BaseMarketplaceAdapter):
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(self.api_url, params=params)
                 if response.status_code == 200:
-                    logger.info("ZenRows API successfully scraped fallback results for '%s'", query)
-                    # Extracted fallback listing
-                    return [
-                        {
-                            "title": f"{query} - Online Deal",
-                            "price": 49999.0,
-                            "original_price": 54999.0,
-                            "discount_percent": 9.0,
-                            "currency": "INR",
-                            "seller_name": "Online Retailer",
-                            "listing_url": f"https://www.google.com/search?q={query}",
-                            "marketplace_product_id": f"ZEN-{hash(query) % 10000}",
-                            "is_available": True,
-                            "stock_status": "IN_STOCK",
-                            "delivery_estimate": "Delivery in 3 Days",
-                            "rating": 4.4,
-                            "review_count": 50,
-                            "image_url": "",
-                            "marketplace_slug": "generic_store",
-                            "marketplace_name": "Marketplace Partner",
-                            "marketplace_logo": "",
-                        }
-                    ]
+                    logger.info("ZenRows API successfully scraped response for '%s'", query)
+                    # Parse scraped html / json if present without static fallback
+                    return []
                 else:
                     logger.warning(
                         "ZenRows API error status %d: %s", response.status_code, response.text[:200]

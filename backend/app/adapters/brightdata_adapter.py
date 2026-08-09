@@ -5,6 +5,7 @@ Connects to Bright Data API (https://api.brightdata.com) to search and extract l
 from Flipkart, Croma, Meesho, Myntra, Reliance Digital, Tata Cliq, Vijay Sales, etc.
 """
 
+import re
 from typing import Any, Dict, List
 import httpx
 
@@ -85,12 +86,10 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
             "Content-Type": "application/json",
         }
 
-        sites = (
-            "site:flipkart.com OR site:croma.com OR site:reliancedigital.in OR "
-            "site:tatacliq.com OR site:meesho.com OR site:myntra.com OR site:vijaysales.com"
-        )
+        zone = getattr(settings, "BRIGHTDATA_ZONE", None) or "serp"
         payload = {
-            "query": f"{query} buy online India {sites}",
+            "zone": zone,
+            "query": f"{query} buy online India",
             "country": "IN",
             "search_engine": "google",
         }
@@ -104,9 +103,8 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
                     organic_results = data.get("organic", []) or data.get("results", [])
                     for item in organic_results[:limit]:
                         url = item.get("link") or item.get("url") or ""
-                        title = item.get("title") or item.get("snippet") or f"{query} online"
+                        title = item.get("title") or item.get("snippet") or query
 
-                        # Match store
                         matched_mp = None
                         for mp in INDIAN_MARKETPLACES:
                             if mp["domain"] in url.lower():
@@ -116,28 +114,40 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
                         if not matched_mp:
                             continue
 
-                        price = float(item.get("extracted_price", 0.0) or 0.0)
-                        if price == 0.0:
-                            # Estimate price based on query
-                            price = 24999.0
+                        raw_price = item.get("extracted_price") or item.get("price")
+                        price = 0.0
+                        if raw_price:
+                            try:
+                                price = float(raw_price)
+                            except (ValueError, TypeError):
+                                price = 0.0
 
-                        mp_pid = f"{matched_mp['slug'].upper()}-BD-{hash(url) % 10000}"
+                        if price == 0.0:
+                            # Try parsing price from snippet (e.g. ₹69,900)
+                            snippet = item.get("snippet", "")
+                            match = re.search(r"₹\s*([\d,]+)", snippet)
+                            if match:
+                                price = float(match.group(1).replace(",", ""))
+
+                        if price == 0.0:
+                            continue
+
+                        mp_pid = f"{matched_mp['slug'].upper()}-BD-{abs(hash(url)) % 10000}"
                         listings.append(
                             {
                                 "title": title,
                                 "price": price,
-                                "original_price": price * 1.12,
-                                "discount_percent": 11.0,
+                                "original_price": None,
+                                "discount_percent": None,
                                 "currency": "INR",
-                                "seller_name": f"{matched_mp['name']} Official Store",
-                                "listing_url": url
-                                or f"https://www.{matched_mp['domain']}/search?q={query}",
+                                "seller_name": matched_mp["name"],
+                                "listing_url": url,
                                 "marketplace_product_id": mp_pid,
                                 "is_available": True,
                                 "stock_status": "IN_STOCK",
                                 "delivery_estimate": "Delivery in 2 Days",
-                                "rating": 4.6,
-                                "review_count": 85,
+                                "rating": None,
+                                "review_count": None,
                                 "image_url": item.get("image") or "",
                                 "marketplace_slug": matched_mp["slug"],
                                 "marketplace_name": matched_mp["name"],

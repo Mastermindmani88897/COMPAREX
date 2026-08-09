@@ -1,15 +1,16 @@
 """
 COMPAREX Backend – PriceHistory Service
 
-Calculates multi-marketplace price trends, historical time-series graph points,
-volatility index, Gemini AI price predictions, and visual trend badges.
+Calculates multi-marketplace price trends and historical time-series graph points
+ONLY from real verified database price history observations.
+NO SYNTHETIC GENERATED PRICE HISTORY OR RANDOM HISTORICAL MULTIPLIERS.
 """
 
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -43,26 +44,8 @@ class DictAttributeWrapper(dict):
         self[name] = value
 
 
-class PricePointWrapper:
-    """Wrapper object for price points supporting both attribute and dict access."""
-
-    def __init__(self, date: str, price: float, marketplace_slug: str = "amazon"):
-        self.date = date
-        self.price = price
-        self.marketplace_slug = marketplace_slug
-
-    def __getitem__(self, item: str) -> Any:
-        return getattr(self, item)
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        setattr(self, key, value)
-
-    def __contains__(self, item: str) -> bool:
-        return hasattr(self, item)
-
-
 class PriceHistoryService:
-    """Price history analytics engine."""
+    """Price history analytics engine enforcing zero-synthetic data integrity."""
 
     @classmethod
     async def get_price_history(
@@ -73,171 +56,148 @@ class PriceHistoryService:
         base_price: float = 49999.0,
         time_range: str = "30d",
     ) -> DictAttributeWrapper:
-        """Compute multi-store price history timeline, volatility, and predictions."""
+        """Compute verified multi-store price history timeline."""
 
-        # 1. Fetch real DB product if available
-        product = await db.get(Product, product_id) if db is not None else None
-        if product:
-            p_name = product.name
-            cur_price = float(product.base_price) if product.base_price else base_price
-        else:
-            p_name = product_name or f"Product {str(product_id)[:8]}"
-            cur_price = base_price
+        p_name = product_name or f"Product {str(product_id)[:8]}"
+        cur_price = base_price
+        db_history_records: List[PriceHistory] = []
 
-        # Map time range to days
-        days_map = {
-            "24h": 1,
-            "7d": 7,
-            "30d": 30,
-            "3m": 90,
-            "6m": 180,
-            "1y": 365,
-            "all": 365,
-        }
-        days = days_map.get(time_range.lower(), 30)
-
-        today = datetime.now()
-
-        # Query DB price history points first if db available
         if db is not None:
             try:
+                prod_obj = await db.get(Product, product_id)
+                if prod_obj:
+                    p_name = prod_obj.name
+                    if prod_obj.base_price:
+                        cur_price = float(prod_obj.base_price)
+
                 stmt = (
                     select(PriceHistory)
-                    .where(PriceHistory.product_id == product_id)
-                    .order_by(desc(PriceHistory.id))
+                    .where(
+                        PriceHistory.product_id == product_id,
+                        PriceHistory.listing_id.isnot(None),
+                    )
+                    .order_by(desc(PriceHistory.created_at))
                     .limit(500)
                 )
-                await db.execute(stmt)
-            except Exception:
-                pass
+                res = await db.execute(stmt)
+                db_history_records = list(res.scalars().all())
+            except Exception as exc:
+                logger.warning("Error fetching PriceHistory from database: %s", exc)
 
-        # Generate smooth realistic multi-store timeline points
-        time_points: List[Any] = []
-        step = 1 if days <= 30 else (2 if days <= 90 else 5)
+        # Evaluate history sufficiency
+        has_sufficient_history = len(db_history_records) >= 2
 
-        for i in range(days, -1, -step):
-            dt = today - timedelta(days=i)
-            dt_str = dt.strftime("%Y-%m-%d") if days > 1 else dt.strftime("%H:00")
-            base_var = 1.0 + (0.05 * float(((i * 7 + hash(str(product_id))) % 13) - 6) / 6.0)
-
-            point = PricePointWrapper(
-                date=dt_str, price=round(cur_price * base_var, 2), marketplace_slug="amazon"
-            )
-            setattr(point, "timestamp", dt.isoformat())
-
-            for store in STORES:
-                slug = store["slug"]
-                mult = 1.0
-                if slug == "flipkart":
-                    mult = 0.988
-                elif slug == "reliance_digital":
-                    mult = 0.994
-                elif slug == "croma":
-                    mult = 1.005
-                elif slug == "tata_cliq":
-                    mult = 1.002
-                elif slug == "meesho":
-                    mult = 0.996
-                elif slug == "vijay_sales":
-                    mult = 1.004
-
-                store_price = round(cur_price * base_var * mult, 2)
-                setattr(point, slug, store_price)
-
-            time_points.append(point)
-
-        # Compute multi-store aggregations
-        all_prices: List[float] = []
-        store_stats: Dict[str, Any] = {}
-
-        for store in STORES:
-            slug = store["slug"]
-            s_prices = [getattr(pt, slug) for pt in time_points if hasattr(pt, slug)]
-            if s_prices:
-                all_prices.extend(s_prices)
-                store_stats[slug] = {
-                    "store_name": store["name"],
-                    "color": store["color"],
-                    "current_price": s_prices[-1],
-                    "lowest_price": min(s_prices),
-                    "highest_price": max(s_prices),
-                    "average_price": round(sum(s_prices) / len(s_prices), 2),
+        if not has_sufficient_history:
+            return DictAttributeWrapper(
+                {
+                    "product_id": str(product_id),
+                    "product_name": p_name,
+                    "time_range": time_range,
+                    "today_price": cur_price,
+                    "current_live_price": cur_price,
+                    "lowest_price": cur_price,
+                    "highest_price": cur_price,
+                    "lowest_recorded_price": cur_price,
+                    "highest_recorded_price": cur_price,
+                    "average_price": cur_price,
+                    "price_trend": "STABLE",
+                    "has_sufficient_history": False,
+                    "message": (
+                        "Insufficient verified price history. History graph will "
+                        "appear after verified marketplace prices are collected."
+                    ),
+                    "total_points": len(db_history_records),
+                    "lowest_recorded": cur_price if cur_price > 0 else None,
+                    "highest_recorded": cur_price if cur_price > 0 else None,
+                    "average_recorded": cur_price if cur_price > 0 else None,
+                    "current_price": cur_price if cur_price > 0 else None,
+                    "volatility_index": 0.0,
+                    "trend_status": "STABLE",
+                    "trend_badge": "➖ Stable",
+                    "ai_prediction": (
+                        "Price history will appear after verified observations are collected."
+                    ),
+                    "best_time_to_buy_recommendation": "Monitor verified live marketplace matrix.",
+                    "available_stores": STORES,
+                    "stores": STORES,
+                    "store_stats": {},
+                    "points": [],
+                    "price_points": [],
                 }
-
-        lowest_recorded = min(all_prices) if all_prices else cur_price
-        highest_recorded = max(all_prices) if all_prices else cur_price
-        avg_recorded = round(sum(all_prices) / len(all_prices), 2) if all_prices else cur_price
-
-        # Trend Badge determination
-        start_avg = sum([getattr(time_points[0], s["slug"]) for s in STORES]) / len(STORES)
-        end_avg = sum([getattr(time_points[-1], s["slug"]) for s in STORES]) / len(STORES)
-
-        if end_avg < start_avg * 0.98:
-            trend_badge = "📉 Falling"
-            trend_status = "FALLING"
-            ai_prediction = "High probability of further 2-4% price reduction within 14 days."
-            best_time = "Great Time to Buy - Price is near 30-day low."
-        elif end_avg > start_avg * 1.02:
-            trend_badge = "📈 Rising"
-            trend_status = "RISING"
-            ai_prediction = (
-                "Price is trending upward due to high demand. "
-                "Recommend buying now before sale ends."
             )
-            best_time = "Buy Now - Prices expected to rise."
-        else:
-            trend_badge = "➖ Stable"
-            trend_status = "STABLE"
-            ai_prediction = (
-                "Price is steady across major Indian retailers. Minimal price fluctuation expected."
+
+        # Build timeline from verified DB observations
+        date_points_map: Dict[str, Dict[str, Any]] = {}
+        all_prices: List[float] = []
+
+        for record in reversed(db_history_records):
+            rec_date = (
+                record.created_at.strftime("%Y-%m-%d")
+                if record.created_at
+                else datetime.now().strftime("%Y-%m-%d")
             )
-            best_time = "Fair Market Price - Buy as needed."
+            price_val = float(record.price)
+            slug = (record.marketplace_slug or "store").lower()
 
-        volatility_index = round(min(1.0, (highest_recorded - lowest_recorded) / avg_recorded), 2)
+            all_prices.append(price_val)
 
-        raw_points_dicts = [
-            {
-                "date": pt.date,
-                "price": pt.price,
-                "marketplace_slug": pt.marketplace_slug,
-                "amazon": getattr(pt, "amazon", pt.price),
-                "flipkart": getattr(pt, "flipkart", pt.price),
-                "croma": getattr(pt, "croma", pt.price),
-                "reliance_digital": getattr(pt, "reliance_digital", pt.price),
-                "tata_cliq": getattr(pt, "tata_cliq", pt.price),
-                "vijay_sales": getattr(pt, "vijay_sales", pt.price),
-                "meesho": getattr(pt, "meesho", pt.price),
-                "myntra": getattr(pt, "myntra", pt.price),
-            }
-            for pt in time_points
-        ]
+            if rec_date not in date_points_map:
+                ts_str = (
+                    record.created_at.isoformat()
+                    if record.created_at
+                    else datetime.now().isoformat()
+                )
+                date_points_map[rec_date] = {"date": rec_date, "timestamp": ts_str}
+
+            date_points_map[rec_date][slug] = price_val
+
+        formatted_points = list(date_points_map.values())
+        lowest_rec = min(all_prices) if all_prices else cur_price
+        highest_rec = max(all_prices) if all_prices else cur_price
+        avg_rec = round(sum(all_prices) / len(all_prices), 2) if all_prices else cur_price
+
+        lowest_val = lowest_rec if lowest_rec is not None else cur_price
+        highest_val = highest_rec if highest_rec is not None else cur_price
+
+        vol_idx = 0.0
+        if avg_rec and avg_rec > 0 and lowest_rec is not None and highest_rec is not None:
+            vol_idx = round(min(1.0, (highest_rec - lowest_rec) / avg_rec), 2)
 
         return DictAttributeWrapper(
             {
                 "product_id": str(product_id),
                 "product_name": p_name,
-                "currency": "INR",
                 "time_range": time_range,
                 "today_price": cur_price,
                 "current_live_price": cur_price,
-                "lowest_price": lowest_recorded,
-                "lowest_recorded_price": lowest_recorded,
-                "highest_price": highest_recorded,
-                "highest_recorded_price": highest_recorded,
-                "average_price": avg_recorded,
-                "price_volatility": volatility_index,
-                "price_volatility_index": volatility_index,
-                "price_trend": trend_status,
-                "trend_badge": trend_badge,
-                "trend_status": trend_status,
-                "best_purchase_period": best_time,
-                "best_time_to_buy": best_time,
-                "gemini_prediction": ai_prediction,
-                "predicted_target_price": round(lowest_recorded * 0.98, 2),
-                "weekly_trend_pct": -2.4,
-                "monthly_trend_pct": -5.1,
+                "lowest_price": lowest_val,
+                "highest_price": highest_val,
+                "lowest_recorded_price": lowest_val,
+                "highest_recorded_price": highest_val,
+                "average_price": avg_rec,
+                "price_trend": "STABLE",
+                "has_sufficient_history": has_sufficient_history,
+                "message": (
+                    f"Retrieved {len(db_history_records)} verified price observations."
+                    if has_sufficient_history
+                    else "Insufficient verified price history."
+                ),
+                "total_points": len(formatted_points),
+                "lowest_recorded": lowest_val,
+                "highest_recorded": highest_val,
+                "average_recorded": avg_rec,
+                "current_price": cur_price,
+                "volatility_index": vol_idx,
+                "trend_status": "STABLE",
+                "trend_badge": "➖ Stable",
+                "ai_prediction": (
+                    "Verified price observations collected from live marketplace index."
+                ),
+                "best_time_to_buy_recommendation": "Purchase from store offering lowest price.",
+                "available_stores": STORES,
                 "stores": STORES,
-                "store_stats": store_stats,
-                "price_points": time_points if db is None else raw_points_dicts,
+                "store_stats": {},
+                "points": formatted_points,
+                "price_points": formatted_points,
             }
         )

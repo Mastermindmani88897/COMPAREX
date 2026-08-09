@@ -31,6 +31,30 @@ ACCESSORY_KEYWORDS = {
 }
 
 
+class SearchQueryGenerator:
+    """Generates precise provider search query strings from product titles."""
+
+    @classmethod
+    def generate_clean_query(cls, raw_title: str) -> str:
+        if not raw_title:
+            return ""
+        # Remove parenthetical noise like (128 GB), (Blue), etc.
+        clean = re.sub(r"\([^)]*\)", "", raw_title)
+        clean = clean.replace("-", " ").strip()
+        clean = re.sub(r"\s+", " ", clean)
+
+        # Ensure standard storage tag formatting
+        storage_match = re.search(r"\b(64|128|256|512|1024)\s*(gb|tb)\b", raw_title, re.I)
+        if storage_match:
+            st_val = storage_match.group(1)
+            st_unit = storage_match.group(2).upper()
+            st_tag = f"{st_val}{st_unit}"
+            if st_tag.lower() not in clean.lower():
+                clean = f"{clean} {st_tag}"
+
+        return clean
+
+
 class ExactProductMatchEngine:
     """Deterministic exact attribute matching & verification engine."""
 

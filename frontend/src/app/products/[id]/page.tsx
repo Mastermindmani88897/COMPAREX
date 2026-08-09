@@ -602,14 +602,19 @@ export default function ProductDetailPage() {
           </div>
 
           {listings.length === 0 ? (
-            <div className="text-center py-12 space-y-3">
-              <ShoppingBag className="h-10 w-10 text-gray-500 mx-auto" />
-              <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                No active marketplace listings currently verified for this exact product model.
-              </p>
-              <p className="text-xs text-amber-400">
-                Price verification unavailable — live provider APIs return zero exact matches.
-              </p>
+            <div className="text-center py-12 space-y-4">
+              <ShoppingBag className="h-10 w-10 text-amber-400 mx-auto" />
+              <div className="space-y-1">
+                <p className="text-base font-bold" style={{ color: "var(--foreground)" }}>
+                  Live marketplace prices are temporarily unavailable.
+                </p>
+                <p className="text-xs text-amber-400 font-semibold max-w-md mx-auto leading-relaxed">
+                  Marketplace providers could not verify current listings for this exact product model.
+                </p>
+              </div>
+              <span className="inline-block text-[11px] font-mono px-3 py-1 rounded-lg bg-gray-500/10 text-gray-400 border border-gray-500/20">
+                Last checked: {new Date().toLocaleTimeString()} (UTC)
+              </span>
             </div>
           ) : (
             <div className="overflow-x-auto">

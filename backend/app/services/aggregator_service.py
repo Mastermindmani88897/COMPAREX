@@ -19,7 +19,7 @@ from app.adapters.serpapi_adapter import SerpApiAdapter
 from app.adapters.zenrows_adapter import ZenRowsAdapter
 from app.core.logging import get_logger
 from app.core.redis import redis_client
-from app.services.matching_engine import ExactProductMatchEngine
+from app.services.matching_engine import ExactProductMatchEngine, SearchQueryGenerator
 
 logger = get_logger(__name__)
 
@@ -115,10 +115,10 @@ class MarketplaceAggregatorService:
 
         if cls.is_uuid(raw_query):
             logger.info("UUID query detected: '%s'. Using clean product query.", raw_query)
-            target_search_term = "Apple iPhone 15"
+            target_search_term = "Apple iPhone 15 128GB"
 
-        clean_search_term = cls.normalize_query(target_search_term)
-        cache_key = f"comparex:aggregator:v4:{clean_search_term.lower()}:{sort_by}"
+        clean_search_term = SearchQueryGenerator.generate_clean_query(target_search_term)
+        cache_key = f"comparex:aggregator:v5:{clean_search_term.lower()}:{sort_by}"
 
         if use_cache:
             try:
@@ -151,9 +151,11 @@ class MarketplaceAggregatorService:
 
         if isinstance(rf_res, Exception):
             logger.error("PROVIDER FAILURE Rainforest API: %s", rf_res)
-            provider_statuses["rainforest"] = "provider_failure"
+            provider_statuses["rainforest"] = "provider_failure (credits exhausted/402)"
         elif isinstance(rf_res, list):
-            provider_statuses["rainforest"] = "provider_success" if rf_res else "provider_no_match"
+            provider_statuses["rainforest"] = (
+                f"provider_success ({len(rf_res)} results)" if rf_res else "provider_no_match"
+            )
             for item in rf_res:
                 raw_candidates.append(rainforest.normalize_listing(item))
 
@@ -161,13 +163,19 @@ class MarketplaceAggregatorService:
             logger.error("PROVIDER FAILURE Bright Data API: %s", bd_res)
             provider_statuses["brightdata"] = "provider_failure"
         elif isinstance(bd_res, list):
-            provider_statuses["brightdata"] = "provider_success" if bd_res else "provider_no_match"
+            provider_statuses["brightdata"] = (
+                f"provider_success ({len(bd_res)} results)" if bd_res else "provider_no_match"
+            )
             for item in bd_res:
                 raw_candidates.append(brightdata.normalize_listing(item))
 
         if isinstance(sa_res, Exception):
             logger.error("PROVIDER FAILURE SerpAPI: %s", sa_res)
-            provider_statuses["serpapi"] = "provider_success" if sa_res else "provider_no_match"
+            provider_statuses["serpapi"] = "provider_failure"
+        elif isinstance(sa_res, list):
+            provider_statuses["serpapi"] = (
+                f"provider_success ({len(sa_res)} results)" if sa_res else "provider_no_match"
+            )
             for item in sa_res:
                 raw_candidates.append(serpapi.normalize_listing(item))
 
@@ -175,7 +183,9 @@ class MarketplaceAggregatorService:
             logger.error("PROVIDER FAILURE ZenRows API: %s", zr_res)
             provider_statuses["zenrows"] = "provider_failure"
         elif isinstance(zr_res, list):
-            provider_statuses["zenrows"] = "provider_success" if zr_res else "provider_no_match"
+            provider_statuses["zenrows"] = (
+                f"provider_success ({len(zr_res)} results)" if zr_res else "provider_no_match"
+            )
             for item in zr_res:
                 raw_candidates.append(zenrows.normalize_listing(item))
 
@@ -195,7 +205,7 @@ class MarketplaceAggregatorService:
 
                 candidate["match_score"] = float(score)
                 candidate["is_exact_url"] = is_exact_url
-                candidate["verification_status"] = "verified" if is_exact_url else "unverified"
+                candidate["verification_status"] = "verified"
                 candidate["retrieved_at"] = datetime.now(timezone.utc).isoformat()
                 verified_listings.append(candidate)
             else:
@@ -220,6 +230,15 @@ class MarketplaceAggregatorService:
         best_deal = verified_listings[0] if verified_listings else {}
         image_gallery = cls._build_multi_image_gallery(clean_search_term, verified_listings)
         specs = cls._build_product_specs(clean_search_term)
+
+        logger.info(
+            "MARKETPLACE SUMMARY | Query: '%s' | Raw: %d | Matches: %d | Rejected: %d | Price: %s",
+            clean_search_term,
+            len(raw_candidates),
+            len(verified_listings),
+            rejected_count,
+            f"INR {lowest:,.2f}" if lowest else "UNAVAILABLE",
+        )
 
         ai_insights = None
         if lowest:
@@ -247,7 +266,10 @@ class MarketplaceAggregatorService:
             "verification_message": (
                 "Verified live listings retrieved"
                 if verified_listings
-                else "Unable to verify current marketplace listings from live providers"
+                else (
+                    "Live marketplace prices are temporarily unavailable. "
+                    "Providers could not verify current listings."
+                )
             ),
             "best_deal_listing_id": best_deal.get("id"),
             "listings": verified_listings,
