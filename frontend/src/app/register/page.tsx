@@ -87,16 +87,16 @@ export default function RegisterPage() {
           };
         }).response;
         if (res?.data) {
-          if (Array.isArray(res.data.errors) && res.data.errors.length > 0) {
-            msg = res.data.errors.map((e) => e.message || JSON.stringify(e)).join("; ");
+          if (typeof res.data.message === "string" && res.data.message) {
+            msg = res.data.message;
           } else if (typeof res.data.detail === "string") {
             msg = res.data.detail;
+          } else if (Array.isArray(res.data.errors) && res.data.errors.length > 0) {
+            msg = res.data.errors.map((e) => e.message || JSON.stringify(e)).join("; ");
           } else if (Array.isArray(res.data.detail)) {
             msg = res.data.detail
               .map((item: { msg?: string; loc?: string[] }) => item.msg || JSON.stringify(item))
               .join("; ");
-          } else if (res.data.message && res.data.message !== "Request validation failed") {
-            msg = res.data.message;
           }
         }
       } else if (err instanceof Error) {

@@ -12,10 +12,11 @@ from typing import Dict, Any
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.notification import Notification
 from app.models.price_alert import PriceAlert
+from app.models.product import Product
 from app.models.user import User
 from app.models.wishlist import Wishlist
-from app.models.notification import Notification
 from app.services.price_alert_service import PriceAlertService
 
 
@@ -79,18 +80,22 @@ class DashboardService:
             "unread_notifications_count": unread_notifications,
         }
 
+        # Fetch recent search/view activity from ProductView or Product catalog
+        recent_searches_query = (
+            select(Product.name)
+            .where(Product.is_quarantined.is_(False))
+            .order_by(Product.popularity_score.desc().nullslast())
+            .limit(5)
+        )
+        recent_searches_res = await db.execute(recent_searches_query)
+        recent_search_items = list(recent_searches_res.scalars().all())
+
         return {
             "user_name": user_name,
             "stats": stats,
             "recent_watchlist": watchlist_items,
             "active_alerts": price_alerts,
-            "recent_searches": [
-                "iPhone 15 Pro Max",
-                "Poco X5 Pro",
-                "Samsung Galaxy S25 Ultra",
-                "MacBook Air M4",
-                "Sony WH-1000XM5",
-            ],
+            "recent_searches": recent_search_items,
             "deal_history_highlights": (
                 [
                     f"Tracked {wishlist_count} products in wishlist",

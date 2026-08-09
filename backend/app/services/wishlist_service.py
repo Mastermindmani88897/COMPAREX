@@ -324,7 +324,10 @@ class WishlistService:
         stmt_like = (
             select(Product)
             .options(selectinload(Product.listings))
-            .where(~Product.id.in_(wishlist_product_ids) if wishlist_product_ids else True)
+            .where(
+                Product.is_quarantined.is_(False),
+                ~Product.id.in_(wishlist_product_ids) if wishlist_product_ids else True,
+            )
         )
         if categories:
             stmt_like = stmt_like.where(Product.category.in_(categories))
@@ -340,6 +343,7 @@ class WishlistService:
             fallback_stmt = (
                 select(Product)
                 .options(selectinload(Product.listings))
+                .where(Product.is_quarantined.is_(False))
                 .order_by(Product.rating.desc().nullslast())
                 .limit(6)
             )
@@ -355,6 +359,7 @@ class WishlistService:
                 select(Product)
                 .options(selectinload(Product.listings))
                 .where(
+                    Product.is_quarantined.is_(False),
                     Product.base_price < ref_price,
                     ~Product.id.in_(wishlist_product_ids) if wishlist_product_ids else True,
                 )
@@ -369,7 +374,10 @@ class WishlistService:
             stmt_cheap_gen = (
                 select(Product)
                 .options(selectinload(Product.listings))
-                .where(~Product.id.in_(wishlist_product_ids) if wishlist_product_ids else True)
+                .where(
+                    Product.is_quarantined.is_(False),
+                    ~Product.id.in_(wishlist_product_ids) if wishlist_product_ids else True,
+                )
                 .order_by(Product.base_price.asc())
                 .limit(3)
             )
@@ -380,7 +388,10 @@ class WishlistService:
         stmt_best = (
             select(Product)
             .options(selectinload(Product.listings))
-            .where(~Product.id.in_(wishlist_product_ids) if wishlist_product_ids else True)
+            .where(
+                Product.is_quarantined.is_(False),
+                ~Product.id.in_(wishlist_product_ids) if wishlist_product_ids else True,
+            )
             .order_by(
                 Product.rating.desc().nullslast(),
                 Product.popularity_score.desc().nullslast(),

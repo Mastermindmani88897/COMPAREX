@@ -128,6 +128,14 @@ async def verify_and_migrate_db_schema():
                     "ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(255);"
                 ),
                 "brand": "ALTER TABLE products ADD COLUMN IF NOT EXISTS brand VARCHAR(255);",
+                "is_quarantined": (
+                    "ALTER TABLE products ADD COLUMN IF NOT EXISTS "
+                    "is_quarantined BOOLEAN DEFAULT FALSE;"
+                ),
+                "is_verified": (
+                    "ALTER TABLE products ADD COLUMN IF NOT EXISTS "
+                    "is_verified BOOLEAN DEFAULT TRUE;"
+                ),
                 "ean": "ALTER TABLE products ADD COLUMN IF NOT EXISTS ean VARCHAR(50);",
             }
 

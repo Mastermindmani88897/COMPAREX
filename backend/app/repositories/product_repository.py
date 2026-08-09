@@ -56,7 +56,7 @@ class ProductRepository(BaseRepository[Product]):
 
         stmt = select(Product).options(selectinload(Product.images))
 
-        conditions = []
+        conditions = [Product.is_quarantined.is_(False)]
 
         if category and category.lower() != "all":
             conditions.append(Product.category.ilike(f"%{category.strip()}%"))
@@ -98,6 +98,15 @@ class ProductRepository(BaseRepository[Product]):
 
             if term_conds:
                 conditions.append(or_(*term_conds))
+
+            # If explicit brand intent was detected (e.g. Apple), prioritize matching brand
+            if intent.brand:
+                conditions.append(
+                    or_(
+                        Product.brand.ilike(f"%{intent.brand}%"),
+                        Product.name.ilike(f"%{intent.brand}%"),
+                    )
+                )
 
         if conditions:
             stmt = stmt.where(and_(*conditions))

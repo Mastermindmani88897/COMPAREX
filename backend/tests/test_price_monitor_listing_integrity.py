@@ -198,7 +198,7 @@ async def test_4_unable_to_resolve_listing_skips_price_history():
 @pytest.mark.asyncio
 @patch("app.services.price_monitor_service.MarketplaceAggregatorService.aggregate_search")
 async def test_5_one_bad_listing_does_not_stop_others(mock_agg):
-    """TEST 5: One bad/invalid listing item skips cleanly while valid listings continue processing."""
+    """TEST 5: One invalid listing item skips cleanly while valid listings process."""
     await clear_existing_alerts()
     mock_agg.return_value = {
         "lowest_price": 44000.0,

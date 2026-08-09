@@ -34,6 +34,18 @@ async def test_synonyms_and_autocomplete_service(db_session: AsyncSession):
     synonyms_laptop = service._get_synonyms("macbook")
     assert "laptop" in synonyms_laptop or "notebook" in synonyms_laptop
 
+    # Seed a sample product for autocomplete lookup
+    p = Product(
+        id=uuid.uuid4(),
+        name="Samsung Galaxy S25 Ultra",
+        brand="Samsung",
+        category="Smartphones",
+        base_price=Decimal("129999.00"),
+        is_quarantined=False,
+    )
+    db_session.add(p)
+    await db_session.commit()
+
     # Test autocomplete suggestions
     autocomp = await service.autocomplete_suggestions("sam")
     assert isinstance(autocomp, list)

@@ -289,39 +289,6 @@ class ProductService:
                 if len(suggestions) >= limit:
                     break
 
-        if not suggestions:
-            defaults = [
-                {
-                    "id": "auto-1",
-                    "name": f"{query.title()} 5G",
-                    "brand": "POCO",
-                    "category": "Mobiles",
-                    "base_price": 20999.0,
-                },
-                {
-                    "id": "auto-2",
-                    "name": f"{query.title()} Pro Max",
-                    "brand": "Apple",
-                    "category": "Mobiles",
-                    "base_price": 119900.0,
-                },
-                {
-                    "id": "auto-3",
-                    "name": f"{query.title()} Ultra",
-                    "brand": "Samsung",
-                    "category": "Mobiles",
-                    "base_price": 129999.0,
-                },
-                {
-                    "id": "auto-4",
-                    "name": f"{query.title()} Wireless ANC Headphones",
-                    "brand": "Sony",
-                    "category": "Headphones",
-                    "base_price": 24990.0,
-                },
-            ]
-            suggestions = defaults[:limit]
-
         return suggestions
 
     async def get_product_by_id(self, product_id: UUID) -> ProductPublic:
@@ -329,7 +296,7 @@ class ProductService:
         product = await self.repo.get_with_relations(product_id)
         if not product:
             product = await self.repo.get_by_id(product_id)
-        if not product:
+        if not product or getattr(product, "is_quarantined", False):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Product not found",
@@ -433,6 +400,7 @@ class ProductService:
         """Fetch dynamic trending products based on popularity, rating, and recency."""
         stmt = (
             select(Product)
+            .where(Product.is_quarantined.is_(False))
             .options(
                 selectinload(Product.listings),
                 selectinload(Product.images),

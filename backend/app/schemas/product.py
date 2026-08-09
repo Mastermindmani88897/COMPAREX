@@ -25,6 +25,8 @@ class ProductBase(BaseModel):
     search_keywords: Optional[str] = None
     stock_status: Optional[str] = "in_stock"
     discount_percentage: Optional[float] = 0.0
+    is_quarantined: Optional[bool] = False
+    is_verified: Optional[bool] = True
 
 
 class ProductCreate(ProductBase):
