@@ -27,7 +27,7 @@ import type { Product, PriceCompareResult, ProductListing } from "@/types";
 
 export default function CompareProductPage() {
   const params = useParams();
-  const productId = params.id as string;
+  const productId = typeof params?.id === "string" ? params.id : Array.isArray(params?.id) ? params.id[0] : "";
 
   const [product, setProduct] = useState<Product | null>(null);
   const [compareData, setCompareData] = useState<PriceCompareResult | null>(null);
