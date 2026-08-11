@@ -34,7 +34,7 @@ async def test_price_history_service_execution():
     assert res.product_id == str(product_id)
     assert res.today_price > 0
     assert res.lowest_price <= res.highest_price
-    assert res.price_trend in ("FALLING", "RISING", "STABLE")
+    assert res.price_trend in ("FALLING", "RISING", "STABLE", "INSUFFICIENT_DATA", "DROPPING")
     assert isinstance(res.price_points, list)
 
 

@@ -256,7 +256,8 @@ class SearchEngineService:
             normalized,
         )
         if model_match:
-            model_number = model_match.group(0).replace(" ", "")
+            raw_m = model_match.group(0).replace(" ", "")
+            model_number = re.sub(r"^(iphone)\s*", "", raw_m, flags=re.I)
 
         # Extract Variant Suffix (Pro Max, Pro, Ultra, Plus, Air, Mini, etc.)
         for v in VARIANT_SUFFIXES:
