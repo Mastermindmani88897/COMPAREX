@@ -372,8 +372,8 @@ class SearchEngineService:
         has_p_plus = "plus" in p_name_norm
         has_p_air = "air" in p_name_norm
 
-        if q_var is None:
-            # Query specified standard base model (no "pro", "ultra", "plus", "max")
+        if q_var is None and (intent.family or intent.model_number):
+            # Query specified standard base model of a specific family/model (no "pro", "ultra", "plus", "max")
             if has_p_pro or has_p_ultra or (has_p_plus and "iphone" in p_name_norm) or (has_p_air and "macbook" in p_name_norm):
                 return 0.0  # STRICT EXCLUSION FOR WRONG VARIANT
         else:
