@@ -8,7 +8,7 @@ Includes diagnostic provider status classification and health tracking.
 
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 import httpx
 
 from app.adapters.base import BaseMarketplaceAdapter
@@ -97,7 +97,13 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
                     # Check for SerpAPI error payload inside HTTP 200 response
                     if "error" in data:
                         err_msg = str(data.get("error", ""))
-                        status = ProviderStatus.QUOTA_EXHAUSTED if ("out of searches" in err_msg.lower() or "credit" in err_msg.lower()) else ProviderStatus.CONFIGURATION_ERROR
+                        err_lower = err_msg.lower()
+                        is_quota = "out of searches" in err_lower or "credit" in err_lower
+                        status = (
+                            ProviderStatus.QUOTA_EXHAUSTED
+                            if is_quota
+                            else ProviderStatus.CONFIGURATION_ERROR
+                        )
                         logger.warning(
                             "SERPAPI: HTTP 200 status=%s error='%s'", status.value, err_msg
                         )
@@ -208,10 +214,16 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
                     )
                 else:
                     err_msg = f"HTTP {response.status_code}: {response.text[:200]}"
-                    status = ProviderStatus.RATE_LIMITED if response.status_code == 429 else (
-                        ProviderStatus.AUTHENTICATION_ERROR if response.status_code in (401, 403) else ProviderStatus.UNKNOWN_ERROR
+                    if response.status_code == 429:
+                        status = ProviderStatus.RATE_LIMITED
+                    elif response.status_code in (401, 403):
+                        status = ProviderStatus.AUTHENTICATION_ERROR
+                    else:
+                        status = ProviderStatus.UNKNOWN_ERROR
+
+                    logger.warning(
+                        "SERPAPI: HTTP %d status=%s", response.status_code, status.value
                     )
-                    logger.warning("SERPAPI: HTTP %d status=%s", response.status_code, status.value)
                     ProviderHealthTracker.record_call(
                         provider="SerpAPI",
                         configured=True,
@@ -267,7 +279,11 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
         return resp.results
 
     async def fetch_product_details(self, listing_url: str) -> Dict[str, Any]:
-        return {"title": "Google Shopping Details", "price": 0.0, "listing_url": listing_url}
+        return {
+            "title": "Google Shopping Details",
+            "price": 0.0,
+            "listing_url": listing_url,
+        }
 
     async def fetch_latest_price(self, listing_url: str) -> Dict[str, Any]:
         return {"price": 0.0, "currency": "INR", "is_available": True}
@@ -276,11 +292,13 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
         merchant = raw_data.get("seller_name", "Google Merchant")
         slug = raw_data.get("marketplace_slug") or merchant.lower().replace(" ", "_")
         logo = raw_data.get("marketplace_logo") or STORE_LOGOS.get(merchant.lower(), "")
+        orig = float(raw_data["original_price"]) if raw_data.get("original_price") else None
+        disc = float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None
         return {
             "title": raw_data.get("title", f"Listing on {merchant}"),
             "price": float(raw_data.get("price", 0.0)),
-            "original_price": float(raw_data["original_price"]) if raw_data.get("original_price") else None,
-            "discount_percent": float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None,
+            "original_price": orig,
+            "discount_percent": disc,
             "currency": raw_data.get("currency", "INR"),
             "listing_url": raw_data.get("listing_url", "https://www.google.com"),
             "marketplace_product_id": raw_data.get("marketplace_product_id", "SERP-01"),

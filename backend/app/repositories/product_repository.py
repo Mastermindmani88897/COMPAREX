@@ -140,7 +140,6 @@ class ProductRepository(BaseRepository[Product]):
             min_threshold=40.0,
         )
 
-
         # Apply user sort override if requested
         if sort_by == "price_low":
             ranked.sort(key=lambda p: float(p.base_price or 0))

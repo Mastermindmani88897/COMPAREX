@@ -21,8 +21,8 @@ from app.adapters.brightdata_adapter import BrightDataAdapter
 from app.adapters.rainforest_adapter import RainforestAdapter
 from app.adapters.serpapi_adapter import SerpApiAdapter
 from app.adapters.zenrows_adapter import ZenRowsAdapter
-from app.adapters.provider_status import ProviderResponse, ProviderStatus
-from app.adapters.marketplace_normalizer import MarketplaceNormalizer, CANONICAL_MARKETPLACES
+from app.adapters.provider_status import ProviderResponse
+from app.adapters.marketplace_normalizer import MarketplaceNormalizer
 from app.core.logging import get_logger
 from app.core.redis import redis_client
 from app.services.matching_engine import ExactProductMatchEngine, SearchQueryGenerator
@@ -72,7 +72,10 @@ MAJOR_MARKETPLACES = [
         "slug": "myntra",
         "name": "Myntra",
         "search_url_template": "https://www.myntra.com/{query}",
-        "logo_url": "https://constant.myntassets.com/web/assets/img/800x500_2019-05-01-17-53-43_b6a039ede6cbb28eddca38bde021e0c3.jpg",
+        "logo_url": (
+            "https://constant.myntassets.com/web/assets/img/"
+            "800x500_2019-05-01-17-53-43_b6a039ede6cbb28eddca38bde021e0c3.jpg"
+        ),
         "priority": 3,
     },
     {
@@ -158,6 +161,11 @@ class MarketplaceAggregatorService:
 
             if slug in verified_by_key:
                 lst = verified_by_key[slug]
+                mrp_val = float(lst["mrp"]) if lst.get("mrp") else (
+                    float(lst["original_price"]) if lst.get("original_price") else None
+                )
+                has_dp = lst.get("discount_percentage") or lst.get("discount_percent")
+                disc_val = float(has_dp) if has_dp else None
                 entry = {
                     "slug": slug,
                     "marketplace_key": slug,
@@ -167,14 +175,16 @@ class MarketplaceAggregatorService:
                     "status": "verified",
                     "title": lst.get("listing_title") or lst.get("title"),
                     "price": float(lst.get("price", 0)),
-                    "original_price": float(lst["mrp"]) if lst.get("mrp") else (float(lst["original_price"]) if lst.get("original_price") else None),
-                    "discount_percent": float(lst["discount_percentage"]) if lst.get("discount_percentage") else (float(lst["discount_percent"]) if lst.get("discount_percent") else None),
+                    "original_price": mrp_val,
+                    "discount_percent": disc_val,
                     "currency": lst.get("currency", "INR"),
                     "listing_url": lst.get("listing_url", search_url),
                     "image_url": lst.get("image_url") or mp.get("logo_url", ""),
                     "is_exact_url": lst.get("is_exact_url", True),
                     "seller_name": lst.get("seller") or lst.get("seller_name"),
-                    "delivery_estimate": lst.get("delivery_information") or lst.get("delivery_estimate"),
+                    "delivery_estimate": (
+                        lst.get("delivery_information") or lst.get("delivery_estimate")
+                    ),
                     "rating": float(lst["rating"]) if lst.get("rating") else None,
                     "review_count": int(lst["review_count"]) if lst.get("review_count") else None,
                     "is_available": lst.get("is_available", True),
@@ -190,7 +200,8 @@ class MarketplaceAggregatorService:
                 reason = "No verified listing found"
                 for prov_key, prov_status in provider_statuses.items():
                     p_stat = str(prov_status).upper()
-                    if "PAYMENT_REQUIRED" in p_stat or "QUOTA_EXHAUSTED" in p_stat or "402" in p_stat:
+                    has_402 = "PAYMENT_REQUIRED" in p_stat or "QUOTA_EXHAUSTED" in p_stat
+                    if has_402 or "402" in p_stat:
                         reason = "Provider credits exhausted (HTTP 402)"
                         break
                     elif "CONFIGURATION_ERROR" in p_stat or "422" in p_stat:
@@ -244,8 +255,8 @@ class MarketplaceAggregatorService:
         """
         Flag price outliers using a median-based approach.
 
-        A listing price is flagged as suspicious if it is more than OUTLIER_FACTOR_HIGH times
-        the median or less than OUTLIER_FACTOR_LOW times the median.
+        A listing price is flagged as suspicious if it is > OUTLIER_FACTOR_HIGH times
+        the median or < OUTLIER_FACTOR_LOW times the median.
 
         Flagged listings are NOT removed — they are marked with is_outlier=True
         so the frontend can decide how to display them.
@@ -256,7 +267,9 @@ class MarketplaceAggregatorService:
                 lst["outlier_reason"] = None
             return listings
 
-        prices = [float(lst["price"]) for lst in listings if lst.get("price") and float(lst["price"]) > 0]
+        prices = [
+            float(lst["price"]) for lst in listings if lst.get("price") and float(lst["price"]) > 0
+        ]
         if not prices:
             return listings
 
@@ -493,10 +506,14 @@ class MarketplaceAggregatorService:
         # Price data quality classification
         if verified_major_count >= 4:
             data_quality = "high"
-            quality_message = f"High confidence — {verified_major_count} major marketplaces verified"
+            quality_message = (
+                f"High confidence — {verified_major_count} major marketplaces verified"
+            )
         elif verified_major_count >= 2:
             data_quality = "medium"
-            quality_message = f"Medium confidence — {verified_major_count} major marketplaces verified"
+            quality_message = (
+                f"Medium confidence — {verified_major_count} major marketplaces verified"
+            )
         elif verified_major_count == 1:
             data_quality = "low"
             quality_message = "Low confidence — only 1 major marketplace verified"
@@ -517,6 +534,9 @@ class MarketplaceAggregatorService:
             data_quality,
         )
 
+        cov_str = (
+            f"{verified_major_count}/{len(MAJOR_MARKETPLACES)} major marketplaces verified"
+        )
         response_payload = {
             "query": clean_search_term,
             "product_id": product_id,
@@ -549,7 +569,7 @@ class MarketplaceAggregatorService:
             # Data quality
             "data_quality": data_quality,
             "data_quality_message": quality_message,
-            "marketplace_coverage": f"{verified_major_count}/{len(MAJOR_MARKETPLACES)} major marketplaces verified",
+            "marketplace_coverage": cov_str,
             # Timestamps
             "from_cache": False,
             "last_updated_time": last_checked,

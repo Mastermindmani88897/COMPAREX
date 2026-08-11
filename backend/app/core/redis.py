@@ -150,7 +150,6 @@ class UpstashRedisClient:
         return None
 
 
-
 # Global Upstash Redis instance
 redis_client = UpstashRedisClient()
 

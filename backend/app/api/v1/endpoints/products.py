@@ -28,7 +28,6 @@ endpoint_logger = get_logger(__name__)
 REFRESH_COOLDOWN_SECONDS = 60
 
 
-
 @router.get(
     "/autocomplete",
     summary="Search Autocomplete Suggestions",
@@ -358,7 +357,9 @@ async def refresh_product_prices(
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail={
-                    "message": "Marketplace refresh cooldown active. Please wait before refreshing again.",
+                    "message": (
+                        "Marketplace refresh cooldown active. Please wait before refreshing again."
+                    ),
                     "cooldown_seconds": REFRESH_COOLDOWN_SECONDS,
                     "retry_after_seconds": ttl_remaining,
                 },

@@ -121,7 +121,9 @@ class ProviderHealthTracker:
                         "status": ProviderStatus.NOT_CONFIGURED.value if not is_cfg else "UNKNOWN",
                         "last_checked": None,
                         "last_http_status": None,
-                        "last_error": "No requests logged yet" if is_cfg else "API Key not configured",
+                        "last_error": (
+                            "No requests logged yet" if is_cfg else "API Key not configured"
+                        ),
                         "last_result_count": 0,
                         "quota_state": "NOT_CONFIGURED" if not is_cfg else "HEALTHY",
                         "response_time_ms": 0.0,

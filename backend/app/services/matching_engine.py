@@ -3,13 +3,13 @@ COMPAREX Backend – Generic Canonical Product Matching & Verification Engine Se
 
 Generic, token/attribute-aware attribute parsing, exact model matching,
 variant verification, confidence scoring, and accessory rejection across ALL product categories
-(mobiles, laptops, tablets, headphones, TVs, cameras, monitors, watches, appliances, gaming, accessories).
+(mobiles, laptops, tablets, headphones, TVs, cameras, monitors, watches, appliances, gaming).
 
 NO HARDCODED BRAND-SPECIFIC OR MODEL-SPECIFIC RULES.
 """
 
 import re
-from typing import Any, Dict, Optional, Tuple, List
+from typing import Any, Dict, Tuple
 
 ACCESSORY_KEYWORDS = {
     "case",
@@ -144,14 +144,15 @@ class ExactProductMatchEngine:
         ram = ram_match.group(1) if ram_match else None
 
         # 3. Model number & series extraction (generic pattern)
-        # E.g. "15", "16", "14", "s25", "s24", "s23", "m4", "m3", "m2", "wh1000xm5", "eos r6", "x5", "x6", "v30", "i5", "i7"
+        # E.g. "15", "16", "14", "s25", "s24", "m4", "wh1000xm5", "eos r6", "x5", "x6", "v30", "i5"
         model_number = None
 
         # Specific pattern: letter(s) optional + numbers e.g., s25, x5, m4, xm5, 15, 16
-        model_match = re.search(
-            r"\b(iphone\s*\d{1,2}|s\d{2}|x\d{1,2}|wh\s*1000xm\d|m\d|eos\s*r?\d+|series\s*\d+|\d{2,4}[a-z]?|\d{2})\b",
-            t,
+        pattern = (
+            r"\b(iphone\s*\d{1,2}|s\d{2}|x\d{1,2}|wh\s*1000xm\d|m\d|eos\s*r?\d+|"
+            r"series\s*\d+|\d{2,4}[a-z]?|\d{2})\b"
         )
+        model_match = re.search(pattern, t)
         if model_match:
             model_number = model_match.group(0).replace(" ", "")
 
@@ -289,10 +290,12 @@ class ExactProductMatchEngine:
             if q_attrs["family"] != c_attrs["family"]:
                 return False, 0.0, f"FAMILY_MISMATCH ({q_attrs['family']} vs {c_attrs['family']})"
         elif q_attrs["family"] and not c_attrs["family"]:
-            # If query specified family like "iPhone" and candidate is an unrelated Apple product (e.g., iPad, Watch)
-            if q_attrs["family"] == "iphone" and any(x in c_attrs["raw_clean"] for x in ["ipad", "macbook", "airpods", "watch"]):
+            # If query specified family like "iPhone" and candidate is an unrelated Apple product
+            non_iphone = ["ipad", "macbook", "airpods", "watch"]
+            if q_attrs["family"] == "iphone" and any(x in c_attrs["raw_clean"] for x in non_iphone):
                 return False, 0.0, "FAMILY_MISMATCH (iPhone vs non-iPhone Apple product)"
-            if q_attrs["family"] == "macbook" and any(x in c_attrs["raw_clean"] for x in ["ipad", "iphone", "watch"]):
+            non_mac = ["ipad", "iphone", "watch"]
+            if q_attrs["family"] == "macbook" and any(x in c_attrs["raw_clean"] for x in non_mac):
                 return False, 0.0, "FAMILY_MISMATCH (MacBook vs non-MacBook product)"
 
         # Rule 4: Model Number Mismatch Rejection (e.g. 15 vs 16, S25 vs S24, M4 vs M3, XM5 vs XM4)
@@ -300,11 +303,9 @@ class ExactProductMatchEngine:
             q_num = re.sub(r"\D", "", q_attrs["model_number"])
             c_num = re.sub(r"\D", "", c_attrs["model_number"])
             if q_num and c_num and q_num != c_num:
-                return (
-                    False,
-                    0.0,
-                    f"MODEL_NUMBER_MISMATCH (Model {q_attrs['model_number']} != Model {c_attrs['model_number']})",
-                )
+                qm = q_attrs['model_number']
+                cm = c_attrs['model_number']
+                return False, 0.0, f"MODEL_NUMBER_MISMATCH ({qm} != {cm})"
         elif q_attrs["model_number"] and not c_attrs["model_number"]:
             # Query specified model number e.g. 15, but candidate is a different model series
             q_num = re.sub(r"\D", "", q_attrs["model_number"])
@@ -312,27 +313,23 @@ class ExactProductMatchEngine:
                 # Check if candidate mentions a different number
                 cand_numbers = re.findall(r"\b\d{2}\b", c_attrs["raw_clean"])
                 if cand_numbers and q_num not in cand_numbers:
-                    return False, 0.0, f"MODEL_SERIES_MISMATCH (Query model {q_num} not in candidate)"
+                    err = f"MODEL_SERIES_MISMATCH (Query model {q_num} not in candidate)"
+                    return False, 0.0, err
 
-        # Rule 5: Variant Suffix Mismatch Rejection (e.g. Pro vs standard, Ultra vs Plus, Pro Max vs Pro)
+        # Rule 5: Variant Suffix Mismatch Rejection (e.g. Pro vs standard, Ultra vs Plus)
         q_v = q_attrs["variant_suffix"]
         c_v = c_attrs["variant_suffix"]
 
         if q_v != c_v:
             # Query is standard base model (no suffix), but candidate is Pro / Ultra / Plus / Max
             if q_v is None and c_v is not None:
-                return (
-                    False,
-                    0.0,
-                    f"VARIANT_SUFFIX_MISMATCH (Query is standard model, candidate is {c_v.upper()})",
-                )
-            # Query specifies a suffix (e.g. Pro), but candidate has different suffix (e.g. Pro Max or standard)
+                err = f"VARIANT_SUFFIX_MISMATCH (Query standard, candidate {c_v.upper()})"
+                return False, 0.0, err
+            # Query specifies a suffix (e.g. Pro), but candidate has different suffix
             if q_v is not None and c_v != q_v:
-                return (
-                    False,
-                    0.0,
-                    f"VARIANT_SUFFIX_MISMATCH (Query is {q_v.upper()}, candidate is {c_v.upper() if c_v else 'Standard'})",
-                )
+                cand_str = c_v.upper() if c_v else 'Standard'
+                err = f"VARIANT_SUFFIX_MISMATCH (Query {q_v.upper()}, candidate {cand_str})"
+                return False, 0.0, err
 
         # Rule 6: Generation Mismatch (e.g. M4 vs M3/M2, Gen 2 vs Gen 1)
         if q_attrs["generation"] and c_attrs["generation"]:
@@ -351,7 +348,8 @@ class ExactProductMatchEngine:
             if q_attrs["storage"] != c_attrs["storage"]:
                 # Storage differs — candidate is a different storage variant of the same model
                 score = 0.70
-                rejection_reason = f"STORAGE_VARIANT_DIFFERENCE ({q_attrs['storage']} != {c_attrs['storage']})"
+                err = f"STORAGE_VARIANT_DIFFERENCE ({q_attrs['storage']} != {c_attrs['storage']})"
+                return False, score, err
                 return False, score, rejection_reason
 
         # Rule 8: RAM Mismatch Check

@@ -82,10 +82,19 @@ class ZenRowsAdapter(BaseMarketplaceAdapter):
                     )
                 else:
                     err_msg = f"HTTP {response.status_code}: {response.text[:200]}"
-                    status = ProviderStatus.RATE_LIMITED if response.status_code == 429 else (
-                        ProviderStatus.AUTHENTICATION_ERROR if response.status_code in (401, 403) else ProviderStatus.UNKNOWN_ERROR
+                    if response.status_code == 429:
+                        status = ProviderStatus.RATE_LIMITED
+                    elif response.status_code in (401, 403):
+                        status = ProviderStatus.AUTHENTICATION_ERROR
+                    else:
+                        status = ProviderStatus.UNKNOWN_ERROR
+
+                    logger.warning(
+                        "ZENROWS: HTTP %d status=%s error='%s'",
+                        response.status_code,
+                        status.value,
+                        err_msg,
                     )
-                    logger.warning("ZENROWS: HTTP %d status=%s error='%s'", response.status_code, status.value, err_msg)
                     ProviderHealthTracker.record_call(
                         provider="ZenRows",
                         configured=True,
@@ -147,11 +156,13 @@ class ZenRowsAdapter(BaseMarketplaceAdapter):
         return {"price": 0.0, "currency": "INR", "is_available": True}
 
     def normalize_listing(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
+        orig = float(raw_data["original_price"]) if raw_data.get("original_price") else None
+        disc = float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None
         return {
             "title": raw_data.get("title", "Fallback Product"),
             "price": float(raw_data.get("price", 0.0)),
-            "original_price": float(raw_data["original_price"]) if raw_data.get("original_price") else None,
-            "discount_percent": float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None,
+            "original_price": orig,
+            "discount_percent": disc,
             "currency": raw_data.get("currency", "INR"),
             "listing_url": raw_data.get("listing_url", "https://www.google.com"),
             "marketplace_product_id": raw_data.get("marketplace_product_id", "ZEN-01"),

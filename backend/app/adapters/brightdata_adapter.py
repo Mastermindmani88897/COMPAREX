@@ -119,8 +119,15 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
                     # Check for Bright Data JSON error payload inside 200
                     if isinstance(data, dict) and "error" in data:
                         err_msg = str(data.get("error", ""))
-                        status = ProviderStatus.CONFIGURATION_ERROR if "zone" in err_msg.lower() else ProviderStatus.UNKNOWN_ERROR
-                        logger.warning("BRIGHTDATA: HTTP 200 status=%s error='%s'", status.value, err_msg)
+                        is_zone_err = "zone" in err_msg.lower()
+                        status = (
+                            ProviderStatus.CONFIGURATION_ERROR
+                            if is_zone_err
+                            else ProviderStatus.UNKNOWN_ERROR
+                        )
+                        logger.warning(
+                            "BRIGHTDATA: HTTP 200 status=%s error='%s'", status.value, err_msg
+                        )
                         ProviderHealthTracker.record_call(
                             provider="Bright Data",
                             configured=True,
@@ -198,7 +205,7 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
                         else ProviderStatus.SUCCESS_NO_RESULTS
                     )
                     logger.info(
-                        "BRIGHTDATA: HTTP 200 status=%s raw_results=%d parsed_results=%d query='%s'",
+                        "BRIGHTDATA: HTTP 200 status=%s raw=%d parsed=%d query='%s'",
                         status.value,
                         raw_count,
                         parsed_count,
@@ -225,7 +232,9 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
                 elif response.status_code == 422:
                     err_msg = f"HTTP 422 Configuration Error: {response.text[:200]}"
                     status = ProviderStatus.CONFIGURATION_ERROR
-                    logger.warning("BRIGHTDATA: HTTP 422 status=%s error='%s'", status.value, err_msg)
+                    logger.warning(
+                        "BRIGHTDATA: HTTP 422 status=%s error='%s'", status.value, err_msg
+                    )
                     ProviderHealthTracker.record_call(
                         provider="Bright Data",
                         configured=True,
@@ -243,10 +252,16 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
                     )
                 else:
                     err_msg = f"HTTP {response.status_code}: {response.text[:200]}"
-                    status = ProviderStatus.RATE_LIMITED if response.status_code == 429 else (
-                        ProviderStatus.AUTHENTICATION_ERROR if response.status_code in (401, 403) else ProviderStatus.UNKNOWN_ERROR
+                    if response.status_code == 429:
+                        status = ProviderStatus.RATE_LIMITED
+                    elif response.status_code in (401, 403):
+                        status = ProviderStatus.AUTHENTICATION_ERROR
+                    else:
+                        status = ProviderStatus.UNKNOWN_ERROR
+
+                    logger.warning(
+                        "BRIGHTDATA: HTTP %d status=%s", response.status_code, status.value
                     )
-                    logger.warning("BRIGHTDATA: HTTP %d status=%s", response.status_code, status.value)
                     ProviderHealthTracker.record_call(
                         provider="Bright Data",
                         configured=True,
@@ -302,17 +317,23 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
         return resp.results
 
     async def fetch_product_details(self, listing_url: str) -> Dict[str, Any]:
-        return {"title": "Indian Marketplace Product", "price": 0.0, "listing_url": listing_url}
+        return {
+            "title": "Indian Marketplace Product",
+            "price": 0.0,
+            "listing_url": listing_url,
+        }
 
     async def fetch_latest_price(self, listing_url: str) -> Dict[str, Any]:
         return {"price": 0.0, "currency": "INR", "is_available": True}
 
     def normalize_listing(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
+        orig = float(raw_data["original_price"]) if raw_data.get("original_price") else None
+        disc = float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None
         return {
             "title": raw_data.get("title", "Indian Marketplace Product"),
             "price": float(raw_data.get("price", 0.0)),
-            "original_price": float(raw_data["original_price"]) if raw_data.get("original_price") else None,
-            "discount_percent": float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None,
+            "original_price": orig,
+            "discount_percent": disc,
             "currency": raw_data.get("currency", "INR"),
             "listing_url": raw_data.get("listing_url", "https://www.flipkart.com"),
             "marketplace_product_id": raw_data.get("marketplace_product_id", "BD-01"),

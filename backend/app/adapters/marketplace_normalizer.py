@@ -12,7 +12,6 @@ canonical verified marketplace-offer dataset for:
 """
 
 import hashlib
-import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -74,7 +73,10 @@ CANONICAL_MARKETPLACES: Dict[str, Dict[str, Any]] = {
         "key": "myntra",
         "name": "Myntra",
         "aliases": ["myntra", "myntra.com", "myntra_com"],
-        "logo_url": "https://constant.myntassets.com/web/assets/img/800x500_2019-05-01-17-53-43_b6a039ede6cbb28eddca38bde021e0c3.jpg",
+        "logo_url": (
+            "https://constant.myntassets.com/web/assets/img/"
+            "800x500_2019-05-01-17-53-43_b6a039ede6cbb28eddca38bde021e0c3.jpg"
+        ),
         "search_url_template": "https://www.myntra.com/{query}",
         "priority": 3,
     },
@@ -150,17 +152,21 @@ class MarketplaceNormalizer:
 
         price = float(raw_listing.get("price", 0.0))
         mrp = float(raw_listing["original_price"]) if raw_listing.get("original_price") else None
-        disc = float(raw_listing["discount_percent"]) if raw_listing.get("discount_percent") else None
+        has_disc = raw_listing.get("discount_percent")
+        disc = float(raw_listing["discount_percent"]) if has_disc else None
 
         title = raw_listing.get("title", "").strip()
         url = raw_listing.get("listing_url", "").strip()
         seller = raw_listing.get("seller_name") or f"{name} Merchant"
 
-        listing_id = raw_listing.get("marketplace_product_id") or f"{key.upper()}-{abs(hash(url or title)) % 100000}"
+        raw_id = raw_listing.get("marketplace_product_id")
+        fallback_id = f"{key.upper()}-{abs(hash(url or title)) % 100000}"
+        listing_id = raw_id or fallback_id
 
         # Deterministic SHA256 fingerprint for deduplication
         fp_str = f"{key}:{seller.lower()}:{title.lower()}:{price}"
         unique_fingerprint = hashlib.sha256(fp_str.encode("utf-8")).hexdigest()
+        retrieved_at = raw_listing.get("retrieved_at") or datetime.now(timezone.utc).isoformat()
 
         return {
             "product_id": canonical_product_id or raw_listing.get("product_id"),
@@ -187,7 +193,7 @@ class MarketplaceNormalizer:
             "stock_status": raw_listing.get("stock_status", "IN_STOCK"),
             "is_available": raw_listing.get("is_available", True),
             "provider": raw_listing.get("marketplace_source") or "Live Connector",
-            "retrieved_at": raw_listing.get("retrieved_at") or datetime.now(timezone.utc).isoformat(),
+            "retrieved_at": retrieved_at,
             "match_confidence": float(raw_listing.get("match_score", 1.0)),
             "match_score": float(raw_listing.get("match_score", 1.0)),
             "verification_status": "verified",

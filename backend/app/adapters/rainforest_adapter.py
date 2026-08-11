@@ -124,7 +124,7 @@ class RainforestAdapter(BaseMarketplaceAdapter):
                     )
 
                     logger.info(
-                        "RAINFOREST: HTTP 200 status=%s raw_results=%d parsed_results=%d query='%s'",
+                        "RAINFOREST: HTTP 200 status=%s raw=%d parsed=%d query='%s'",
                         status.value,
                         raw_count,
                         parsed_count,
@@ -148,9 +148,19 @@ class RainforestAdapter(BaseMarketplaceAdapter):
                         response_time_ms=elapsed_ms,
                     )
                 elif response.status_code in (402, 429):
-                    status = ProviderStatus.PAYMENT_REQUIRED if response.status_code == 402 else ProviderStatus.RATE_LIMITED
-                    err_msg = "HTTP 402 Payment Required - Rainforest API credits exhausted" if response.status_code == 402 else "HTTP 429 Rate Limit"
-                    logger.warning("RAINFOREST: HTTP %d status=%s error='%s'", response.status_code, status.value, err_msg)
+                    if response.status_code == 402:
+                        status = ProviderStatus.PAYMENT_REQUIRED
+                        err_msg = "HTTP 402 Payment Required - Rainforest API credits exhausted"
+                    else:
+                        status = ProviderStatus.RATE_LIMITED
+                        err_msg = "HTTP 429 Rate Limit"
+
+                    logger.warning(
+                        "RAINFOREST: HTTP %d status=%s error='%s'",
+                        response.status_code,
+                        status.value,
+                        err_msg,
+                    )
                     ProviderHealthTracker.record_call(
                         provider="Rainforest",
                         configured=True,
@@ -168,8 +178,14 @@ class RainforestAdapter(BaseMarketplaceAdapter):
                     )
                 else:
                     err_msg = f"HTTP {response.status_code}: {response.text[:200]}"
-                    status = ProviderStatus.AUTHENTICATION_ERROR if response.status_code in (401, 403) else ProviderStatus.UNKNOWN_ERROR
-                    logger.warning("RAINFOREST: HTTP %d status=%s", response.status_code, status.value)
+                    if response.status_code in (401, 403):
+                        status = ProviderStatus.AUTHENTICATION_ERROR
+                    else:
+                        status = ProviderStatus.UNKNOWN_ERROR
+
+                    logger.warning(
+                        "RAINFOREST: HTTP %d status=%s", response.status_code, status.value
+                    )
                     ProviderHealthTracker.record_call(
                         provider="Rainforest",
                         configured=True,
@@ -231,11 +247,14 @@ class RainforestAdapter(BaseMarketplaceAdapter):
         return {"price": 0.0, "currency": "INR", "is_available": True}
 
     def normalize_listing(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
+        orig = float(raw_data["original_price"]) if raw_data.get("original_price") else None
+        disc = float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None
+        logo = "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg"
         return {
             "title": raw_data.get("title", "Amazon Product"),
             "price": float(raw_data.get("price", 0.0)),
-            "original_price": float(raw_data["original_price"]) if raw_data.get("original_price") else None,
-            "discount_percent": float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None,
+            "original_price": orig,
+            "discount_percent": disc,
             "currency": raw_data.get("currency", "INR"),
             "listing_url": raw_data.get("listing_url", "https://www.amazon.in"),
             "marketplace_product_id": raw_data.get("marketplace_product_id", "AMZN-01"),
@@ -249,7 +268,7 @@ class RainforestAdapter(BaseMarketplaceAdapter):
             "image_url": raw_data.get("image_url", ""),
             "marketplace_slug": "amazon",
             "marketplace_name": "Amazon",
-            "marketplace_logo": "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg",
+            "marketplace_logo": logo,
             "data_priority": 2,
             "marketplace_source": "Rainforest API",
         }

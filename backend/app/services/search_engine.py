@@ -134,7 +134,9 @@ class SearchIntent:
         """Backwards compatibility alias for model/variant string."""
         if not self.model_number:
             return self.variant_suffix
-        prefix = "s" if (self.family == "Galaxy" and not self.model_number.lower().startswith("s")) else ""
+        is_galaxy = self.family == "Galaxy"
+        starts_s = self.model_number.lower().startswith("s")
+        prefix = "s" if (is_galaxy and not starts_s) else ""
         base = f"{prefix}{self.model_number}"
         if self.variant_suffix and self.variant_suffix.lower() not in base.lower():
             return f"{base} {self.variant_suffix}"
@@ -142,8 +144,9 @@ class SearchIntent:
 
     def __repr__(self) -> str:
         return (
-            f"<SearchIntent brand={self.brand!r} family={self.family!r} model={self.model_number!r} "
-            f"variant={self.variant_suffix!r} gen={self.generation!r} category={self.category_intent!r} "
+            f"<SearchIntent brand={self.brand!r} family={self.family!r} "
+            f"model={self.model_number!r} variant={self.variant_suffix!r} "
+            f"gen={self.generation!r} category={self.category_intent!r} "
             f"accessory_query={self.is_accessory_query}>"
         )
 
@@ -175,7 +178,7 @@ class SearchEngineService:
 
     @classmethod
     def parse_intent(cls, raw_query: str) -> SearchIntent:
-        """Stage 2: Extract structured intent (brand, family, model_number, variant_suffix, generation, category, accessory flag)."""
+        """Stage 2: Extract structured intent (brand, family, model, variant, gen, cat, acc)."""
         normalized = cls.normalize_query(raw_query)
         tokens = [t for t in normalized.split() if t]
 
@@ -194,9 +197,18 @@ class SearchEngineService:
                 break
 
         # Identify Category Intent & Product Family
-        headphone_terms = ["headphone", "headphones", "earbuds", "earphones", "wh 1000xm", "wh1000xm", "airpods", "rockerz"]
-        laptop_terms = ["macbook", "laptop", "notebook", "thinkpad", "zenbook", "aspire", "ideapad", "legion", "vivobook", "pavilion", "inspiron"]
-        mobile_terms = ["iphone", "galaxy", "poco", "oneplus", "pixel", "smartphone", "mobile", "phone"]
+        headphone_terms = [
+            "headphone", "headphones", "earbuds", "earphones",
+            "wh 1000xm", "wh1000xm", "airpods", "rockerz",
+        ]
+        laptop_terms = [
+            "macbook", "laptop", "notebook", "thinkpad", "zenbook",
+            "aspire", "ideapad", "legion", "vivobook", "pavilion", "inspiron",
+        ]
+        mobile_terms = [
+            "iphone", "galaxy", "poco", "oneplus", "pixel",
+            "smartphone", "mobile", "phone",
+        ]
         tablet_terms = ["ipad", "galaxy tab", "tablet", "pad"]
         tv_terms = ["tv", "television", "oled", "bravia"]
         gaming_terms = ["ps5", "playstation", "xbox", "switch", "nintendo"]
@@ -204,63 +216,57 @@ class SearchEngineService:
 
         if any(re.search(r"\b" + re.escape(w) + r"\b", normalized) for w in headphone_terms):
             category_intent = CATEGORY_HEADPHONES
-            if "wh 1000xm" in normalized or "wh1000xm" in normalized:
-                brand = "Sony"
-                family = "WH-1000XM"
-            elif "airpods" in normalized:
-                brand = "Apple"
+            if "airpods" in normalized:
                 family = "AirPods"
+                brand = "Apple"
 
         elif any(re.search(r"\b" + re.escape(w) + r"\b", normalized) for w in laptop_terms):
             category_intent = CATEGORY_LAPTOP
             if "macbook" in normalized:
-                brand = "Apple"
                 family = "MacBook"
-            elif "pavilion" in normalized:
-                brand = "HP"
-                family = "Pavilion"
+                brand = "Apple"
 
         elif any(re.search(r"\b" + re.escape(w) + r"\b", normalized) for w in mobile_terms):
             category_intent = CATEGORY_MOBILE
             if "iphone" in normalized:
-                brand = "Apple"
                 family = "iPhone"
-            elif "galaxy" in normalized or "s24" in normalized or "s25" in normalized:
-                brand = "Samsung"
+                brand = "Apple"
+            elif "galaxy" in normalized and not any(t in normalized for t in ["tab", "book"]):
                 family = "Galaxy"
+                brand = "Samsung"
             elif "poco" in normalized:
                 brand = "Poco"
                 family = "Poco"
-            elif "pixel" in normalized:
-                brand = "Google"
-                family = "Pixel"
 
         elif any(re.search(r"\b" + re.escape(w) + r"\b", normalized) for w in tablet_terms):
             category_intent = CATEGORY_TABLET
             if "ipad" in normalized:
-                brand = "Apple"
                 family = "iPad"
+                brand = "Apple"
 
         elif any(re.search(r"\b" + re.escape(w) + r"\b", normalized) for w in tv_terms):
             category_intent = CATEGORY_TV
 
         elif any(re.search(r"\b" + re.escape(w) + r"\b", normalized) for w in gaming_terms):
             category_intent = CATEGORY_GAMING
-            if "ps5" in normalized or "playstation" in normalized:
+            if any(p in normalized for p in ["ps5", "playstation"]):
                 brand = "Sony"
                 family = "PlayStation"
 
         elif any(re.search(r"\b" + re.escape(w) + r"\b", normalized) for w in camera_terms):
             category_intent = CATEGORY_CAMERA
 
-        elif any(re.search(r"\b" + re.escape(w) + r"\b", normalized) for w in ["watch", "smartwatch"]):
+        elif any(
+            re.search(r"\b" + re.escape(w) + r"\b", normalized) for w in ["watch", "smartwatch"]
+        ):
             category_intent = CATEGORY_WATCH
 
         # Extract Model Number
-        model_match = re.search(
-            r"\b(iphone\s*\d{1,2}|ps\s*\d{1,2}|playstation\s*\d{1,2}|s25|s24|s23|x5|x6|m4|m3|m2|wh\-?1000xm5|wh\-?1000xm4|series\s*\d+|\d{1,2})\b",
-            normalized,
+        model_pat = (
+            r"\b(iphone\s*\d{1,2}|ps\s*\d{1,2}|playstation\s*\d{1,2}|s25|s24|s23|x5|x6|m4|"
+            r"m3|m2|wh\-?1000xm5|wh\-?1000xm4|series\s*\d+|\d{1,2})\b"
         )
+        model_match = re.search(model_pat, normalized)
         if model_match:
             raw_m = model_match.group(0).replace(" ", "")
             model_number = re.sub(r"^(iphone|ps|playstation)\s*", "", raw_m, flags=re.I)
@@ -349,7 +355,7 @@ class SearchEngineService:
             if q_fam in p_name_norm:
                 score += 50.0
             else:
-                # If query specified family like "iPhone" or "MacBook" or "PS5" and product is in different family
+                # Query specified family (e.g. "iPhone" or "MacBook") but candidate differs
                 return 0.0  # STRICT EXCLUSION FOR WRONG FAMILY
 
         # 4. Strict Model Number Isolation (e.g. 15 vs 16, S25 vs S24, M4 vs M3, XM5 vs XM4)
@@ -373,8 +379,10 @@ class SearchEngineService:
         has_p_air = bool(re.search(r"\bair\b", p_name_norm))
 
         if q_var is None and (intent.family or intent.model_number):
-            # Query specified standard base model of a specific family/model (no "pro", "ultra", "plus", "max")
-            if has_p_pro or has_p_ultra or (has_p_plus and "iphone" in p_name_norm) or (has_p_air and "macbook" in p_name_norm):
+            # Query specified standard base model (no "pro", "ultra", "plus", "max")
+            has_plus_iphone = has_p_plus and "iphone" in p_name_norm
+            has_air_mac = has_p_air and "macbook" in p_name_norm
+            if has_p_pro or has_p_ultra or has_plus_iphone or has_air_mac:
                 return 0.0  # STRICT EXCLUSION FOR WRONG VARIANT
         else:
             # Query specified a variant suffix e.g. "pro", "air", "ultra", "pro max"
@@ -395,9 +403,10 @@ class SearchEngineService:
         if intent.generation:
             q_gen = intent.generation.lower().replace(" ", "")
             p_gen_clean = p_name_norm.replace(" ", "")
+            has_m_chips = any(m in p_gen_clean for m in ["m1", "m2", "m3", "m4"])
             if q_gen in p_gen_clean:
                 score += 40.0
-            elif any(m in p_gen_clean for m in ["m1", "m2", "m3", "m4"]) and q_gen not in p_gen_clean:
+            elif has_m_chips and q_gen not in p_gen_clean:
                 return 0.0  # STRICT EXCLUSION FOR WRONG GENERATION
 
         # 7. Category Compatibility Scoring & Penalty
@@ -406,9 +415,10 @@ class SearchEngineService:
             is_phone_item = "mobile" in p_cat.lower() or "phone" in p_name_norm
             is_headphone_item = "headphone" in p_cat.lower() or "earbuds" in p_name_norm
 
+            is_mobile = intent.category_intent == CATEGORY_MOBILE
             if intent.category_intent.lower() in p_cat.lower():
                 score += 30.0
-            elif intent.category_intent == CATEGORY_MOBILE and (is_laptop_item or is_headphone_item):
+            elif is_mobile and (is_laptop_item or is_headphone_item):
                 return 0.0
             elif intent.category_intent == CATEGORY_LAPTOP and is_phone_item:
                 return 0.0
@@ -424,7 +434,8 @@ class SearchEngineService:
             if len(token) >= 2:
                 if token in p_name_norm or token in p_brand.lower():
                     score += 10.0
-                if any(word.startswith(token) for word in p_name_norm.split() + p_brand.lower().split()):
+                words = p_name_norm.split() + p_brand.lower().split()
+                if any(word.startswith(token) for word in words):
                     score += 20.0
 
         # 10. Popularity & Rating Boost

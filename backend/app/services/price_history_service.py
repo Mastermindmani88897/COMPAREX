@@ -10,7 +10,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import desc, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -203,7 +203,12 @@ class PriceHistoryService:
             if total_observations == 1:
                 single_price = float(db_history_records[0].price)
 
-            eff_price = single_price or (base_price if base_price and base_price > 0 else None) or product_base_price or 0.0
+            eff_price = (
+                single_price
+                or (base_price if base_price and base_price > 0 else None)
+                or product_base_price
+                or 0.0
+            )
 
             return DictAttributeWrapper(
                 {
@@ -232,11 +237,11 @@ class PriceHistoryService:
                     "message": (
                         f"Only {total_observations} verified price observation(s) available. "
                         "Price history graph requires at least 2 real observations. "
-                        "CompareX will build this history as verified marketplace prices are collected."
+                        "CompareX will build history as verified prices are collected."
                         if total_observations == 1
                         else (
                             "No verified price history yet. "
-                            "CompareX will build price history as real marketplace prices are verified."
+                            "CompareX will build price history as real prices are verified."
                         )
                     ),
                     # Analytics placeholders
