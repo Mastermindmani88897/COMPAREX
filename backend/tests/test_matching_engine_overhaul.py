@@ -176,3 +176,110 @@ def test_marketplace_verification_exact_vs_rejected():
     assert is_match is False
     assert score == 0.0
     assert "ACCESSORY_MISMATCH" in reason
+
+
+def test_airpods_pro_relevance_isolation():
+    """
+    Search query: 'AirPods Pro'
+    Must match: Apple AirPods Pro (2nd Gen)
+    Must EXCLUDE: Apple AirPods 3rd Gen, Apple AirPods Max, Protective Case for AirPods Pro
+    """
+    valid_pro = DummyProduct("Apple AirPods Pro (2nd Generation) with MagSafe Case", "Apple", "Headphones")
+    wrong_gen = DummyProduct("Apple AirPods (3rd Generation) with Lightning Charging Case", "Apple", "Headphones")
+    wrong_max = DummyProduct("Apple AirPods Max Wireless Over-Ear Headphones", "Apple", "Headphones")
+    wrong_case = DummyProduct("Silicone Protective Case Cover for Apple AirPods Pro", "Spigen", "Accessories")
+
+    candidates = [valid_pro, wrong_gen, wrong_max, wrong_case]
+
+    results = SearchEngineService.filter_and_rank_products(
+        products=candidates,
+        raw_query="AirPods Pro",
+        min_threshold=40.0,
+    )
+
+    assert valid_pro in results
+    assert wrong_gen not in results
+    assert wrong_max not in results
+    assert wrong_case not in results
+
+
+def test_ps5_relevance_isolation():
+    """
+    Search query: 'PS5'
+    Must match: Sony PlayStation 5 Console (Disc Edition)
+    Must EXCLUDE: Sony PlayStation 4 Slim, DualSense Wireless Controller for PS5
+    """
+    valid_ps5 = DummyProduct("Sony PlayStation 5 Console (Disc Edition)", "Sony", "Gaming")
+    wrong_ps4 = DummyProduct("Sony PlayStation 4 Slim 1TB Console", "Sony", "Gaming")
+    wrong_accessory = DummyProduct("Sony DualSense Wireless Controller for PlayStation 5", "Sony", "Accessories")
+
+    candidates = [valid_ps5, wrong_ps4, wrong_accessory]
+
+    results = SearchEngineService.filter_and_rank_products(
+        products=candidates,
+        raw_query="PS5",
+        min_threshold=40.0,
+    )
+
+    assert valid_ps5 in results
+    assert wrong_ps4 not in results
+    assert wrong_accessory not in results
+
+
+def test_provider_failure_resilience_and_status_states():
+    """
+    Test MarketplaceAggregatorService _build_major_marketplace_status.
+    Verifies that major marketplaces return proper state objects (verified vs unavailable)
+    even when provider calls fail or encounter rate limits.
+    """
+    from app.services.aggregator_service import MarketplaceAggregatorService
+
+    verified_listings = [
+        {
+            "marketplace_slug": "amazon",
+            "title": "Samsung Galaxy S25 Ultra 5G",
+            "price": 129999.0,
+            "original_price": 139999.0,
+            "discount_percent": 7.0,
+            "currency": "INR",
+            "listing_url": "https://www.amazon.in/dp/B0D1234567",
+            "image_url": "https://m.media-amazon.com/images/I/71xxx.jpg",
+            "is_exact_url": True,
+            "is_available": True,
+            "match_score": 0.95,
+        }
+    ]
+
+    provider_statuses = {
+        "rainforest_amazon": "provider_rate_limit (429)",
+        "brightdata_flipkart": "provider_failure (500)",
+    }
+
+    status_list = MarketplaceAggregatorService._build_major_marketplace_status(
+        verified_listings=verified_listings,
+        provider_statuses=provider_statuses,
+        query="Samsung Galaxy S25 Ultra",
+        last_checked="2026-08-11T12:00:00Z",
+    )
+
+    # Must contain 7 major marketplaces
+    assert len(status_list) == 7
+    slugs = [s["slug"] for s in status_list]
+    assert "amazon" in slugs
+    assert "flipkart" in slugs
+    assert "croma" in slugs
+
+    # Amazon entry must be verified
+    amazon_entry = next(s for s in status_list if s["slug"] == "amazon")
+    assert amazon_entry["status"] == "verified"
+    assert amazon_entry["price"] == 129999.0
+    assert amazon_entry["has_verified_price"] is True
+    assert "Buy Now" in amazon_entry["action_label"] or amazon_entry["is_exact_url"] is True
+
+    # Flipkart entry must be unavailable (due to provider failure) with fallback search link
+    flipkart_entry = next(s for s in status_list if s["slug"] == "flipkart")
+    assert flipkart_entry["status"] == "unavailable"
+    assert flipkart_entry["price"] is None
+    assert flipkart_entry["has_verified_price"] is False
+    assert "flipkart.com/search" in flipkart_entry["listing_url"]
+
