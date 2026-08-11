@@ -21,6 +21,7 @@ from app.adapters.brightdata_adapter import BrightDataAdapter
 from app.adapters.rainforest_adapter import RainforestAdapter
 from app.adapters.serpapi_adapter import SerpApiAdapter
 from app.adapters.zenrows_adapter import ZenRowsAdapter
+from app.adapters.provider_status import ProviderResponse, ProviderStatus
 from app.core.logging import get_logger
 from app.core.redis import redis_client
 from app.services.matching_engine import ExactProductMatchEngine, SearchQueryGenerator
@@ -191,14 +192,21 @@ class MarketplaceAggregatorService:
                 # Determine reason
                 reason = "No verified listing found"
                 for prov_key, prov_status in provider_statuses.items():
-                    if "401" in prov_status or "authentication" in prov_status.lower():
-                        reason = "Provider authentication error"
+                    p_stat = str(prov_status).upper()
+                    if "PAYMENT_REQUIRED" in p_stat or "QUOTA_EXHAUSTED" in p_stat or "402" in p_stat:
+                        reason = "Provider credits exhausted (HTTP 402)"
                         break
-                    elif "402" in prov_status or "credit" in prov_status.lower():
-                        reason = "Provider credits exhausted"
+                    elif "CONFIGURATION_ERROR" in p_stat or "422" in p_stat:
+                        reason = "Provider configuration error (HTTP 422 - Unknown zone)"
                         break
-                    elif "provider_failure" in prov_status:
-                        reason = "Provider temporarily unavailable"
+                    elif "AUTHENTICATION_ERROR" in p_stat or "401" in p_stat:
+                        reason = "Provider authentication error (HTTP 401/403)"
+                        break
+                    elif "RATE_LIMITED" in p_stat or "429" in p_stat:
+                        reason = "Provider rate limit reached (HTTP 429)"
+                        break
+                    elif "TIMEOUT" in p_stat:
+                        reason = "Provider request timeout"
                         break
 
                 entry = {
@@ -380,10 +388,10 @@ class MarketplaceAggregatorService:
         serpapi = SerpApiAdapter()
         zenrows = ZenRowsAdapter()
 
-        rf_task = rainforest.search_products(clean_search_term, limit=limit_per_connector)
-        bd_task = brightdata.search_products(clean_search_term, limit=limit_per_connector)
-        sa_task = serpapi.search_products(clean_search_term, limit=limit_per_connector)
-        zr_task = zenrows.search_products(clean_search_term, limit=limit_per_connector)
+        rf_task = rainforest.search_products_detailed(clean_search_term, limit=limit_per_connector)
+        bd_task = brightdata.search_products_detailed(clean_search_term, limit=limit_per_connector)
+        sa_task = serpapi.search_products_detailed(clean_search_term, limit=limit_per_connector)
+        zr_task = zenrows.search_products_detailed(clean_search_term, limit=limit_per_connector)
 
         rf_res, bd_res, sa_res, zr_res = await asyncio.gather(
             rf_task, bd_task, sa_task, zr_task, return_exceptions=True
@@ -392,48 +400,42 @@ class MarketplaceAggregatorService:
         raw_candidates: List[Dict[str, Any]] = []
         provider_statuses: Dict[str, str] = {}
 
-        for provider_name, result, adapter in [
+        for provider_name, resp, adapter in [
             ("rainforest", rf_res, rainforest),
             ("brightdata", bd_res, brightdata),
             ("serpapi", sa_res, serpapi),
             ("zenrows", zr_res, zenrows),
         ]:
-            if isinstance(result, Exception):
-                err_str = str(result)
-                # Classify error type for observability
-                if "401" in err_str or "Unauthorized" in err_str or "authentication" in err_str.lower():
-                    status_str = "authentication_error (401)"
-                elif "402" in err_str or "Payment" in err_str or "credit" in err_str.lower():
-                    status_str = "credits_exhausted (402)"
-                elif "400" in err_str:
-                    status_str = "bad_request (400)"
-                elif "timeout" in err_str.lower() or "TimeoutException" in err_str:
-                    status_str = "timeout"
-                else:
-                    status_str = f"provider_failure ({type(result).__name__})"
+            if isinstance(resp, Exception):
+                err_str = str(resp)
+                provider_statuses[provider_name] = f"PROVIDER_FAILURE ({type(resp).__name__})"
                 logger.error(
-                    "PROVIDER_FAILURE | provider=%s | query='%s' | status=%s | error=%s",
+                    "PROVIDER_FAILURE | provider=%s | query='%s' | error=%s",
                     provider_name,
                     clean_search_term,
-                    status_str,
                     err_str[:200],
                 )
-                provider_statuses[provider_name] = status_str
-            elif isinstance(result, list):
-                count = len(result)
-                provider_statuses[provider_name] = (
-                    f"provider_success ({count} results)" if count else "provider_no_match"
-                )
+            elif isinstance(resp, ProviderResponse):
+                provider_statuses[provider_name] = resp.status.value
                 logger.info(
-                    "PROVIDER_SUCCESS | provider=%s | query='%s' | results=%d",
-                    provider_name,
-                    clean_search_term,
-                    count,
+                    "%s: HTTP %s status=%s raw_results=%d parsed_results=%d error='%s'",
+                    provider_name.upper(),
+                    resp.http_status,
+                    resp.status.value,
+                    resp.raw_result_count,
+                    resp.parsed_result_count,
+                    resp.error_message or "None",
                 )
-                for item in result:
+                for item in resp.results:
+                    raw_candidates.append(adapter.normalize_listing(item))
+            elif isinstance(resp, list):
+                count = len(resp)
+                status_str = "SUCCESS_WITH_RESULTS" if count else "SUCCESS_NO_RESULTS"
+                provider_statuses[provider_name] = status_str
+                for item in resp:
                     raw_candidates.append(adapter.normalize_listing(item))
             else:
-                provider_statuses[provider_name] = "provider_unknown_response"
+                provider_statuses[provider_name] = "UNKNOWN_ERROR"
 
         # ── 2. Exact Attribute Matching ──────────────────────────────────────────
         verified_listings: List[Dict[str, Any]] = []

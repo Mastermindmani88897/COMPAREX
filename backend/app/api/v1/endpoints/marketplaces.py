@@ -15,7 +15,26 @@ from app.schemas.common import SuccessResponse
 from app.schemas.marketplace import MarketplaceCreate, MarketplacePublic, MarketplaceUpdate
 from app.services.marketplace_service import MarketplaceService
 
+from app.adapters.provider_status import ProviderHealthTracker
+
 router = APIRouter(prefix="/marketplaces", tags=["Marketplaces"])
+
+
+@router.get(
+    "/health",
+    summary="Get Marketplace Provider Health & Quotas",
+    description=(
+        "Retrieve diagnostic health status, HTTP status codes, and quota states "
+        "for all external marketplace API providers. Secrets and API keys are never exposed."
+    ),
+)
+async def get_provider_health():
+    """Retrieve diagnostic provider health overview."""
+    health_data = ProviderHealthTracker.get_health_status()
+    return SuccessResponse(
+        message="Marketplace provider health retrieved successfully",
+        data=health_data,
+    )
 
 
 @router.get(

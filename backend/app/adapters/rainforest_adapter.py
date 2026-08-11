@@ -2,12 +2,15 @@
 COMPAREX Backend - Rainforest API Adapter (Amazon Specialist)
 
 Connects to Rainforest API (https://api.rainforestapi.com/request) for live Amazon product data.
+Includes diagnostic provider status classification and health tracking.
 """
 
+import time
 from typing import Any, Dict, List
 import httpx
 
 from app.adapters.base import BaseMarketplaceAdapter
+from app.adapters.provider_status import ProviderHealthTracker, ProviderResponse, ProviderStatus
 from app.core.config import settings
 from app.core.logging import get_logger
 
@@ -24,13 +27,25 @@ class RainforestAdapter(BaseMarketplaceAdapter):
         self.api_key = settings.RAINFOREST_API_KEY or ""
         self.api_url = "https://api.rainforestapi.com/request"
 
-    async def search_products(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Query Rainforest API for Amazon India products matching search query."""
-        if not self.api_key:
-            logger.warning("Rainforest API key not configured.")
-            return []
+    async def search_products_detailed(self, query: str, limit: int = 10) -> ProviderResponse:
+        """Detailed query returning structured ProviderResponse."""
+        start_t = time.time()
+        is_cfg = bool(self.api_key)
 
-        logger.info("MARKETPLACE API REQUEST: provider='Rainforest', query='%s'", query)
+        if not is_cfg:
+            logger.warning("Rainforest API key not configured.")
+            ProviderHealthTracker.record_call(
+                provider="Rainforest",
+                configured=False,
+                status=ProviderStatus.NOT_CONFIGURED,
+                error_message="Rainforest Key not configured",
+            )
+            return ProviderResponse(
+                provider_name="Rainforest",
+                status=ProviderStatus.NOT_CONFIGURED,
+                error_message="API Key not configured",
+            )
+
         params = {
             "api_key": self.api_key,
             "type": "search",
@@ -39,12 +54,16 @@ class RainforestAdapter(BaseMarketplaceAdapter):
         }
 
         try:
-            async with httpx.AsyncClient(timeout=8.0) as client:
+            async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(self.api_url, params=params)
+                elapsed_ms = (time.time() - start_t) * 1000.0
+
                 if response.status_code == 200:
                     data = response.json()
                     search_results = data.get("search_results", [])
+                    raw_count = len(search_results)
                     listings = []
+
                     for item in search_results[:limit]:
                         price_obj = item.get("price", {})
                         raw_price = price_obj.get("value") if isinstance(price_obj, dict) else None
@@ -61,7 +80,6 @@ class RainforestAdapter(BaseMarketplaceAdapter):
                             if item.get("ratings_total")
                             else 120
                         )
-
                         delivery_info = item.get("delivery", {})
                         is_prime = (
                             bool(delivery_info.get("is_prime", True))
@@ -97,65 +115,141 @@ class RainforestAdapter(BaseMarketplaceAdapter):
                                 ),
                             }
                         )
-                    logger.info(
-                        "Rainforest API fetched %d Amazon listings for '%s'", len(listings), query
-                    )
-                    return listings
-                else:
-                    logger.warning(
-                        "Rainforest API error status %d: %s",
-                        response.status_code,
-                        response.text[:200],
-                    )
-        except Exception as exc:
-            logger.error("PROVIDER FAILURE Rainforest API: query='%s', error='%s'", query, exc)
 
-        return []
+                    parsed_count = len(listings)
+                    status = (
+                        ProviderStatus.SUCCESS_WITH_RESULTS
+                        if parsed_count > 0
+                        else ProviderStatus.SUCCESS_NO_RESULTS
+                    )
+
+                    logger.info(
+                        "RAINFOREST: HTTP 200 status=%s raw_results=%d parsed_results=%d query='%s'",
+                        status.value,
+                        raw_count,
+                        parsed_count,
+                        query,
+                    )
+                    ProviderHealthTracker.record_call(
+                        provider="Rainforest",
+                        configured=True,
+                        status=status,
+                        http_status=200,
+                        result_count=parsed_count,
+                        response_time_ms=elapsed_ms,
+                    )
+                    return ProviderResponse(
+                        provider_name="Rainforest",
+                        status=status,
+                        http_status=200,
+                        results=listings,
+                        raw_result_count=raw_count,
+                        parsed_result_count=parsed_count,
+                        response_time_ms=elapsed_ms,
+                    )
+                elif response.status_code in (402, 429):
+                    status = ProviderStatus.PAYMENT_REQUIRED if response.status_code == 402 else ProviderStatus.RATE_LIMITED
+                    err_msg = "HTTP 402 Payment Required - Rainforest API credits exhausted" if response.status_code == 402 else "HTTP 429 Rate Limit"
+                    logger.warning("RAINFOREST: HTTP %d status=%s error='%s'", response.status_code, status.value, err_msg)
+                    ProviderHealthTracker.record_call(
+                        provider="Rainforest",
+                        configured=True,
+                        status=status,
+                        http_status=response.status_code,
+                        error_message=err_msg,
+                        response_time_ms=elapsed_ms,
+                    )
+                    return ProviderResponse(
+                        provider_name="Rainforest",
+                        status=status,
+                        http_status=response.status_code,
+                        error_message=err_msg,
+                        response_time_ms=elapsed_ms,
+                    )
+                else:
+                    err_msg = f"HTTP {response.status_code}: {response.text[:200]}"
+                    status = ProviderStatus.AUTHENTICATION_ERROR if response.status_code in (401, 403) else ProviderStatus.UNKNOWN_ERROR
+                    logger.warning("RAINFOREST: HTTP %d status=%s", response.status_code, status.value)
+                    ProviderHealthTracker.record_call(
+                        provider="Rainforest",
+                        configured=True,
+                        status=status,
+                        http_status=response.status_code,
+                        error_message=err_msg,
+                        response_time_ms=elapsed_ms,
+                    )
+                    return ProviderResponse(
+                        provider_name="Rainforest",
+                        status=status,
+                        http_status=response.status_code,
+                        error_message=err_msg,
+                        response_time_ms=elapsed_ms,
+                    )
+
+        except httpx.TimeoutException:
+            elapsed_ms = (time.time() - start_t) * 1000.0
+            logger.error("RAINFOREST: TIMEOUT query='%s'", query)
+            ProviderHealthTracker.record_call(
+                provider="Rainforest",
+                configured=True,
+                status=ProviderStatus.TIMEOUT,
+                error_message="Request timeout",
+                response_time_ms=elapsed_ms,
+            )
+            return ProviderResponse(
+                provider_name="Rainforest",
+                status=ProviderStatus.TIMEOUT,
+                error_message="Request timeout",
+                response_time_ms=elapsed_ms,
+            )
+        except Exception as exc:
+            elapsed_ms = (time.time() - start_t) * 1000.0
+            logger.error("RAINFOREST: NETWORK_ERROR error='%s'", exc)
+            ProviderHealthTracker.record_call(
+                provider="Rainforest",
+                configured=True,
+                status=ProviderStatus.NETWORK_ERROR,
+                error_message=str(exc),
+                response_time_ms=elapsed_ms,
+            )
+            return ProviderResponse(
+                provider_name="Rainforest",
+                status=ProviderStatus.NETWORK_ERROR,
+                error_message=str(exc),
+                response_time_ms=elapsed_ms,
+            )
+
+    async def search_products(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Backwards compatible search."""
+        resp = await self.search_products_detailed(query=query, limit=limit)
+        return resp.results
 
     async def fetch_product_details(self, listing_url: str) -> Dict[str, Any]:
-        """Fetch product details for a given listing URL."""
-        return {
-            "title": "Amazon Product Details",
-            "price": 0.0,
-            "listing_url": listing_url,
-            "marketplace_slug": "amazon",
-        }
+        return {"title": "Amazon Product Details", "price": 0.0, "listing_url": listing_url}
 
     async def fetch_latest_price(self, listing_url: str) -> Dict[str, Any]:
-        """Fetch latest price for a listing URL."""
-        return {
-            "price": 0.0,
-            "currency": "INR",
-            "is_available": True,
-        }
+        return {"price": 0.0, "currency": "INR", "is_available": True}
 
     def normalize_listing(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Normalize raw payload into standard COMPAREX format."""
         return {
-            "title": raw_data.get("title", "Amazon Item"),
+            "title": raw_data.get("title", "Amazon Product"),
             "price": float(raw_data.get("price", 0.0)),
-            "original_price": (
-                float(raw_data["original_price"]) if raw_data.get("original_price") else None
-            ),
-            "discount_percent": (
-                float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None
-            ),
+            "original_price": float(raw_data["original_price"]) if raw_data.get("original_price") else None,
+            "discount_percent": float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None,
             "currency": raw_data.get("currency", "INR"),
             "listing_url": raw_data.get("listing_url", "https://www.amazon.in"),
-            "marketplace_product_id": raw_data.get("marketplace_product_id", "AMZ-01"),
-            "seller_name": raw_data.get("seller_name", "Amazon Seller"),
+            "marketplace_product_id": raw_data.get("marketplace_product_id", "AMZN-01"),
+            "seller_name": raw_data.get("seller_name", "Amazon Merchant"),
             "is_available": bool(raw_data.get("is_available", True)),
             "is_prime": bool(raw_data.get("is_prime", True)),
             "stock_status": raw_data.get("stock_status", "IN_STOCK"),
-            "delivery_estimate": raw_data.get("delivery_estimate", "Tomorrow"),
+            "delivery_estimate": raw_data.get("delivery_estimate", "Express Delivery Tomorrow"),
             "rating": float(raw_data.get("rating", 4.5)),
-            "review_count": int(raw_data.get("review_count", 100)),
+            "review_count": int(raw_data.get("review_count", 120)),
             "image_url": raw_data.get("image_url", ""),
             "marketplace_slug": "amazon",
             "marketplace_name": "Amazon",
-            "marketplace_logo": (
-                "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg"
-            ),
-            "data_priority": 1,
+            "marketplace_logo": "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg",
+            "data_priority": 2,
             "marketplace_source": "Rainforest API",
         }

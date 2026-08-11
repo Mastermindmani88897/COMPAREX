@@ -3,12 +3,16 @@ COMPAREX Backend - SerpAPI Adapter (Google Shopping Specialist)
 
 Connects to SerpAPI (https://serpapi.com/search.json?engine=google_shopping) to fetch
 real-time price comparisons across multi-merchant Google Shopping aggregations.
+Includes diagnostic provider status classification and health tracking.
 """
 
-from typing import Any, Dict, List
+import re
+import time
+from typing import Any, Dict, List, Optional
 import httpx
 
 from app.adapters.base import BaseMarketplaceAdapter
+from app.adapters.provider_status import ProviderHealthTracker, ProviderResponse, ProviderStatus
 from app.core.config import settings
 from app.core.logging import get_logger
 
@@ -30,6 +34,19 @@ STORE_LOGOS = {
 }
 
 
+def _parse_price(val: Any) -> float:
+    """Robust price parsing handling INR format, strings with commas, and floats."""
+    if isinstance(val, (int, float)):
+        return float(val)
+    if not val or not isinstance(val, str):
+        return 0.0
+    cleaned = re.sub(r"[^\d.]", "", val.replace(",", ""))
+    try:
+        return float(cleaned) if cleaned else 0.0
+    except ValueError:
+        return 0.0
+
+
 class SerpApiAdapter(BaseMarketplaceAdapter):
     """Adapter for SerpAPI Google Shopping search results."""
 
@@ -42,13 +59,25 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
         self.api_key = settings.SERPAPI_API_KEY or ""
         self.api_url = "https://serpapi.com/search.json"
 
-    async def search_products(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Query SerpAPI Google Shopping engine."""
-        if not self.api_key:
-            logger.warning("SerpAPI key not configured.")
-            return []
+    async def search_products_detailed(self, query: str, limit: int = 10) -> ProviderResponse:
+        """Detailed query returning structured ProviderResponse."""
+        start_t = time.time()
+        is_cfg = bool(self.api_key)
 
-        logger.info("MARKETPLACE API REQUEST: provider='SerpAPI', query='%s'", query)
+        if not is_cfg:
+            logger.warning("SerpAPI key not configured.")
+            ProviderHealthTracker.record_call(
+                provider="SerpAPI",
+                configured=False,
+                status=ProviderStatus.NOT_CONFIGURED,
+                error_message="SerpAPI Key not configured",
+            )
+            return ProviderResponse(
+                provider_name="SerpAPI",
+                status=ProviderStatus.NOT_CONFIGURED,
+                error_message="API Key not configured",
+            )
+
         params = {
             "engine": "google_shopping",
             "q": query,
@@ -58,28 +87,58 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
         }
 
         try:
-            async with httpx.AsyncClient(timeout=8.0) as client:
+            async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(self.api_url, params=params)
+                elapsed_ms = (time.time() - start_t) * 1000.0
+
                 if response.status_code == 200:
                     data = response.json()
-                    results = data.get("shopping_results", [])
-                    listings = []
-                    for item in results[:limit]:
-                        extracted_price = item.get("extracted_price")
-                        if not extracted_price:
-                            price_str = item.get("price", "")
-                            # Parse digits from price string e.g. "₹79,999" -> 79999.0
-                            digits = "".join([c for c in price_str if c.isdigit() or c == "."])
-                            extracted_price = float(digits) if digits else 0.0
+
+                    # Check for SerpAPI error payload inside HTTP 200 response
+                    if "error" in data:
+                        err_msg = str(data.get("error", ""))
+                        status = ProviderStatus.QUOTA_EXHAUSTED if ("out of searches" in err_msg.lower() or "credit" in err_msg.lower()) else ProviderStatus.CONFIGURATION_ERROR
+                        logger.warning(
+                            "SERPAPI: HTTP 200 status=%s error='%s'", status.value, err_msg
+                        )
+                        ProviderHealthTracker.record_call(
+                            provider="SerpAPI",
+                            configured=True,
+                            status=status,
+                            http_status=200,
+                            error_message=err_msg,
+                            response_time_ms=elapsed_ms,
+                        )
+                        return ProviderResponse(
+                            provider_name="SerpAPI",
+                            status=status,
+                            http_status=200,
+                            error_message=err_msg,
+                            response_time_ms=elapsed_ms,
+                        )
+
+                    # Extract items across supported SerpAPI keys
+                    raw_items = (
+                        data.get("shopping_results")
+                        or data.get("inline_shopping_results")
+                        or data.get("organic_results")
+                        or []
+                    )
+
+                    raw_count = len(raw_items)
+                    listings: List[Dict[str, Any]] = []
+
+                    for item in raw_items[:limit]:
+                        extracted_price = _parse_price(item.get("extracted_price"))
+                        if extracted_price == 0.0:
+                            extracted_price = _parse_price(item.get("price"))
 
                         if extracted_price == 0.0:
                             continue
 
                         merchant = item.get("source", "Google Merchant")
                         merchant_slug = merchant.lower().replace(" ", "_")
-
                         logo = STORE_LOGOS.get(merchant.lower(), "")
-
                         delivery = item.get("delivery") or "Standard Delivery"
                         rating = float(item["rating"]) if item.get("rating") else None
                         reviews = int(item["reviews"]) if item.get("reviews") else None
@@ -107,24 +166,105 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
                                 "delivery_estimate": delivery,
                                 "rating": rating,
                                 "review_count": reviews,
-                                "image_url": item.get("thumbnail", ""),
+                                "image_url": item.get("thumbnail") or item.get("image") or "",
                                 "marketplace_slug": merchant_slug,
                                 "marketplace_name": merchant,
                                 "marketplace_logo": logo,
                             }
                         )
-                    logger.info(
-                        "SerpAPI Google Shopping fetched %d listings for '%s'", len(listings), query
-                    )
-                    return listings
-                else:
-                    logger.warning(
-                        "SerpAPI error status %d: %s", response.status_code, response.text[:200]
-                    )
-        except Exception as exc:
-            logger.error("PROVIDER FAILURE SerpAPI: query='%s', error='%s'", query, exc)
 
-        return []
+                    parsed_count = len(listings)
+                    status = (
+                        ProviderStatus.SUCCESS_WITH_RESULTS
+                        if parsed_count > 0
+                        else ProviderStatus.SUCCESS_NO_RESULTS
+                    )
+
+                    logger.info(
+                        "SERPAPI: HTTP 200 status=%s raw_results=%d parsed_results=%d query='%s'",
+                        status.value,
+                        raw_count,
+                        parsed_count,
+                        query,
+                    )
+
+                    ProviderHealthTracker.record_call(
+                        provider="SerpAPI",
+                        configured=True,
+                        status=status,
+                        http_status=200,
+                        result_count=parsed_count,
+                        response_time_ms=elapsed_ms,
+                    )
+
+                    return ProviderResponse(
+                        provider_name="SerpAPI",
+                        status=status,
+                        http_status=200,
+                        results=listings,
+                        raw_result_count=raw_count,
+                        parsed_result_count=parsed_count,
+                        response_time_ms=elapsed_ms,
+                    )
+                else:
+                    err_msg = f"HTTP {response.status_code}: {response.text[:200]}"
+                    status = ProviderStatus.RATE_LIMITED if response.status_code == 429 else (
+                        ProviderStatus.AUTHENTICATION_ERROR if response.status_code in (401, 403) else ProviderStatus.UNKNOWN_ERROR
+                    )
+                    logger.warning("SERPAPI: HTTP %d status=%s", response.status_code, status.value)
+                    ProviderHealthTracker.record_call(
+                        provider="SerpAPI",
+                        configured=True,
+                        status=status,
+                        http_status=response.status_code,
+                        error_message=err_msg,
+                        response_time_ms=elapsed_ms,
+                    )
+                    return ProviderResponse(
+                        provider_name="SerpAPI",
+                        status=status,
+                        http_status=response.status_code,
+                        error_message=err_msg,
+                        response_time_ms=elapsed_ms,
+                    )
+
+        except httpx.TimeoutException:
+            elapsed_ms = (time.time() - start_t) * 1000.0
+            logger.error("SERPAPI: TIMEOUT query='%s'", query)
+            ProviderHealthTracker.record_call(
+                provider="SerpAPI",
+                configured=True,
+                status=ProviderStatus.TIMEOUT,
+                error_message="Request timeout",
+                response_time_ms=elapsed_ms,
+            )
+            return ProviderResponse(
+                provider_name="SerpAPI",
+                status=ProviderStatus.TIMEOUT,
+                error_message="Request timeout",
+                response_time_ms=elapsed_ms,
+            )
+        except Exception as exc:
+            elapsed_ms = (time.time() - start_t) * 1000.0
+            logger.error("SERPAPI: NETWORK_ERROR error='%s'", exc)
+            ProviderHealthTracker.record_call(
+                provider="SerpAPI",
+                configured=True,
+                status=ProviderStatus.NETWORK_ERROR,
+                error_message=str(exc),
+                response_time_ms=elapsed_ms,
+            )
+            return ProviderResponse(
+                provider_name="SerpAPI",
+                status=ProviderStatus.NETWORK_ERROR,
+                error_message=str(exc),
+                response_time_ms=elapsed_ms,
+            )
+
+    async def search_products(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Backwards compatible list return."""
+        resp = await self.search_products_detailed(query=query, limit=limit)
+        return resp.results
 
     async def fetch_product_details(self, listing_url: str) -> Dict[str, Any]:
         return {"title": "Google Shopping Details", "price": 0.0, "listing_url": listing_url}
@@ -136,38 +276,25 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
         merchant = raw_data.get("seller_name", "Google Merchant")
         slug = raw_data.get("marketplace_slug") or merchant.lower().replace(" ", "_")
         logo = raw_data.get("marketplace_logo") or STORE_LOGOS.get(merchant.lower(), "")
-
-        r_val = raw_data.get("rating")
-        rating = float(r_val) if r_val is not None else None
-
-        rev_val = raw_data.get("review_count")
-        review_count = int(rev_val) if rev_val is not None else None
-
         return {
             "title": raw_data.get("title", f"Listing on {merchant}"),
             "price": float(raw_data.get("price", 0.0)),
-            "original_price": (
-                float(raw_data["original_price"]) if raw_data.get("original_price") else None
-            ),
-            "discount_percent": (
-                float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None
-            ),
+            "original_price": float(raw_data["original_price"]) if raw_data.get("original_price") else None,
+            "discount_percent": float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None,
             "currency": raw_data.get("currency", "INR"),
-            "listing_url": raw_data.get("listing_url", "https://shopping.google.com"),
-            "marketplace_product_id": raw_data.get(
-                "marketplace_product_id", f"{slug.upper()}-SERP"
-            ),
+            "listing_url": raw_data.get("listing_url", "https://www.google.com"),
+            "marketplace_product_id": raw_data.get("marketplace_product_id", "SERP-01"),
             "seller_name": merchant,
             "is_available": bool(raw_data.get("is_available", True)),
             "is_prime": False,
             "stock_status": raw_data.get("stock_status", "IN_STOCK"),
             "delivery_estimate": raw_data.get("delivery_estimate", "Standard Delivery"),
-            "rating": rating,
-            "review_count": review_count,
+            "rating": float(raw_data["rating"]) if raw_data.get("rating") else None,
+            "review_count": int(raw_data["review_count"]) if raw_data.get("review_count") else None,
             "image_url": raw_data.get("image_url", ""),
             "marketplace_slug": slug,
             "marketplace_name": merchant,
             "marketplace_logo": logo,
-            "data_priority": 3,
+            "data_priority": 2,
             "marketplace_source": "SerpAPI",
         }
