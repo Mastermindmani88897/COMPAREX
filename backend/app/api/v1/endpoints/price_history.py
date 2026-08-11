@@ -28,7 +28,7 @@ router = APIRouter(prefix="/price-history", tags=["Price History Intelligence"])
 async def get_product_price_history(
     product_id: UUID,
     product_name: Optional[str] = Query(None, description="Product display title"),
-    base_price: float = Query(49999.0, description="Base current price"),
+    base_price: Optional[float] = Query(None, description="Base current price"),
     time_range: str = Query("30d", description="Time filter: 24h, 7d, 30d, 3m, 6m, 1y, all"),
     db: AsyncSession = Depends(get_db),
 ):

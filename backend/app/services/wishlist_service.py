@@ -68,7 +68,7 @@ class WishlistService:
                     continue
 
             # Live Aggregated Price Lookup
-            live_price = product.base_price or Decimal("19999.00")
+            live_price = product.base_price or Decimal("0.0")
             try:
                 agg = await MarketplaceAggregatorService.aggregate_search(
                     query=product.name, use_cache=True
@@ -179,7 +179,7 @@ class WishlistService:
             target = req.target_price or product.base_price
             await self._sync_price_alert(current_user.id, product.id, target)
 
-        live_price = product.base_price or Decimal("19999.00")
+        live_price = product.base_price or Decimal("0.0")
 
         return WishlistItemPublic(
             id=item.id,

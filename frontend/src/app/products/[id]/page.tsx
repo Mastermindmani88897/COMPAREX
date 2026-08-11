@@ -70,13 +70,19 @@ interface MajorMarketplaceStatusItem {
   logo_url?: string;
   priority: number;
   status: "verified" | "unavailable" | "not_checked";
+  title?: string | null;
   price: number | null;
+  original_price?: number | null;
+  discount_percent?: number | null;
   currency?: string;
   listing_url: string;
   search_url: string;
+  image_url?: string | null;
   is_exact_url?: boolean;
   seller_name?: string | null;
   delivery_estimate?: string | null;
+  rating?: number | null;
+  review_count?: number | null;
   is_available?: boolean | null;
   match_score?: number | null;
   last_checked?: string;
@@ -798,36 +804,53 @@ export default function ProductDetailPage() {
                   style={mp.has_verified_price ? {} : { background: "var(--background)", borderColor: "var(--border)" }}
                 >
                   {/* Store header */}
-                  <div className="flex items-center gap-2.5 mb-3">
-                    {mp.logo_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={mp.logo_url} alt={mp.name} className="h-6 w-auto max-w-[60px] object-contain" />
-                    ) : (
-                      <div className="h-6 w-6 rounded-lg bg-indigo-500/20 flex items-center justify-center">
-                        <span className="text-[10px] font-bold text-indigo-400">{mp.name[0]}</span>
-                      </div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
+                      {mp.logo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={mp.logo_url} alt={mp.name} className="h-6 w-auto max-w-[60px] object-contain" />
+                      ) : (
+                        <div className="h-6 w-6 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+                          <span className="text-[10px] font-bold text-indigo-400">{mp.name[0]}</span>
+                        </div>
+                      )}
+                      <span className="text-xs font-bold" style={{ color: "var(--foreground)" }}>{mp.name}</span>
+                    </div>
+
+                    {mp.has_verified_price && (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        <CheckCircle2 className="h-2.5 w-2.5" /> Verified
+                      </span>
                     )}
-                    <span className="text-xs font-bold" style={{ color: "var(--foreground)" }}>{mp.name}</span>
                   </div>
 
                   {/* Price or status */}
                   {mp.has_verified_price && mp.price ? (
                     <>
-                      <p className="text-xl font-black text-emerald-400">
-                        ₹{Number(mp.price).toLocaleString("en-IN")}
-                      </p>
+                      <div className="flex items-baseline gap-2">
+                        <p className="text-xl font-black text-emerald-400">
+                          ₹{Number(mp.price).toLocaleString("en-IN")}
+                        </p>
+                        {mp.original_price && mp.original_price > mp.price && (
+                          <span className="text-xs line-through" style={{ color: "var(--foreground-muted)" }}>
+                            ₹{Number(mp.original_price).toLocaleString("en-IN")}
+                          </span>
+                        )}
+                        {mp.discount_percent && mp.discount_percent > 0 && (
+                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                            {Math.round(mp.discount_percent)}% OFF
+                          </span>
+                        )}
+                      </div>
                       {mp.seller_name && (
-                        <p className="text-[10px] mt-0.5" style={{ color: "var(--foreground-muted)" }}>
-                          {mp.seller_name}
+                        <p className="text-[10px] mt-0.5 truncate" style={{ color: "var(--foreground-muted)" }}>
+                          Seller: {mp.seller_name}
                         </p>
                       )}
                       {mp.delivery_estimate && (
                         <p className="text-[10px] flex items-center gap-1 mt-1 text-indigo-400">
                           <Clock className="h-3 w-3" /> {mp.delivery_estimate}
                         </p>
-                      )}
-                      {mp.match_score && mp.match_score < 0.95 && (
-                        <span className="text-[10px] text-amber-400 font-semibold">Match: {Math.round(mp.match_score * 100)}%</span>
                       )}
                     </>
                   ) : (
@@ -843,21 +866,21 @@ export default function ProductDetailPage() {
                     </>
                   )}
 
-                  {/* CTA */}
+                  {/* Action Button: "Buy Now" for verified direct listing vs "Search [Marketplace]" for fallback */}
                   <a
-                    href={mp.listing_url || mp.search_url}
+                    href={mp.has_verified_price ? mp.listing_url : mp.search_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`mt-3 inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all ${
+                    className={`mt-3 w-full inline-flex items-center justify-center gap-1.5 text-[11px] font-bold px-3 py-2 rounded-xl transition-all shadow-sm ${
                       mp.has_verified_price
-                        ? "gradient-bg text-white hover:opacity-90"
+                        ? "gradient-bg text-white hover:opacity-95 hover:shadow-indigo-500/25"
                         : "bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20"
                     }`}
                   >
                     {mp.has_verified_price ? (
-                      <><CheckCircle2 className="h-3 w-3" /> Buy on {mp.name}</>
+                      <><ShoppingBag className="h-3.5 w-3.5" /> Buy Now on {mp.name}</>
                     ) : (
-                      <><ExternalLink className="h-3 w-3" /> Search {mp.name}</>
+                      <><Search className="h-3.5 w-3.5" /> Search {mp.name}</>
                     )}
                   </a>
                 </div>

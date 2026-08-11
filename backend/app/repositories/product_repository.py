@@ -93,8 +93,8 @@ class ProductRepository(BaseRepository[Product]):
                     )
             if intent.brand:
                 term_conds.append(Product.brand.ilike(f"%{intent.brand}%"))
-            if intent.model:
-                term_conds.append(Product.name.ilike(f"%{intent.model}%"))
+            if intent.model_number:
+                term_conds.append(Product.name.ilike(f"%{intent.model_number}%"))
 
             if term_conds:
                 conditions.append(or_(*term_conds))
@@ -128,7 +128,7 @@ class ProductRepository(BaseRepository[Product]):
             result = await self.db.execute(stmt)
             return list(result.scalars().all())
 
-        # If query IS provided: fetch candidate pool (limit 250) and score/filter strictly
+        # If query IS provided: fetch candidate pool (limit 300) and score/filter strictly
         stmt = stmt.limit(300)
         result = await self.db.execute(stmt)
         candidates = list(result.scalars().all())
@@ -137,8 +137,9 @@ class ProductRepository(BaseRepository[Product]):
         ranked = SearchEngineService.filter_and_rank_products(
             products=candidates,
             raw_query=query,
-            min_threshold=35.0,
+            min_threshold=40.0,
         )
+
 
         # Apply user sort override if requested
         if sort_by == "price_low":

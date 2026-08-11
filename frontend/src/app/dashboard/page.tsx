@@ -201,7 +201,7 @@ export default function DashboardPage() {
             }}
             productId={activeAlertProduct.id}
             productName={activeAlertProduct.name}
-            currentPrice={Number(activeAlertProduct.base_price) || 19999}
+            currentPrice={Number(activeAlertProduct.base_price) || 0}
           />
         )}
 

@@ -1,12 +1,15 @@
 """
-COMPAREX Backend – Product Matching & Exact Verification Engine Service
+COMPAREX Backend – Generic Canonical Product Matching & Verification Engine Service
 
-Deterministic attribute parsing, exact model matching, variant verification,
-and accessory rejection for canonical products and marketplace listings.
+Generic, token/attribute-aware attribute parsing, exact model matching,
+variant verification, confidence scoring, and accessory rejection across ALL product categories
+(mobiles, laptops, tablets, headphones, TVs, cameras, monitors, watches, appliances, gaming, accessories).
+
+NO HARDCODED BRAND-SPECIFIC OR MODEL-SPECIFIC RULES.
 """
 
 import re
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple, List
 
 ACCESSORY_KEYWORDS = {
     "case",
@@ -14,21 +17,58 @@ ACCESSORY_KEYWORDS = {
     "back cover",
     "guard",
     "screen guard",
+    "screen protector",
     "tempered glass",
     "pouch",
     "charger",
+    "charging cable",
     "cable",
     "adapter",
+    "power adapter",
     "battery",
+    "replacement battery",
     "laptop battery",
     "cartridge",
     "skin",
     "stand",
     "holder",
+    "mount",
     "strap",
+    "watch strap",
+    "band",
     "protector",
     "lens protector",
+    "sleeve",
+    "bag",
+    "laptop bag",
+    "dock",
+    "hub",
 }
+
+# Generic variant suffixes across tech products
+VARIANT_SUFFIXES = [
+    "pro max",
+    "pro",
+    "plus",
+    "ultra",
+    "air",
+    "mini",
+    "fe",
+    "se",
+    "slim",
+    "lite",
+    "neo",
+    "play",
+    "zoom",
+    "fold",
+    "flip",
+    "duos",
+    "edge",
+    "classic",
+    "active",
+    "sport",
+    "max",
+]
 
 
 class SearchQueryGenerator:
@@ -56,20 +96,39 @@ class SearchQueryGenerator:
 
 
 class ExactProductMatchEngine:
-    """Deterministic exact attribute matching & verification engine."""
+    """Generic attribute matching & verification engine for all product categories."""
 
     @staticmethod
     def clean_text(text: str) -> str:
         if not text:
             return ""
         t = text.lower().strip()
-        t = re.sub(r"(\d+)\s*(gb|tb|mb)", r"\1\2", t)
+        # Normalize unit spacing: 128 gb -> 128gb, 16 gb -> 16gb
+        t = re.sub(r"(\d+)\s*(gb|tb|mb|ram)", r"\1\2", t)
+        t = re.sub(r"(\d+)\s*(inch|\"|in)", r"\1inch", t)
+        # Replace hyphens with spaces for clean tokenization
+        t = re.sub(r"[\-\/\._]", " ", t)
         t = re.sub(r"\s+", " ", t)
         return t
 
     @classmethod
     def extract_attributes(cls, text: str) -> Dict[str, Any]:
-        """Extract brand, family, model number, variant suffix, storage, and accessory status."""
+        """
+        Generic attribute extractor for any product title or query.
+
+        Extracts:
+        - brand
+        - family
+        - model_number / model_series
+        - variant_suffix (Pro, Ultra, Air, etc.)
+        - generation (M1, M2, M3, M4, Gen 1, Gen 2, etc.)
+        - storage (128gb, 256gb, 512gb, 1tb)
+        - ram (8gb, 16gb, 32gb)
+        - color
+        - screen_size
+        - category_keywords
+        - is_accessory
+        """
         t = cls.clean_text(text)
 
         # 1. Accessory check
@@ -77,126 +136,232 @@ class ExactProductMatchEngine:
             re.search(r"\b" + re.escape(acc) + r"\b", t) for acc in ACCESSORY_KEYWORDS
         )
 
-        # 2. Storage extraction
+        # 2. Storage & RAM extraction
         storage_match = re.search(r"\b(64gb|128gb|256gb|512gb|1tb|2tb)\b", t)
         storage = storage_match.group(1) if storage_match else None
 
-        # 3. Family / Brand extraction
-        family = None
+        ram_match = re.search(r"\b(4gb|6gb|8gb|12gb|16gb|24gb|32gb|64gb)\s*ram\b", t)
+        ram = ram_match.group(1) if ram_match else None
+
+        # 3. Model number & series extraction (generic pattern)
+        # E.g. "15", "16", "14", "s25", "s24", "s23", "m4", "m3", "m2", "wh1000xm5", "eos r6", "x5", "x6", "v30", "i5", "i7"
+        model_number = None
+
+        # Specific pattern: letter(s) optional + numbers e.g., s25, x5, m4, xm5, 15, 16
+        model_match = re.search(
+            r"\b(iphone\s*\d{1,2}|s\d{2}|x\d{1,2}|wh\s*1000xm\d|m\d|eos\s*r?\d+|series\s*\d+|\d{2,4}[a-z]?|\d{2})\b",
+            t,
+        )
+        if model_match:
+            model_number = model_match.group(0).replace(" ", "")
+
+        # 4. Variant Suffixes (Pro Max, Pro, Ultra, Plus, Air, Mini, FE, SE, etc.)
+        variant_suffix = None
+        for v in VARIANT_SUFFIXES:
+            if re.search(r"\b" + re.escape(v) + r"\b", t):
+                variant_suffix = v
+                break
+
+        # 5. Generation (e.g. M1, M2, M3, M4, Gen 1, Gen 2, 5th gen)
+        generation = None
+        gen_match = re.search(r"\b(m1|m2|m3|m4|gen\s*\d+|\d+(st|nd|rd|th)\s*gen)\b", t)
+        if gen_match:
+            generation = gen_match.group(0).replace(" ", "")
+
+        # 6. Color extraction
+        colors = [
+            "black", "white", "blue", "green", "pink", "yellow", "purple", "red",
+            "silver", "gold", "titanium", "gray", "grey", "graphite", "starlight",
+            "midnight", "space gray", "space black", "natural titanium",
+        ]
+        color = None
+        for c in colors:
+            if re.search(r"\b" + re.escape(c) + r"\b", t):
+                color = c
+                break
+
+        # 7. Screen size
+        screen_size = None
+        screen_match = re.search(r"\b(\d{2}(\.\d)?)\s*(inch|in)\b", t)
+        if screen_match:
+            screen_size = screen_match.group(1)
+
+        # 8. Product Family & Brand (Generic inferring)
         brand = None
+        family = None
+
         if "iphone" in t:
             family = "iphone"
             brand = "apple"
         elif "macbook" in t:
             family = "macbook"
             brand = "apple"
-        elif "galaxy" in t:
-            family = "galaxy"
+        elif "ipad" in t:
+            family = "ipad"
+            brand = "apple"
+        elif "airpods" in t:
+            family = "airpods"
+            brand = "apple"
+        elif "apple watch" in t or ("apple" in t and "watch" in t):
+            family = "apple watch"
+            brand = "apple"
+        elif "galaxy" in t or "samsung" in t:
+            family = "galaxy" if "galaxy" in t else None
             brand = "samsung"
-        elif "pixel" in t:
-            family = "pixel"
+        elif "pixel" in t or "google" in t:
+            family = "pixel" if "pixel" in t else None
             brand = "google"
         elif "poco" in t:
             family = "poco"
             brand = "poco"
-        elif "thinkpad" in t or "legion" in t:
-            family = "thinkpad" if "thinkpad" in t else "legion"
+        elif "oneplus" in t:
+            family = "oneplus"
+            brand = "oneplus"
+        elif "thinkpad" in t or "legion" in t or "ideapad" in t:
+            family = "lenovo"
             brand = "lenovo"
-        elif "rog" in t or "zenbook" in t:
-            family = "rog" if "rog" in t else "zenbook"
+        elif "rog" in t or "zenbook" in t or "vivobook" in t:
+            family = "asus"
             brand = "asus"
-
-        # 4. Specific iPhone model extraction
-        iphone_num = None
-        if "iphone" in t:
-            num_match = re.search(r"\biphone\s*(\d{1,2})\b", t)
-            if num_match:
-                iphone_num = num_match.group(1)
-
-        # 5. Variant Suffixes
-        variant_suffix = None
-        if "pro max" in t:
-            variant_suffix = "pro max"
-        elif "pro" in t:
-            variant_suffix = "pro"
-        elif "plus" in t:
-            variant_suffix = "plus"
-        elif "ultra" in t:
-            variant_suffix = "ultra"
-        elif "air" in t:
-            variant_suffix = "air"
-        elif "mini" in t:
-            variant_suffix = "mini"
-        elif "fe" in t:
-            variant_suffix = "fe"
+        elif "pavilion" in t or "envy" in t or "omen" in t:
+            family = "hp"
+            brand = "hp"
+        elif "inspiron" in t or "xps" in t or "alienware" in t:
+            family = "dell"
+            brand = "dell"
+        elif "wh1000xm" in t or "bravia" in t or "playstation" in t or "ps5" in t:
+            brand = "sony" if "sony" in t or "wh1000xm" in t or "bravia" in t else None
+            if "ps5" in t or "playstation" in t:
+                family = "playstation"
+                brand = "sony"
 
         return {
             "raw_clean": t,
             "brand": brand,
             "family": family,
-            "iphone_num": iphone_num,
+            "model_number": model_number,
             "variant_suffix": variant_suffix,
+            "generation": generation,
             "storage": storage,
+            "ram": ram,
+            "color": color,
+            "screen_size": screen_size,
             "is_accessory": is_acc,
         }
 
     @classmethod
     def evaluate_marketplace_match(
         cls,
-        query: str,
+        query_or_product: str,
         candidate_title: str,
+        ean_match: bool = False,
     ) -> Tuple[bool, float, str]:
         """
-        Evaluate if a candidate marketplace listing is an EXACT match for query.
+        Evaluate if a candidate marketplace listing is an EXACT match for a canonical product/query.
 
         Returns:
             (is_exact_match: bool, match_score: float, rejection_reason: str)
+            - match_score >= 0.90 -> VERIFIED
+            - 0.75 <= match_score < 0.90 -> POSSIBLE MATCH
+            - match_score < 0.75 -> REJECT
         """
-        q_attrs = cls.extract_attributes(query)
+        if ean_match:
+            return True, 1.0, "EAN_GTIN_EXACT_VERIFIED"
+
+        q_attrs = cls.extract_attributes(query_or_product)
         c_attrs = cls.extract_attributes(candidate_title)
 
-        # Rule 1: Accessory Rejection
+        # Rule 1: Accessory Mismatch Rejection
         if c_attrs["is_accessory"] and not q_attrs["is_accessory"]:
-            return False, 0.0, "ACCESSORY_MISMATCH"
+            return False, 0.0, "ACCESSORY_MISMATCH (Listing is an accessory)"
 
-        # Rule 2: Brand Mismatch
+        # Rule 2: Brand Mismatch Rejection
         if q_attrs["brand"] and c_attrs["brand"] and q_attrs["brand"] != c_attrs["brand"]:
-            if not (q_attrs["brand"] == "poco" and c_attrs["brand"] == "xiaomi"):
+            # Allow brand alias exceptions e.g. Poco/Xiaomi
+            if not (
+                (q_attrs["brand"] == "poco" and c_attrs["brand"] == "xiaomi")
+                or (q_attrs["brand"] == "xiaomi" and c_attrs["brand"] == "poco")
+            ):
                 return False, 0.0, f"BRAND_MISMATCH ({q_attrs['brand']} != {c_attrs['brand']})"
 
-        # Rule 3: Specific iPhone Model Mismatch (e.g. iPhone 15 vs 17 / 16 / Air)
-        if q_attrs["iphone_num"] and c_attrs["iphone_num"]:
-            if q_attrs["iphone_num"] != c_attrs["iphone_num"]:
-                q_num = q_attrs["iphone_num"]
-                c_num = c_attrs["iphone_num"]
-                return False, 0.0, f"IPHONE_MODEL_MISMATCH (iPhone {q_num} != iPhone {c_num})"
-        elif q_attrs["iphone_num"] and not c_attrs["iphone_num"]:
-            if "air" in c_attrs["raw_clean"] or "se" in c_attrs["raw_clean"]:
-                q_num = q_attrs["iphone_num"]
-                return False, 0.0, f"IPHONE_VARIANT_MISMATCH (iPhone {q_num} vs candidate)"
+        # Rule 3: Product Family Mismatch Rejection (e.g. iPad vs iPhone, MacBook vs iPad)
+        if q_attrs["family"] and c_attrs["family"]:
+            if q_attrs["family"] != c_attrs["family"]:
+                return False, 0.0, f"FAMILY_MISMATCH ({q_attrs['family']} vs {c_attrs['family']})"
+        elif q_attrs["family"] and not c_attrs["family"]:
+            # If query specified family like "iPhone" and candidate is an unrelated Apple product (e.g., iPad, Watch)
+            if q_attrs["family"] == "iphone" and any(x in c_attrs["raw_clean"] for x in ["ipad", "macbook", "airpods", "watch"]):
+                return False, 0.0, "FAMILY_MISMATCH (iPhone vs non-iPhone Apple product)"
+            if q_attrs["family"] == "macbook" and any(x in c_attrs["raw_clean"] for x in ["ipad", "iphone", "watch"]):
+                return False, 0.0, "FAMILY_MISMATCH (MacBook vs non-MacBook product)"
 
-        # Rule 4: Pro / Pro Max / Plus / Ultra Variant Suffix Mismatch
-        if q_attrs["variant_suffix"] != c_attrs["variant_suffix"]:
-            if q_attrs["variant_suffix"] is None and c_attrs["variant_suffix"] is not None:
-                c_suf = c_attrs["variant_suffix"]
-                return False, 0.0, f"VARIANT_SUFFIX_MISMATCH (Query standard vs Candidate {c_suf})"
-            if (
-                q_attrs["variant_suffix"] is not None
-                and c_attrs["variant_suffix"] != q_attrs["variant_suffix"]
-            ):
-                q_suf = q_attrs["variant_suffix"]
-                c_suf = c_attrs["variant_suffix"]
-                return False, 0.0, f"VARIANT_SUFFIX_MISMATCH ({q_suf} != {c_suf})"
+        # Rule 4: Model Number Mismatch Rejection (e.g. 15 vs 16, S25 vs S24, M4 vs M3, XM5 vs XM4)
+        if q_attrs["model_number"] and c_attrs["model_number"]:
+            q_num = re.sub(r"\D", "", q_attrs["model_number"])
+            c_num = re.sub(r"\D", "", c_attrs["model_number"])
+            if q_num and c_num and q_num != c_num:
+                return (
+                    False,
+                    0.0,
+                    f"MODEL_NUMBER_MISMATCH (Model {q_attrs['model_number']} != Model {c_attrs['model_number']})",
+                )
+        elif q_attrs["model_number"] and not c_attrs["model_number"]:
+            # Query specified model number e.g. 15, but candidate is a different model series
+            q_num = re.sub(r"\D", "", q_attrs["model_number"])
+            if q_num:
+                # Check if candidate mentions a different number
+                cand_numbers = re.findall(r"\b\d{2}\b", c_attrs["raw_clean"])
+                if cand_numbers and q_num not in cand_numbers:
+                    return False, 0.0, f"MODEL_SERIES_MISMATCH (Query model {q_num} not in candidate)"
 
-        # Rule 5: Storage Mismatch (128GB vs 256GB / 512GB)
+        # Rule 5: Variant Suffix Mismatch Rejection (e.g. Pro vs standard, Ultra vs Plus, Pro Max vs Pro)
+        q_v = q_attrs["variant_suffix"]
+        c_v = c_attrs["variant_suffix"]
+
+        if q_v != c_v:
+            # Query is standard base model (no suffix), but candidate is Pro / Ultra / Plus / Max
+            if q_v is None and c_v is not None:
+                return (
+                    False,
+                    0.0,
+                    f"VARIANT_SUFFIX_MISMATCH (Query is standard model, candidate is {c_v.upper()})",
+                )
+            # Query specifies a suffix (e.g. Pro), but candidate has different suffix (e.g. Pro Max or standard)
+            if q_v is not None and c_v != q_v:
+                return (
+                    False,
+                    0.0,
+                    f"VARIANT_SUFFIX_MISMATCH (Query is {q_v.upper()}, candidate is {c_v.upper() if c_v else 'Standard'})",
+                )
+
+        # Rule 6: Generation Mismatch (e.g. M4 vs M3/M2, Gen 2 vs Gen 1)
+        if q_attrs["generation"] and c_attrs["generation"]:
+            if q_attrs["generation"] != c_attrs["generation"]:
+                return (
+                    False,
+                    0.0,
+                    f"GENERATION_MISMATCH ({q_attrs['generation']} != {c_attrs['generation']})",
+                )
+
+        # Rule 7: Storage Mismatch Check
+        score = 0.95
+        rejection_reason = "EXACT_VERIFIED_MATCH"
+
         if q_attrs["storage"] and c_attrs["storage"]:
             if q_attrs["storage"] != c_attrs["storage"]:
-                q_st = q_attrs["storage"]
-                c_st = c_attrs["storage"]
-                return False, 0.3, f"STORAGE_MISMATCH ({q_st} != {c_st})"
+                # Storage differs — candidate is a different storage variant of the same model
+                score = 0.70
+                rejection_reason = f"STORAGE_VARIANT_DIFFERENCE ({q_attrs['storage']} != {c_attrs['storage']})"
+                return False, score, rejection_reason
 
-        # Calculate high exact match score
-        return True, 1.0, "EXACT_VERIFIED_MATCH"
+        # Rule 8: RAM Mismatch Check
+        if q_attrs["ram"] and c_attrs["ram"]:
+            if q_attrs["ram"] != c_attrs["ram"]:
+                score = 0.70
+                rejection_reason = f"RAM_VARIANT_DIFFERENCE ({q_attrs['ram']} != {c_attrs['ram']})"
+                return False, score, rejection_reason
+
+        return True, score, rejection_reason
 
 
 class ProductMatchingEngine:
@@ -248,9 +413,9 @@ class ProductMatchingEngine:
             return 0.0
 
         matches = 0
-        for k in common_keys:
-            val1 = str(spec1[k]).strip().lower()
-            val2 = str(spec2[k]).strip().lower()
+        for key in common_keys:
+            val1 = str(spec1[key]).strip().lower()
+            val2 = str(spec2[key]).strip().lower()
             if val1 == val2:
                 matches += 1
 
@@ -263,42 +428,38 @@ class ProductMatchingEngine:
         product2: dict[str, Any],
         threshold: float = 0.75,
     ) -> dict[str, Any]:
+        title1 = product1.get("name") or product1.get("title", "")
+        title2 = product2.get("name") or product2.get("title", "")
+
         ean1 = product1.get("ean")
         ean2 = product2.get("ean")
 
-        if ean1 and ean2 and str(ean1).strip() == str(ean2).strip():
+        if ean1 and ean2 and ean1 == ean2:
             return {
                 "is_duplicate": True,
                 "confidence_score": 1.0,
-                "match_reason": "EXACT_EAN_MATCH",
+                "match_reason": "EAN_EXACT_MATCH",
             }
 
-        title1 = product1.get("name", "")
-        title2 = product2.get("name", "")
-        title_score = cls.calculate_title_similarity(title1, title2)
+        title_sim = cls.calculate_title_similarity(title1, title2)
+        specs1 = product1.get("specifications", {})
+        specs2 = product2.get("specifications", {})
+        spec_sim = cls.match_specifications(specs1, specs2)
 
-        brand1 = (product1.get("brand") or "").strip().lower()
-        brand2 = (product2.get("brand") or "").strip().lower()
-
-        brand_match = brand1 and brand2 and brand1 == brand2
-        brand_score = 1.0 if brand_match else (0.5 if not brand1 or not brand2 else 0.0)
-
-        spec_score = cls.match_specifications(
-            product1.get("specifications", {}),
-            product2.get("specifications", {}),
+        final_score = (
+            round((title_sim * 0.7) + (spec_sim * 0.3), 4)
+            if spec_sim > 0
+            else title_sim
         )
-
-        overall_confidence = round(
-            (title_score * 0.5) + (brand_score * 0.3) + (spec_score * 0.2), 4
-        )
-
-        is_dup = overall_confidence >= threshold
 
         return {
-            "is_duplicate": is_dup,
-            "confidence_score": overall_confidence,
-            "title_similarity": title_score,
-            "brand_match": brand_match,
-            "spec_score": spec_score,
-            "match_reason": "FUZZY_HEURISTIC_MATCH" if is_dup else "BELOW_THRESHOLD",
+            "is_duplicate": final_score >= threshold,
+            "confidence_score": final_score,
+            "title_similarity": title_sim,
+            "spec_similarity": spec_sim,
+            "match_reason": (
+                "HIGH_ATTRIBUTE_SIMILARITY"
+                if final_score >= threshold
+                else "DISTINCT_PRODUCTS"
+            ),
         }

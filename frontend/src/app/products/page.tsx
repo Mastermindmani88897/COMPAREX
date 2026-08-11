@@ -154,7 +154,7 @@ export default function ProductsCatalogPage() {
           onClose={() => setActiveAlertProduct(null)}
           productId={activeAlertProduct.id}
           productName={activeAlertProduct.name}
-          currentPrice={Number(activeAlertProduct.base_price) || 19999}
+          currentPrice={Number(activeAlertProduct.base_price) || 0}
         />
       )}
       <div className="max-w-7xl mx-auto space-y-8">

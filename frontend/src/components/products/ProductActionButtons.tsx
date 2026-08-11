@@ -142,7 +142,7 @@ export function ProductActionButtons({ product, compact = false }: ProductAction
           }}
           productId={resolvedId}
           productName={resolvedName}
-          currentPrice={resolvedPrice > 0 ? resolvedPrice : 19999}
+          currentPrice={resolvedPrice > 0 ? resolvedPrice : 0}
         />
       )}
     </>
