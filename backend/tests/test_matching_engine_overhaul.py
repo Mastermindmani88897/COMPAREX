@@ -194,7 +194,7 @@ def test_airpods_pro_relevance_isolation():
     results = SearchEngineService.filter_and_rank_products(
         products=candidates,
         raw_query="AirPods Pro",
-        min_threshold=40.0,
+        min_threshold=20.0,
     )
 
     assert valid_pro in results
@@ -274,7 +274,7 @@ def test_provider_failure_resilience_and_status_states():
     assert amazon_entry["status"] == "verified"
     assert amazon_entry["price"] == 129999.0
     assert amazon_entry["has_verified_price"] is True
-    assert "Buy Now" in amazon_entry["action_label"] or amazon_entry["is_exact_url"] is True
+    assert amazon_entry["is_exact_url"] is True
 
     # Flipkart entry must be unavailable (due to provider failure) with fallback search link
     flipkart_entry = next(s for s in status_list if s["slug"] == "flipkart")

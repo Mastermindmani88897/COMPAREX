@@ -258,12 +258,12 @@ class SearchEngineService:
 
         # Extract Model Number
         model_match = re.search(
-            r"\b(iphone\s*\d{1,2}|s25|s24|s23|x5|x6|m4|m3|m2|wh\-?1000xm5|wh\-?1000xm4|series\s*\d+|\d{2})\b",
+            r"\b(iphone\s*\d{1,2}|ps\s*\d{1,2}|playstation\s*\d{1,2}|s25|s24|s23|x5|x6|m4|m3|m2|wh\-?1000xm5|wh\-?1000xm4|series\s*\d+|\d{1,2})\b",
             normalized,
         )
         if model_match:
             raw_m = model_match.group(0).replace(" ", "")
-            model_number = re.sub(r"^(iphone)\s*", "", raw_m, flags=re.I)
+            model_number = re.sub(r"^(iphone|ps|playstation)\s*", "", raw_m, flags=re.I)
 
         # Extract Variant Suffix (Pro Max, Pro, Ultra, Plus, Air, Mini, etc.)
         for v in VARIANT_SUFFIXES:
