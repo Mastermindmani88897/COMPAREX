@@ -131,8 +131,14 @@ class SearchIntent:
 
     @property
     def model(self) -> Optional[str]:
-        """Backwards compatibility alias for model_number."""
-        return self.model_number
+        """Backwards compatibility alias for model/variant string."""
+        if not self.model_number:
+            return self.variant_suffix
+        prefix = "s" if (self.family == "Galaxy" and not self.model_number.lower().startswith("s")) else ""
+        base = f"{prefix}{self.model_number}"
+        if self.variant_suffix and self.variant_suffix.lower() not in base.lower():
+            return f"{base} {self.variant_suffix}"
+        return base
 
     def __repr__(self) -> str:
         return (

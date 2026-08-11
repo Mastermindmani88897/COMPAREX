@@ -101,6 +101,15 @@ class PersonalizedRecommendationService:
                     "reasoning": f"Value pick for {query} matching profile.",
                 },
             ]
+            alternatives = [
+                AIAlternativeProduct(
+                    product_name=f"{query.title()} Alternative",
+                    price=0.0,
+                    marketplace_name="Croma",
+                    tier="BUDGET",
+                    reasoning=f"Alternative recommendation for {query}.",
+                )
+            ]
 
         return {
             "query": query,
