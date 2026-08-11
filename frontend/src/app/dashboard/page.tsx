@@ -93,27 +93,45 @@ export default function DashboardPage() {
         setPriceAlerts([]);
       }
 
-      // 4. Fetch Recently Viewed Products
+      // 4 + 5. Fetch recently-viewed and trending in parallel
+      let rvData: Product[] = [];
+      let trData: Product[] = [];
       try {
         const rvRes = await apiClient.get("/products/recently-viewed?limit=12");
-        setRecentlyViewed(rvRes.data?.data || []);
+        rvData = rvRes.data?.data || [];
+        setRecentlyViewed(rvData);
       } catch {
         setRecentlyViewed([]);
       }
-
-      // 5. Fetch Dynamic Trending Products
       try {
         const trRes = await apiClient.get("/products/trending?limit=12");
-        setTrendingProducts(trRes.data?.data || []);
+        trData = trRes.data?.data || [];
+        setTrendingProducts(trData);
       } catch {
         setTrendingProducts([]);
       }
 
-      // 6. Fetch Catalog sample
+      // 6. Fetch Catalog sample (for Recent Products section only)
       const prodRes = await apiClient.get("/products?skip=0&limit=6");
       setRecentProducts(prodRes.data?.data || []);
-      setPersonalizedRecs(prodRes.data?.data || []);
       setProductCount(prodRes.data?.data?.length || 0);
+
+      // 7. Personalized recs: use recently viewed if available, else trending, else offset catalog
+      // Must be distinct from recentProducts
+      if (rvData.length >= 3) {
+        setPersonalizedRecs(rvData.slice(0, 6));
+      } else if (trData.length >= 3) {
+        setPersonalizedRecs(trData.slice(0, 6));
+      } else {
+        try {
+          const altRes = await apiClient.get("/products?skip=6&limit=6");
+          setPersonalizedRecs(altRes.data?.data || []);
+        } catch {
+          setPersonalizedRecs([]);
+        }
+      }
+
+
 
     } catch (err) {
       console.error("Dashboard dynamic load error:", err);

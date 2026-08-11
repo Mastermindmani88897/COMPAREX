@@ -5,16 +5,23 @@ Executes background periodic price monitor jobs every 30-60 minutes:
 1. Queries all active PriceAlert records in PostgreSQL database.
 2. Fetches latest marketplace prices using MarketplaceAggregatorService.
 3. Resolves/creates canonical ProductListing to obtain a valid, non-null listing_id.
-4. Appends new PriceHistory record with listing_id, product_id, marketplace, price, timestamp.
+4. Appends new PriceHistory record ONLY when:
+   - listing_id is non-null and valid
+   - verification_status == 'verified'
+   - not a duplicate within SNAPSHOT_DEDUP_HOURS
 5. Triggers In-App & Email Notifications if Current Price <= Target Price.
+
+NO price history is ever inserted without a valid listing_id.
+NO duplicate snapshots are inserted within the deduplication window.
 """
 
 import asyncio
 import uuid
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import List
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 
 from app.core.logging import get_logger
 from app.db.session import AsyncSessionLocal
@@ -27,6 +34,9 @@ from app.services.aggregator_service import MarketplaceAggregatorService
 from app.services.notification_service import NotificationService
 
 logger = get_logger(__name__)
+
+# Do not insert a duplicate snapshot for the same listing+price within this window.
+SNAPSHOT_DEDUP_HOURS = 4
 
 
 class PriceMonitorService:
@@ -187,29 +197,74 @@ class PriceMonitorService:
                                     session.add(listing_obj)
                                     await session.flush()
 
-                                # C. Insert PriceHistory with GUARANTEED VALID NON-NULL listing_id
-                                if (
-                                    not listing_obj
-                                    or not listing_obj.id
-                                    or lst.get("verification_status") != "verified"
-                                ):
+                                # C. Insert PriceHistory — strict guards required:
+                                # 1. listing_obj must exist with a real UUID id
+                                # 2. verification_status must be 'verified'
+                                # 3. Must not be a duplicate within SNAPSHOT_DEDUP_HOURS
+
+                                # Guard 1: listing_id non-null assertion
+                                if not listing_obj or not listing_obj.id:
                                     skipped_listings += 1
-                                    logger.info(
-                                        "Skipping price history for unverified listing: '%s' (%s)",
+                                    logger.warning(
+                                        "PRICE_HISTORY_SKIP | reason=no_listing_id | "
+                                        "product='%s' | marketplace=%s",
                                         product_name,
                                         mp_name,
                                     )
                                     continue
 
+                                # Guard 2: Only verified listings
+                                if lst.get("verification_status") != "verified":
+                                    skipped_listings += 1
+                                    logger.info(
+                                        "PRICE_HISTORY_SKIP | reason=unverified | "
+                                        "product='%s' | marketplace=%s",
+                                        product_name,
+                                        mp_name,
+                                    )
+                                    continue
+
+                                # Guard 3: Duplicate snapshot protection
+                                dedup_cutoff = datetime.now(timezone.utc) - timedelta(
+                                    hours=SNAPSHOT_DEDUP_HOURS
+                                )
+                                dup_stmt = select(PriceHistory).where(
+                                    and_(
+                                        PriceHistory.listing_id == listing_obj.id,
+                                        PriceHistory.price == dec_price,
+                                        PriceHistory.created_at >= dedup_cutoff,
+                                    )
+                                ).limit(1)
+                                dup_res = await session.execute(dup_stmt)
+                                if dup_res.scalars().first() is not None:
+                                    logger.info(
+                                        "PRICE_HISTORY_SKIP | reason=duplicate_in_%dh | "
+                                        "product='%s' | marketplace=%s | price=%.2f",
+                                        SNAPSHOT_DEDUP_HOURS,
+                                        product_name,
+                                        mp_name,
+                                        float(dec_price),
+                                    )
+                                    continue
+
+                                # All guards passed — safe to insert
                                 ph = PriceHistory(
                                     id=uuid.uuid4(),
-                                    listing_id=listing_obj.id,
+                                    listing_id=listing_obj.id,  # GUARANTEED non-null
                                     product_id=product_id,
                                     marketplace_slug=mp_slug,
                                     price=dec_price,
                                     currency="INR",
                                 )
                                 session.add(ph)
+                                logger.info(
+                                    "PRICE_HISTORY_INSERT | product='%s' | "
+                                    "marketplace=%s | price=%.2f | listing_id=%s",
+                                    product_name,
+                                    mp_name,
+                                    float(dec_price),
+                                    listing_obj.id,
+                                )
 
                             except Exception as lst_exc:
                                 await session.rollback()

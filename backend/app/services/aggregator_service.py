@@ -4,6 +4,10 @@ COMPAREX Backend - Marketplace Aggregator & Intelligent Matching Service
 Queries Rainforest API, Bright Data, SerpAPI, and ZenRows simultaneously using clean product terms,
 filters out model mismatches and accessories using ExactProductMatchEngine, and collects HD gallery.
 NO FABRICATED SYNTHETIC MARKETPLACE PRICES OR GENERATED FALLBACK LISTINGS.
+
+Provider failures are isolated — one provider failing does not block the rest.
+All 7 major Indian marketplaces are always represented in the status layer,
+even when providers cannot retrieve verified prices for them.
 """
 
 import asyncio
@@ -25,47 +29,73 @@ logger = get_logger(__name__)
 
 CACHE_TTL_SECONDS = 300  # 5 minutes TTL
 
-# Store Logos
-STORE_LOGOS = {
-    "amazon": "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg",
-    "flipkart": "https://pngimg.com/uploads/flipkart/flipkart_PNG1.png",
-    "croma": "https://www.croma.com/assets/images/croma_logo.png",
-    "reliance_digital": "https://www.reliancedigital.in/build/client/images/rd_logo.svg",
-    "reliance": "https://www.reliancedigital.in/build/client/images/rd_logo.svg",
-    "tata_cliq": "https://www.tatacliq.com/favicon.ico",
-    "tatacliq": "https://www.tatacliq.com/favicon.ico",
-    "meesho": "https://images.meesho.com/images/pow/meeshoLogo.png",
-    "myntra": (
-        "https://a57.foxnews.com/static.foxnews.com/foxnews.com/content/uploads/"
-        "2021/02/1200/675/Myntra-logo.jpg"
-    ),
-    "vijay_sales": "https://www.vijaysales.com/images/vijaysales-logo.png",
-}
+# Major Indian marketplaces — always shown in UI with status, even if provider has no data.
+MAJOR_MARKETPLACES = [
+    {
+        "slug": "amazon",
+        "name": "Amazon",
+        "search_url_template": "https://www.amazon.in/s?k={query}",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg",
+        "priority": 1,
+    },
+    {
+        "slug": "flipkart",
+        "name": "Flipkart",
+        "search_url_template": "https://www.flipkart.com/search?q={query}",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/7/7a/Flipkart_logo.svg",
+        "priority": 1,
+    },
+    {
+        "slug": "croma",
+        "name": "Croma",
+        "search_url_template": "https://www.croma.com/searchB?q={query}",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/5/53/Croma_Logo.svg",
+        "priority": 2,
+    },
+    {
+        "slug": "reliance_digital",
+        "name": "Reliance Digital",
+        "search_url_template": "https://www.reliancedigital.in/search?q={query}",
+        "logo_url": "https://www.reliancedigital.in/build/client/images/rd_logo.svg",
+        "priority": 2,
+    },
+    {
+        "slug": "tata_cliq",
+        "name": "Tata CLiQ",
+        "search_url_template": "https://www.tatacliq.com/search/?searchCategory=all&text={query}",
+        "logo_url": "https://www.tatacliq.com/favicon.ico",
+        "priority": 3,
+    },
+    {
+        "slug": "myntra",
+        "name": "Myntra",
+        "search_url_template": "https://www.myntra.com/{query}",
+        "logo_url": "https://constant.myntassets.com/web/assets/img/800x500_2019-05-01-17-53-43_b6a039ede6cbb28eddca38bde021e0c3.jpg",
+        "priority": 3,
+    },
+    {
+        "slug": "meesho",
+        "name": "Meesho",
+        "search_url_template": "https://www.meesho.com/search?q={query}",
+        "logo_url": "https://images.meesho.com/images/pow/meeshoLogo.png",
+        "priority": 3,
+    },
+]
 
-PRODUCT_HD_GALLERIES = {
-    "poco x5 pro": [
-        "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=800&q=80",
-        "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80",
-        "https://images.unsplash.com/photo-1565849904461-04a58ad377e0?w=800&q=80",
-    ],
-    "iphone 15": [
-        "https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=800&q=80",
-        "https://images.unsplash.com/photo-1591337676887-a217a6970a8a?w=800&q=80",
-        "https://images.unsplash.com/photo-1530319067432-f2a729c03db5?w=800&q=80",
-    ],
-    "samsung s25": [
-        "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=800&q=80",
-        "https://images.unsplash.com/photo-1580910051074-3eb694886505?w=800&q=80",
-    ],
-    "sony wh-1000xm5": [
-        "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80",
-        "https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=800&q=80",
-    ],
-    "macbook air": [
-        "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80",
-        "https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=800&q=80",
-    ],
-}
+# Store logo registry
+STORE_LOGOS: Dict[str, str] = {m["slug"]: m["logo_url"] for m in MAJOR_MARKETPLACES}
+STORE_LOGOS.update(
+    {
+        "amazon": "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg",
+        "flipkart": "https://pngimg.com/uploads/flipkart/flipkart_PNG1.png",
+        "vijay_sales": "https://www.vijaysales.com/images/vijaysales-logo.png",
+    }
+)
+
+# Price outlier detection: a listing is suspicious if its price deviates by this factor
+# from the median of other verified offers.
+OUTLIER_FACTOR_HIGH = 10.0  # 10× median — likely a wrong currency, bundle, or parse error
+OUTLIER_FACTOR_LOW = 0.1   # 1/10th median — likely accessory, wrong variant, or currency error
 
 
 class MarketplaceAggregatorService:
@@ -98,9 +128,178 @@ class MarketplaceAggregatorService:
         return True
 
     @classmethod
+    def _build_major_marketplace_status(
+        cls,
+        verified_listings: List[Dict[str, Any]],
+        provider_statuses: Dict[str, str],
+        query: str,
+        last_checked: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Build always-visible status for every major marketplace.
+
+        Each entry shows whether a verified price was found,
+        what the price is (or why it's unavailable), and a search URL fallback.
+
+        This list is ALWAYS returned regardless of provider failures —
+        the UI must NEVER hide major marketplaces because of provider issues.
+        """
+        # Build lookup: marketplace_slug → best verified listing
+        verified_by_slug: Dict[str, Dict[str, Any]] = {}
+        for lst in verified_listings:
+            slug = (lst.get("marketplace_slug") or "").lower()
+            if slug and slug not in verified_by_slug:
+                verified_by_slug[slug] = lst
+            # Also handle compound slugs (e.g. "reliance_digital" from "reliance")
+            if slug == "reliance" and "reliance_digital" not in verified_by_slug:
+                verified_by_slug["reliance_digital"] = lst
+
+        status_list = []
+        for mp in MAJOR_MARKETPLACES:
+            slug = mp["slug"]
+            search_url = mp["search_url_template"].format(
+                query=query.replace(" ", "+")
+            )
+
+            if slug in verified_by_slug:
+                lst = verified_by_slug[slug]
+                entry = {
+                    "slug": slug,
+                    "name": mp["name"],
+                    "logo_url": mp.get("logo_url", ""),
+                    "priority": mp["priority"],
+                    "status": "verified",
+                    "price": float(lst.get("price", 0)),
+                    "currency": lst.get("currency", "INR"),
+                    "listing_url": lst.get("listing_url", search_url),
+                    "is_exact_url": lst.get("is_exact_url", False),
+                    "seller_name": lst.get("seller_name"),
+                    "delivery_estimate": lst.get("delivery_estimate"),
+                    "is_available": lst.get("is_available", True),
+                    "match_score": float(lst.get("match_score", 1.0)),
+                    "last_checked": last_checked,
+                    "search_url": search_url,
+                    "has_verified_price": True,
+                }
+            else:
+                # Determine reason
+                reason = "No verified listing found"
+                for prov_key, prov_status in provider_statuses.items():
+                    if "401" in prov_status or "authentication" in prov_status.lower():
+                        reason = "Provider authentication error"
+                        break
+                    elif "402" in prov_status or "credit" in prov_status.lower():
+                        reason = "Provider credits exhausted"
+                        break
+                    elif "provider_failure" in prov_status:
+                        reason = "Provider temporarily unavailable"
+                        break
+
+                entry = {
+                    "slug": slug,
+                    "name": mp["name"],
+                    "logo_url": mp.get("logo_url", ""),
+                    "priority": mp["priority"],
+                    "status": "unavailable",
+                    "price": None,
+                    "currency": "INR",
+                    "listing_url": search_url,
+                    "is_exact_url": False,
+                    "seller_name": None,
+                    "delivery_estimate": None,
+                    "is_available": None,
+                    "match_score": None,
+                    "last_checked": last_checked,
+                    "search_url": search_url,
+                    "has_verified_price": False,
+                    "unavailable_reason": reason,
+                }
+
+            status_list.append(entry)
+
+        return status_list
+
+    @classmethod
+    def _detect_price_outliers(
+        cls,
+        listings: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """
+        Flag price outliers using a median-based approach.
+
+        A listing price is flagged as suspicious if it is more than OUTLIER_FACTOR_HIGH times
+        the median or less than OUTLIER_FACTOR_LOW times the median.
+
+        Flagged listings are NOT removed — they are marked with is_outlier=True
+        so the frontend can decide how to display them.
+        """
+        if len(listings) < 2:
+            for lst in listings:
+                lst["is_outlier"] = False
+                lst["outlier_reason"] = None
+            return listings
+
+        prices = [float(lst["price"]) for lst in listings if lst.get("price") and float(lst["price"]) > 0]
+        if not prices:
+            return listings
+
+        sorted_prices = sorted(prices)
+        mid = len(sorted_prices) // 2
+        if len(sorted_prices) % 2 == 0:
+            median = (sorted_prices[mid - 1] + sorted_prices[mid]) / 2
+        else:
+            median = sorted_prices[mid]
+
+        if median <= 0:
+            for lst in listings:
+                lst["is_outlier"] = False
+                lst["outlier_reason"] = None
+            return listings
+
+        for lst in listings:
+            p = float(lst.get("price") or 0)
+            if p <= 0:
+                lst["is_outlier"] = False
+                lst["outlier_reason"] = None
+                continue
+
+            if p > median * OUTLIER_FACTOR_HIGH:
+                lst["is_outlier"] = True
+                lst["outlier_reason"] = (
+                    f"Price ₹{p:,.0f} is suspiciously high (>{OUTLIER_FACTOR_HIGH}× "
+                    f"median ₹{median:,.0f}). May be wrong variant, bundle, or currency."
+                )
+                logger.warning(
+                    "OUTLIER_PRICE_HIGH: price=%.2f median=%.2f marketplace=%s title=%s",
+                    p,
+                    median,
+                    lst.get("marketplace_slug"),
+                    lst.get("title", "")[:60],
+                )
+            elif p < median * OUTLIER_FACTOR_LOW:
+                lst["is_outlier"] = True
+                lst["outlier_reason"] = (
+                    f"Price ₹{p:,.0f} is suspiciously low (<{OUTLIER_FACTOR_LOW}× "
+                    f"median ₹{median:,.0f}). May be accessory, wrong variant, or currency issue."
+                )
+                logger.warning(
+                    "OUTLIER_PRICE_LOW: price=%.2f median=%.2f marketplace=%s title=%s",
+                    p,
+                    median,
+                    lst.get("marketplace_slug"),
+                    lst.get("title", "")[:60],
+                )
+            else:
+                lst["is_outlier"] = False
+                lst["outlier_reason"] = None
+
+        return listings
+
+    @classmethod
     async def aggregate_search(
         cls,
         query: str,
+        product_id: Optional[str] = None,
         category: Optional[str] = None,
         limit_per_connector: int = 10,
         sort_by: str = "price",
@@ -113,12 +312,44 @@ class MarketplaceAggregatorService:
         raw_query = query.strip()
         target_search_term = raw_query
 
+        # If query is a UUID: do NOT hardcode a product name.
+        # The caller should pass the real product name. Log and use the UUID as-is
+        # which will return empty results rather than fabricate data for the wrong product.
         if cls.is_uuid(raw_query):
-            logger.info("UUID query detected: '%s'. Using clean product query.", raw_query)
-            target_search_term = "Apple iPhone 15 128GB"
+            logger.warning(
+                "UUID '%s' passed as search query to aggregate_search. "
+                "The caller should pass the product name, not the product ID. "
+                "Returning empty result to avoid fabricating wrong product data.",
+                raw_query,
+            )
+            # Return a structured empty response rather than searching with a UUID
+            last_checked = datetime.now(timezone.utc).isoformat()
+            empty_status = cls._build_major_marketplace_status([], {}, "", last_checked)
+            return {
+                "query": raw_query,
+                "product_id": product_id,
+                "total_listings": 0,
+                "marketplaces_queried": [],
+                "provider_statuses": {},
+                "major_marketplace_status": empty_status,
+                "verified_marketplace_count": 0,
+                "total_major_marketplaces": len(MAJOR_MARKETPLACES),
+                "lowest_price": None,
+                "highest_price": None,
+                "average_price": None,
+                "verification_status": "unavailable",
+                "verification_message": (
+                    "Product name must be provided instead of product ID for marketplace search."
+                ),
+                "listings": [],
+                "from_cache": False,
+                "last_updated_time": last_checked,
+                "data_quality": "unavailable",
+                "verified_offer_count": 0,
+            }
 
         clean_search_term = SearchQueryGenerator.generate_clean_query(target_search_term)
-        cache_key = f"comparex:aggregator:v5:{clean_search_term.lower()}:{sort_by}"
+        cache_key = f"comparex:aggregator:v6:{clean_search_term.lower()}:{sort_by}"
 
         if use_cache:
             try:
@@ -131,7 +362,7 @@ class MarketplaceAggregatorService:
             except Exception as exc:
                 logger.warning("Redis cache error: %s", exc)
 
-        # ── 1. Execute Adapters ──────────────────────────────────────────────
+        # ── 1. Execute Adapters in parallel ─────────────────────────────────────
         rainforest = RainforestAdapter()
         brightdata = BrightDataAdapter()
         serpapi = SerpApiAdapter()
@@ -149,47 +380,50 @@ class MarketplaceAggregatorService:
         raw_candidates: List[Dict[str, Any]] = []
         provider_statuses: Dict[str, str] = {}
 
-        if isinstance(rf_res, Exception):
-            logger.error("PROVIDER FAILURE Rainforest API: %s", rf_res)
-            provider_statuses["rainforest"] = "provider_failure (credits exhausted/402)"
-        elif isinstance(rf_res, list):
-            provider_statuses["rainforest"] = (
-                f"provider_success ({len(rf_res)} results)" if rf_res else "provider_no_match"
-            )
-            for item in rf_res:
-                raw_candidates.append(rainforest.normalize_listing(item))
+        for provider_name, result, adapter in [
+            ("rainforest", rf_res, rainforest),
+            ("brightdata", bd_res, brightdata),
+            ("serpapi", sa_res, serpapi),
+            ("zenrows", zr_res, zenrows),
+        ]:
+            if isinstance(result, Exception):
+                err_str = str(result)
+                # Classify error type for observability
+                if "401" in err_str or "Unauthorized" in err_str or "authentication" in err_str.lower():
+                    status_str = "authentication_error (401)"
+                elif "402" in err_str or "Payment" in err_str or "credit" in err_str.lower():
+                    status_str = "credits_exhausted (402)"
+                elif "400" in err_str:
+                    status_str = "bad_request (400)"
+                elif "timeout" in err_str.lower() or "TimeoutException" in err_str:
+                    status_str = "timeout"
+                else:
+                    status_str = f"provider_failure ({type(result).__name__})"
+                logger.error(
+                    "PROVIDER_FAILURE | provider=%s | query='%s' | status=%s | error=%s",
+                    provider_name,
+                    clean_search_term,
+                    status_str,
+                    err_str[:200],
+                )
+                provider_statuses[provider_name] = status_str
+            elif isinstance(result, list):
+                count = len(result)
+                provider_statuses[provider_name] = (
+                    f"provider_success ({count} results)" if count else "provider_no_match"
+                )
+                logger.info(
+                    "PROVIDER_SUCCESS | provider=%s | query='%s' | results=%d",
+                    provider_name,
+                    clean_search_term,
+                    count,
+                )
+                for item in result:
+                    raw_candidates.append(adapter.normalize_listing(item))
+            else:
+                provider_statuses[provider_name] = "provider_unknown_response"
 
-        if isinstance(bd_res, Exception):
-            logger.error("PROVIDER FAILURE Bright Data API: %s", bd_res)
-            provider_statuses["brightdata"] = "provider_failure"
-        elif isinstance(bd_res, list):
-            provider_statuses["brightdata"] = (
-                f"provider_success ({len(bd_res)} results)" if bd_res else "provider_no_match"
-            )
-            for item in bd_res:
-                raw_candidates.append(brightdata.normalize_listing(item))
-
-        if isinstance(sa_res, Exception):
-            logger.error("PROVIDER FAILURE SerpAPI: %s", sa_res)
-            provider_statuses["serpapi"] = "provider_failure"
-        elif isinstance(sa_res, list):
-            provider_statuses["serpapi"] = (
-                f"provider_success ({len(sa_res)} results)" if sa_res else "provider_no_match"
-            )
-            for item in sa_res:
-                raw_candidates.append(serpapi.normalize_listing(item))
-
-        if isinstance(zr_res, Exception):
-            logger.error("PROVIDER FAILURE ZenRows API: %s", zr_res)
-            provider_statuses["zenrows"] = "provider_failure"
-        elif isinstance(zr_res, list):
-            provider_statuses["zenrows"] = (
-                f"provider_success ({len(zr_res)} results)" if zr_res else "provider_no_match"
-            )
-            for item in zr_res:
-                raw_candidates.append(zenrows.normalize_listing(item))
-
-        # ── 2. Exact Attribute Matching (REJECT Model/Variant/Accessory Mismatches) ────
+        # ── 2. Exact Attribute Matching ──────────────────────────────────────────
         verified_listings: List[Dict[str, Any]] = []
         rejected_count = 0
 
@@ -211,70 +445,99 @@ class MarketplaceAggregatorService:
             else:
                 rejected_count += 1
                 logger.info(
-                    "REJECTED MARKETPLACE LISTING: title='%s' | reason='%s'", title, reason
+                    "REJECTED_LISTING | title='%s' | reason='%s'", title[:80], reason
                 )
 
-        # Sort verified listings by price
+        # ── 3. Price outlier detection ───────────────────────────────────────────
+        if verified_listings:
+            verified_listings = cls._detect_price_outliers(verified_listings)
+
+        # ── 4. Sort verified listings by price ──────────────────────────────────
         if sort_by in ("price", "lowest_price"):
             verified_listings.sort(key=lambda x: float(x.get("price", 0)))
 
-        avail_prices = [
-            float(x["price"])
-            for x in verified_listings
-            if x.get("is_available", True) and x.get("price")
+        # Only use non-outlier, available listings for price stats
+        stat_listings = [
+            x for x in verified_listings
+            if x.get("is_available", True) and x.get("price") and not x.get("is_outlier", False)
         ]
+        avail_prices = [float(x["price"]) for x in stat_listings]
+
         lowest = min(avail_prices) if avail_prices else None
         highest = max(avail_prices) if avail_prices else None
         avg = round(sum(avail_prices) / len(avail_prices), 2) if avail_prices else None
 
-        best_deal = verified_listings[0] if verified_listings else {}
-        image_gallery = cls._build_multi_image_gallery(clean_search_term, verified_listings)
-        specs = cls._build_product_specs(clean_search_term)
+        last_checked = datetime.now(timezone.utc).isoformat()
+
+        # ── 5. Major Marketplace Status Layer ────────────────────────────────────
+        major_status = cls._build_major_marketplace_status(
+            verified_listings, provider_statuses, clean_search_term, last_checked
+        )
+        verified_major_count = sum(1 for m in major_status if m["has_verified_price"])
+
+        # Price data quality classification
+        if verified_major_count >= 4:
+            data_quality = "high"
+            quality_message = f"High confidence — {verified_major_count} major marketplaces verified"
+        elif verified_major_count >= 2:
+            data_quality = "medium"
+            quality_message = f"Medium confidence — {verified_major_count} major marketplaces verified"
+        elif verified_major_count == 1:
+            data_quality = "low"
+            quality_message = "Low confidence — only 1 major marketplace verified"
+        else:
+            data_quality = "unavailable"
+            quality_message = "0 major marketplaces verified — providers returned no results"
 
         logger.info(
-            "MARKETPLACE SUMMARY | Query: '%s' | Raw: %d | Matches: %d | Rejected: %d | Price: %s",
+            "MARKETPLACE_SUMMARY | query='%s' | raw=%d | verified=%d | rejected=%d | "
+            "major_verified=%d/%d | lowest=%s | quality=%s",
             clean_search_term,
             len(raw_candidates),
             len(verified_listings),
             rejected_count,
-            f"INR {lowest:,.2f}" if lowest else "UNAVAILABLE",
+            verified_major_count,
+            len(MAJOR_MARKETPLACES),
+            f"₹{lowest:,.2f}" if lowest else "UNAVAILABLE",
+            data_quality,
         )
-
-        ai_insights = None
-        if lowest:
-            ai_insights = cls._build_gemini_insights(
-                clean_search_term, lowest, avg or lowest, len(verified_listings)
-            )
 
         response_payload = {
             "query": clean_search_term,
-            "product_title": specs["title"],
-            "category": category or specs["category"],
-            "image_gallery": image_gallery,
-            "primary_image": image_gallery[0] if image_gallery else "",
-            "specifications": specs,
-            "ai_insights": ai_insights,
+            "product_id": product_id,
             "total_listings": len(verified_listings),
-            "marketplaces_queried": [
-                "amazon", "flipkart", "croma", "reliance_digital", "tata_cliq"
-            ],
+            "marketplaces_queried": [m["slug"] for m in MAJOR_MARKETPLACES],
             "provider_statuses": provider_statuses,
+            # Always-visible major marketplace status (never hidden on failure)
+            "major_marketplace_status": major_status,
+            "verified_marketplace_count": verified_major_count,
+            "total_major_marketplaces": len(MAJOR_MARKETPLACES),
+            # Price statistics — ONLY from non-outlier verified prices
             "lowest_price": lowest,
             "highest_price": highest,
             "average_price": avg,
+            "verified_offer_count": len(stat_listings),
+            # Verification
             "verification_status": "verified" if verified_listings else "unavailable",
             "verification_message": (
-                "Verified live listings retrieved"
+                f"Verified {len(verified_listings)} listing(s) from live providers."
                 if verified_listings
                 else (
                     "Live marketplace prices are temporarily unavailable. "
-                    "Providers could not verify current listings."
+                    "Providers could not verify current listings. "
+                    "Major marketplace search links are provided below."
                 )
             ),
-            "best_deal_listing_id": best_deal.get("id"),
+            # Listings (for backward compat)
             "listings": verified_listings,
+            # Data quality
+            "data_quality": data_quality,
+            "data_quality_message": quality_message,
+            "marketplace_coverage": f"{verified_major_count}/{len(MAJOR_MARKETPLACES)} major marketplaces verified",
+            # Timestamps
             "from_cache": False,
-            "last_updated_time": datetime.now(timezone.utc).isoformat(),
+            "last_updated_time": last_checked,
+            "last_checked": last_checked,
         }
 
         try:
@@ -288,71 +551,10 @@ class MarketplaceAggregatorService:
 
     @classmethod
     def _build_multi_image_gallery(cls, query: str, listings: List[Dict[str, Any]]) -> List[str]:
-        """Collect image URLs across listings and presets."""
+        """Collect image URLs from real verified listings only."""
         images: List[str] = []
         for item in listings:
             img = item.get("image_url")
             if img and img.startswith("http") and img not in images:
                 images.append(img)
-
-        q_lower = query.lower()
-        for key, gallery_urls in PRODUCT_HD_GALLERIES.items():
-            if key in q_lower:
-                for url in gallery_urls:
-                    if url not in images:
-                        images.append(url)
-
-        if not images:
-            images.append("https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80")
         return images[:10]
-
-    @classmethod
-    def _build_product_specs(cls, query: str) -> Dict[str, Any]:
-        """Generate canonical technical specifications."""
-        q = query.title()
-        q_lower = query.lower()
-
-        brand = "Generic"
-        if "iphone" in q_lower or "apple" in q_lower or "macbook" in q_lower:
-            brand = "Apple"
-        elif "samsung" in q_lower:
-            brand = "Samsung"
-        elif "sony" in q_lower:
-            brand = "Sony"
-        elif "poco" in q_lower:
-            brand = "POCO"
-
-        is_phone = any(k in q_lower for k in ("phone", "poco", "iphone", "samsung"))
-        cat = "Smartphones & Tech" if is_phone else "Consumer Electronics"
-
-        return {
-            "title": q,
-            "brand": brand,
-            "model": q,
-            "category": cat,
-            "release_year": "2025",
-            "overall_rating": 4.5,
-            "review_count": 1250,
-        }
-
-    @classmethod
-    def _build_gemini_insights(
-        cls, query: str, lowest_price: float, avg_price: float, store_count: int
-    ) -> Dict[str, Any]:
-        """Generate Gemini AI shopping intelligence."""
-        return {
-            "pros": [
-                "Verified live pricing from authorized retailers",
-                "Includes official brand warranty",
-            ],
-            "cons": [
-                "Stock levels subject to merchant availability",
-            ],
-            "should_you_buy": f"YES. Verified price available at ₹{lowest_price:,.0f}.",
-            "price_trend": f"Current verified price is ₹{lowest_price:,.0f}.",
-            "best_alternatives": [],
-            "similar_products": [],
-            "ai_score": 9.2,
-            "value_for_money_score": 9.4,
-            "best_marketplace_recommendation": "Buy from verified store offering lowest price.",
-        }

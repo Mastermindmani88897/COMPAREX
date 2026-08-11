@@ -2,6 +2,7 @@
 COMPAREX Backend – Analytics Service
 
 Computes monthly/yearly savings stats, brand preferences, and recommendation accuracy.
+All values come exclusively from real database records — no hardcoded fallback data.
 """
 
 from uuid import UUID
@@ -23,7 +24,7 @@ class AnalyticsService:
         user_id: UUID,
         month_year: str = "2026-08",
     ) -> ShoppingAnalyticsResponse:
-        """Fetch user monthly/yearly shopping analytics overview."""
+        """Fetch user monthly/yearly shopping analytics overview from real database records."""
         stmt = select(ShoppingAnalytics).where(
             ShoppingAnalytics.user_id == user_id,
             ShoppingAnalytics.month_year == month_year,
@@ -32,18 +33,18 @@ class AnalyticsService:
         record = res.scalars().first()
 
         if not record:
+            # Return a valid empty response — no fake/hardcoded data whatsoever.
             return ShoppingAnalyticsResponse(
                 user_id=user_id,
                 month_year=month_year,
-                total_saved=4250.0,
-                avg_discount=18.5,
-                top_brand="Apple",
-                top_category="electronics",
-                recommendation_accuracy=0.94,
+                total_saved=0.0,
+                avg_discount=0.0,
+                top_brand=None,
+                top_category=None,
+                recommendation_accuracy=0.0,
                 insights=[
-                    "Saved ₹4,250 this month via COMPAREX deal alerts & coupons.",
-                    "Highest savings category: Electronics & Smart Devices.",
-                    "Recommendation accuracy rating: 94%.",
+                    "No analytics data yet for this period.",
+                    "Compare products and track price alerts to build your shopping insights.",
                 ],
             )
 
@@ -52,12 +53,14 @@ class AnalyticsService:
             user_id=record.user_id,
             month_year=record.month_year,
             total_saved=float(record.total_saved),
-            avg_discount=record.avg_discount,
+            avg_discount=float(record.avg_discount) if record.avg_discount else 0.0,
             top_brand=record.top_brand,
             top_category=record.top_category,
-            recommendation_accuracy=record.recommendation_accuracy,
+            recommendation_accuracy=float(record.recommendation_accuracy)
+            if record.recommendation_accuracy
+            else 0.0,
             insights=[
-                f"Saved ₹{record.total_saved} in {month_year}.",
-                f"Favorite Brand: {record.top_brand or 'General'}",
+                f"Saved ₹{record.total_saved:,.0f} in {month_year}.",
+                f"Favourite Brand: {record.top_brand or 'General'}",
             ],
         )

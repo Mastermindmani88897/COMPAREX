@@ -1,4 +1,4 @@
-﻿"""
+"""
 COMPAREX Backend - Comparison & Matching Engine Endpoints
 """
 
@@ -21,10 +21,17 @@ router = APIRouter()
 @router.get(
     "/comparison/aggregate",
     summary="Multi-Marketplace Price Aggregator",
-    description="Aggregates live and mock connector prices across all relevant connectors.",
+    description=(
+        "Aggregates live prices across all major marketplace providers. "
+        "Optionally accepts product_id for accurate product name lookup. "
+        "Returns a major_marketplace_status array that is ALWAYS present even when providers fail."
+    ),
 )
 async def aggregate_marketplace_prices(
-    q: str = Query(..., description="Search keyword, title, or EAN"),
+    q: str = Query(..., description="Product name search query (NOT a UUID)"),
+    product_id: Optional[str] = Query(
+        None, description="Optional canonical product UUID for improved accuracy"
+    ),
     category: Optional[str] = Query(
         None, description="Category filter (e.g. electronics, fashion, beauty)"
     ),
@@ -39,6 +46,7 @@ async def aggregate_marketplace_prices(
     """Aggregate search across all connector capabilities."""
     result = await MarketplaceAggregatorService.aggregate_search(
         query=q,
+        product_id=product_id,
         category=category,
         sort_by=sort_by,
         min_price=min_price,

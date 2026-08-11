@@ -126,6 +126,30 @@ class UpstashRedisClient:
 
         return (await self.get(key)) is not None
 
+    async def ttl(self, key: str) -> Optional[int]:
+        """Return time-to-live in seconds for a key. Returns None if key not found or no TTL."""
+        if self.is_configured:
+            res = await self.execute_command("TTL", key)
+            try:
+                if res is not None:
+                    ttl_val = int(res)
+                    # Redis returns -1 if key has no TTL, -2 if key doesn't exist
+                    if ttl_val >= 0:
+                        return ttl_val
+                    return None
+            except (ValueError, TypeError):
+                pass
+
+        # In-memory fallback: check remaining TTL
+        item = self._memory_store.get(key)
+        if item:
+            val, exp = item
+            if exp:
+                remaining = int(exp - time.time())
+                return max(0, remaining) if remaining > 0 else None
+        return None
+
+
 
 # Global Upstash Redis instance
 redis_client = UpstashRedisClient()

@@ -20,8 +20,9 @@ interface StoreConfig {
 export function PriceHistoryChart({
   productId,
   productName,
-  basePrice = 49999.0,
+  basePrice,
 }: PriceHistoryChartProps) {
+
   const [timeRange, setTimeRange] = useState<string>("30d");
   const [activeStores, setActiveStores] = useState<Record<string, boolean>>({
     amazon: true,
@@ -84,6 +85,7 @@ export function PriceHistoryChart({
     !historyData.points ||
     historyData.points.length < 2
   ) {
+    const obsCount: number = historyData?.verified_observation_count ?? historyData?.total_points ?? 0;
     return (
       <div
         className="rounded-3xl border p-8 text-center space-y-3 shadow-xl"
@@ -97,8 +99,13 @@ export function PriceHistoryChart({
         </h3>
         <p className="text-xs max-w-md mx-auto leading-relaxed text-amber-400 font-semibold">
           {historyData?.message ||
-            "Insufficient verified price history. History graph will appear after verified marketplace prices are collected."}
+            "No verified price history yet. CompareX will build price history as real marketplace prices are verified."}
         </p>
+        {obsCount > 0 && (
+          <p className="text-[11px]" style={{ color: "var(--foreground-muted)" }}>
+            {obsCount} verified observation{obsCount === 1 ? "" : "s"} collected so far.
+          </p>
+        )}
       </div>
     );
   }
@@ -110,10 +117,15 @@ export function PriceHistoryChart({
     highest_recorded_price = 0,
     average_price = 0,
     current_live_price = 0,
-    trend_badge = "➖ Stable",
-    best_time_to_buy = "Fair Market Price",
+    trend_badge = "⚠ Insufficient Data",
+    best_time_to_buy = "Insufficient Data",
     gemini_prediction = "",
+    price_change = null,
+    price_change_percent = null,
+    direction = null,
+    verified_observation_count = 0,
   } = historyData;
+
 
   // Calculate SVG graph dimensions & scaling
   const visibleStores = stores.filter((s: StoreConfig) => activeStores[s.slug]);
@@ -163,15 +175,26 @@ export function PriceHistoryChart({
               Price History & Market Trend
             </h2>
             <span className={`px-3 py-1 rounded-full text-xs font-black shadow-sm ${
-              trend_badge.includes("Falling") ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" :
+              trend_badge.includes("Dropping") || trend_badge.includes("Falling") ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" :
               trend_badge.includes("Rising") ? "bg-rose-500/20 text-rose-400 border border-rose-500/30" :
+              trend_badge.includes("Insufficient") ? "bg-gray-500/20 text-gray-400 border border-gray-500/30" :
               "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
             }`}>
               {trend_badge}
             </span>
+            {price_change !== null && price_change_percent !== null && (
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${
+                direction === "down" ? "text-emerald-400 bg-emerald-500/10" :
+                direction === "up" ? "text-rose-400 bg-rose-500/10" :
+                "text-gray-400 bg-gray-500/10"
+              }`}>
+                {price_change > 0 ? "+" : ""}{Number(price_change).toLocaleString("en-IN", { maximumFractionDigits: 0 })} ({price_change_percent > 0 ? "+" : ""}{Number(price_change_percent).toFixed(1)}%)
+              </span>
+            )}
           </div>
           <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
             Historical price comparison across Indian marketplaces over time.
+            {verified_observation_count > 0 && ` · ${verified_observation_count} verified observations.`}
           </p>
         </div>
 

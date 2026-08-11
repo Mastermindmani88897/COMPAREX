@@ -2,21 +2,31 @@
 COMPAREX Backend – Product Management API Endpoints
 """
 
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Any, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
+from app.core.logging import get_logger
+from app.core.redis import redis_client
 from app.models.user import User
 from app.schemas.common import SuccessResponse
 from app.schemas.product import ProductCreate, ProductPublic, ProductUpdate
 from app.schemas.product_listing import PriceCompareResult
+from app.services.aggregator_service import MarketplaceAggregatorService
 from app.services.product_listing_service import ProductListingService
 from app.services.product_service import ProductService
 
 router = APIRouter(prefix="/products", tags=["Products"])
+
+endpoint_logger = get_logger(__name__)
+
+# Marketplace refresh cooldown (seconds) — prevents abuse
+REFRESH_COOLDOWN_SECONDS = 60
+
 
 
 @router.get(
@@ -245,6 +255,168 @@ async def compare_product_prices(
     return SuccessResponse(
         message="Price comparison data retrieved",
         data=result,
+    )
+
+
+@router.get(
+    "/{product_id}/marketplace-status",
+    summary="Major Marketplace Status",
+    description=(
+        "Returns always-visible status for all major Indian marketplaces for this product. "
+        "Each entry shows whether a verified price is available and a search URL fallback."
+    ),
+)
+async def get_marketplace_status(
+    product_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """Return major marketplace status for this product without triggering a live refresh."""
+    service = ProductService(db)
+    try:
+        product = await service.get_product_by_id(product_id)
+    except HTTPException:
+        raise
+
+    product_name = product.name
+
+    # Try to get from cache first
+    cache_key = f"comparex:aggregator:v6:{product_name.lower()}:price"
+    cached_status = None
+    try:
+        cached_bytes = await redis_client.get(cache_key)
+        if cached_bytes:
+            import json
+            data = json.loads(cached_bytes)
+            cached_status = data.get("major_marketplace_status")
+    except Exception as exc:
+        endpoint_logger.warning("Redis read error in marketplace-status: %s", exc)
+
+    if cached_status:
+        return SuccessResponse(
+            message="Major marketplace status from cache",
+            data={
+                "product_id": str(product_id),
+                "product_name": product_name,
+                "major_marketplace_status": cached_status,
+                "from_cache": True,
+            },
+        )
+
+    # No cache — return static search URLs so UI can show marketplaces without a live call
+    from app.services.aggregator_service import MAJOR_MARKETPLACES
+    last_checked = datetime.now(timezone.utc).isoformat()
+    status_list = [
+        {
+            "slug": mp["slug"],
+            "name": mp["name"],
+            "logo_url": mp.get("logo_url", ""),
+            "priority": mp["priority"],
+            "status": "not_checked",
+            "price": None,
+            "has_verified_price": False,
+            "listing_url": mp["search_url_template"].format(query=product_name.replace(" ", "+")),
+            "search_url": mp["search_url_template"].format(query=product_name.replace(" ", "+")),
+            "last_checked": last_checked,
+        }
+        for mp in MAJOR_MARKETPLACES
+    ]
+    return SuccessResponse(
+        message="Major marketplace status (not yet checked — use /refresh to fetch live prices)",
+        data={
+            "product_id": str(product_id),
+            "product_name": product_name,
+            "major_marketplace_status": status_list,
+            "from_cache": False,
+        },
+    )
+
+
+@router.post(
+    "/{product_id}/refresh",
+    summary="Refresh Marketplace Prices",
+    description=(
+        "Triggers a live marketplace aggregation for this product. "
+        f"Has a {REFRESH_COOLDOWN_SECONDS}-second cooldown per product to prevent abuse."
+    ),
+)
+async def refresh_product_prices(
+    product_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """Trigger live marketplace aggregation for a specific product with cooldown enforcement."""
+    cooldown_key = f"comparex:refresh_cooldown:{product_id}"
+
+    # Check cooldown
+    try:
+        in_cooldown = await redis_client.get(cooldown_key)
+        if in_cooldown:
+            ttl_remaining = None
+            try:
+                ttl_remaining = await redis_client.ttl(cooldown_key)
+            except Exception:
+                pass
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "message": "Marketplace refresh cooldown active. Please wait before refreshing again.",
+                    "cooldown_seconds": REFRESH_COOLDOWN_SECONDS,
+                    "retry_after_seconds": ttl_remaining,
+                },
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        endpoint_logger.warning("Redis cooldown check failed: %s", exc)
+
+    # Get product
+    service = ProductService(db)
+    try:
+        product = await service.get_product_by_id(product_id)
+    except HTTPException:
+        raise
+
+    product_name = product.name
+
+    # Set cooldown before making expensive provider calls
+    try:
+        await redis_client.set(cooldown_key, "1", expire_seconds=REFRESH_COOLDOWN_SECONDS)
+    except Exception as exc:
+        endpoint_logger.warning("Redis cooldown set failed: %s", exc)
+
+    # Clear any stale cache for this product
+    cache_key = f"comparex:aggregator:v6:{product_name.lower()}:price"
+    try:
+        await redis_client.delete(cache_key)
+    except Exception:
+        pass
+
+    # Run live aggregation
+    endpoint_logger.info(
+        "MARKETPLACE_REFRESH | product_id=%s | product_name='%s'",
+        product_id,
+        product_name,
+    )
+    result = await MarketplaceAggregatorService.aggregate_search(
+        query=product_name,
+        product_id=str(product_id),
+        use_cache=False,  # Force fresh provider call
+    )
+
+    return SuccessResponse(
+        message=f"Live marketplace prices refreshed for '{product_name}'",
+        data={
+            "product_id": str(product_id),
+            "product_name": product_name,
+            "listings": result.get("listings", []),
+            "major_marketplace_status": result.get("major_marketplace_status", []),
+            "lowest_price": result.get("lowest_price"),
+            "average_price": result.get("average_price"),
+            "verified_marketplace_count": result.get("verified_marketplace_count", 0),
+            "marketplace_coverage": result.get("marketplace_coverage", "0/7 verified"),
+            "data_quality": result.get("data_quality", "unavailable"),
+            "last_checked": result.get("last_checked"),
+            "cooldown_seconds": REFRESH_COOLDOWN_SECONDS,
+        },
     )
 
 

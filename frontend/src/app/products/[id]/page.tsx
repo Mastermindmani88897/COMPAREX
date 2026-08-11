@@ -59,7 +59,31 @@ interface ListingItem {
   verification_status?: string;
   match_score?: number;
   is_exact_url?: boolean;
+  retrieved_at?: string;
+  is_outlier?: boolean;
+  outlier_reason?: string;
 }
+
+interface MajorMarketplaceStatusItem {
+  slug: string;
+  name: string;
+  logo_url?: string;
+  priority: number;
+  status: "verified" | "unavailable" | "not_checked";
+  price: number | null;
+  currency?: string;
+  listing_url: string;
+  search_url: string;
+  is_exact_url?: boolean;
+  seller_name?: string | null;
+  delivery_estimate?: string | null;
+  is_available?: boolean | null;
+  match_score?: number | null;
+  last_checked?: string;
+  has_verified_price: boolean;
+  unavailable_reason?: string;
+}
+
 
 interface ProductSpecs {
   brand?: string;
@@ -121,10 +145,23 @@ export default function ProductDetailPage() {
   const [lowestPrice, setLowestPrice] = useState<number | null>(null);
   const [avgPrice, setAvgPrice] = useState<number | null>(null);
 
+  // Major marketplace always-visible status layer
+  const [majorMarketplaceStatus, setMajorMarketplaceStatus] = useState<MajorMarketplaceStatusItem[]>([]);
+  const [verifiedMarketplaceCount, setVerifiedMarketplaceCount] = useState<number>(0);
+  const [dataQuality, setDataQuality] = useState<string>("unavailable");
+  const [marketplaceCoverage, setMarketplaceCoverage] = useState<string>("0/7 verified");
+  const [lastChecked, setLastChecked] = useState<string | null>(null);
+
+  // Refresh state
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [refreshCooldown, setRefreshCooldown] = useState<boolean>(false);
+  const [refreshCooldownSeconds, setRefreshCooldownSeconds] = useState<number>(0);
+
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [notFound, setNotFound] = useState<boolean>(false);
   const [hasError, setHasError] = useState<boolean>(false);
   const [isAlertModalOpen, setIsAlertModalOpen] = useState<boolean>(false);
+
 
   useEffect(() => {
     let isMounted = true;
@@ -204,19 +241,40 @@ export default function ProductDetailPage() {
 
         // ── 2. BACKGROUND ENRICHMENT: Async live marketplace aggregation ─────────
         try {
-          const compRes = await apiClient.get(`/comparison/aggregate?q=${encodeURIComponent(pData.name)}`);
+          // Pass both product name AND product_id for accurate resolution
+          const aggUrl = `/comparison/aggregate?q=${encodeURIComponent(pData.name)}&product_id=${encodeURIComponent(pData.id)}`;
+          const compRes = await apiClient.get(aggUrl);
           const aggData = compRes.data?.data;
 
           if (isMounted && aggData) {
+            // Always update the major marketplace status layer (always visible)
+            if (aggData.major_marketplace_status && aggData.major_marketplace_status.length > 0) {
+              setMajorMarketplaceStatus(aggData.major_marketplace_status);
+            }
+            if (typeof aggData.verified_marketplace_count === "number") {
+              setVerifiedMarketplaceCount(aggData.verified_marketplace_count);
+            }
+            if (aggData.data_quality) setDataQuality(aggData.data_quality);
+            if (aggData.marketplace_coverage) setMarketplaceCoverage(aggData.marketplace_coverage);
+            if (aggData.last_checked) setLastChecked(aggData.last_checked);
+
+            // Only update listings if verified ones were returned
             if (aggData.listings && aggData.listings.length > 0) {
               setListings(aggData.listings);
-              setLowestPrice(aggData.lowest_price || null);
-              setAvgPrice(aggData.average_price || null);
-            } else {
-              setListings([]);
-              setLowestPrice(null);
-              setAvgPrice(null);
+              // Price stats: only from non-outlier verified prices
+              const nonOutlierPrices = aggData.listings
+                .filter((l: ListingItem) => !l.is_outlier && l.price && Number(l.price) > 0)
+                .map((l: ListingItem) => Number(l.price));
+              if (nonOutlierPrices.length > 0) {
+                setLowestPrice(aggData.lowest_price || Math.min(...nonOutlierPrices));
+                setAvgPrice(aggData.average_price || Math.round(nonOutlierPrices.reduce((a: number, b: number) => a + b, 0) / nonOutlierPrices.length));
+              } else {
+                setLowestPrice(aggData.lowest_price || null);
+                setAvgPrice(aggData.average_price || null);
+              }
             }
+            // Do NOT reset listings to [] if no live providers returned — keep DB listings
+
             if (aggData.image_gallery && aggData.image_gallery.length > 0) {
               setGalleryImages((prev) => Array.from(new Set([...aggData.image_gallery, ...prev])));
             }
@@ -228,13 +286,19 @@ export default function ProductDetailPage() {
             }
           }
         } catch {
-          // Live provider unavailable — reset price summary to unavailable state
+          // Live provider call failed — do NOT wipe price summary or listings.
+          // The major marketplace section will show "Unavailable" status entries.
+          // Previously loaded DB listings (if any) remain visible.
           if (isMounted) {
-            setListings([]);
-            setLowestPrice(null);
-            setAvgPrice(null);
+            // Mark all major marketplaces as temporarily unavailable
+            setMajorMarketplaceStatus((prev) =>
+              prev.length > 0
+                ? prev.map((mp) => ({ ...mp, status: "unavailable" as const }))
+                : []
+            );
           }
         }
+
 
         apiClient.post(`/products/${pData.id}/view`).catch(() => {});
 
@@ -337,18 +401,76 @@ export default function ProductDetailPage() {
 
   // Filter listings to separate verified exact listings vs unverified
   const verifiedListings = listings.filter((l) => l.verification_status !== "unverified" && l.is_exact_url !== false);
-  const minP = (listings.length > 0 && lowestPrice && lowestPrice > 0) ? lowestPrice : (verifiedListings.length > 0 ? Math.min(...verifiedListings.map((l) => l.price)) : 0);
+  const minP = lowestPrice && lowestPrice > 0 ? lowestPrice : (verifiedListings.length > 0 ? Math.min(...verifiedListings.map((l) => l.price).filter((p) => p > 0)) : null);
   const currentImage = galleryImages[activeImageIndex] || galleryImages[0] || product.image_url || "";
 
+  const formatLastChecked = (isoStr: string | null): string => {
+    if (!isoStr) return "Not yet checked";
+    try {
+      const date = new Date(isoStr);
+      const diffMs = Date.now() - date.getTime();
+      const diffSecs = Math.floor(diffMs / 1000);
+      const diffMins = Math.floor(diffSecs / 60);
+      if (diffSecs < 60) return "Just now";
+      if (diffMins < 60) return `${diffMins}m ago`;
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return "Recently";
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (!product || isRefreshing || refreshCooldown) return;
+    setIsRefreshing(true);
+    try {
+      const res = await apiClient.post(`/products/${product.id}/refresh`);
+      const data = res.data?.data;
+      if (data) {
+        if (data.listings && data.listings.length > 0) setListings(data.listings);
+        if (data.major_marketplace_status) setMajorMarketplaceStatus(data.major_marketplace_status);
+        if (typeof data.verified_marketplace_count === "number") setVerifiedMarketplaceCount(data.verified_marketplace_count);
+        if (data.data_quality) setDataQuality(data.data_quality);
+        if (data.marketplace_coverage) setMarketplaceCoverage(data.marketplace_coverage);
+        if (data.last_checked) setLastChecked(data.last_checked);
+        if (data.lowest_price) setLowestPrice(data.lowest_price);
+        if (data.average_price) setAvgPrice(data.average_price);
+        setRefreshCooldown(true);
+        setRefreshCooldownSeconds(data.cooldown_seconds || 60);
+        const interval = setInterval(() => {
+          setRefreshCooldownSeconds((prev) => {
+            if (prev <= 1) {
+              clearInterval(interval);
+              setRefreshCooldown(false);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      }
+    } catch (err: unknown) {
+      // 429 = cooldown still active from a previous refresh
+      const errObj = err as { response?: { status?: number; data?: { detail?: { retry_after_seconds?: number } } } };
+      if (errObj?.response?.status === 429) {
+        const retryAfter = errObj?.response?.data?.detail?.retry_after_seconds || 60;
+        setRefreshCooldown(true);
+        setRefreshCooldownSeconds(retryAfter);
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
+
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8" style={{ background: "var(--background)", paddingTop: "88px" }}>
       <PriceAlertModal
         isOpen={isAlertModalOpen}
         onClose={() => setIsAlertModalOpen(false)}
         productId={product.id}
         productName={productName}
-        currentPrice={minP || 19999}
+        currentPrice={minP || Number(product.base_price) || 0}
       />
+
 
       <div className="max-w-7xl mx-auto space-y-10">
 
@@ -600,12 +722,149 @@ export default function ProductDetailPage() {
           </div>
         )}
 
-        {/* ── PRICE HISTORY CHART ──────────────────────────────────────────────── */}
+        {/* ── PRICE HISTORY CHART ─────────────────────────────────────────────── */}
         <PriceHistoryChart
           productId={product.id}
           productName={productName}
-          basePrice={minP || 19999}
+          basePrice={minP || undefined}
         />
+
+        {/* ── MAJOR MARKETPLACES — ALWAYS VISIBLE ────────────────────────────── */}
+        <div className="rounded-3xl border p-6 sm:p-8 space-y-5 shadow-2xl" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-4" style={{ borderColor: "var(--border)" }}>
+            <div>
+              <h2 className="text-xl font-bold tracking-tight flex items-center gap-2" style={{ color: "var(--foreground)" }}>
+                <ShieldCheck className="h-5 w-5 text-indigo-400" /> Major Marketplace Coverage
+              </h2>
+              <p className="text-xs mt-1" style={{ color: "var(--foreground-muted)" }}>
+                Always-visible status for all 7 major Indian marketplaces.
+                Green = verified live price. Amber = no listing found. Use Search links to check manually.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {/* Coverage badge */}
+              <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
+                dataQuality === "high" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                dataQuality === "medium" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                "bg-gray-500/10 text-gray-400 border-gray-500/20"
+              }`}>
+                {marketplaceCoverage}
+              </span>
+              {/* Refresh button with cooldown */}
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing || refreshCooldown}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
+                  isRefreshing || refreshCooldown
+                    ? "opacity-50 cursor-not-allowed"
+                    : "hover:border-indigo-500 hover:text-indigo-400"
+                }`}
+                style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
+                title={refreshCooldown ? `Cooldown: ${refreshCooldownSeconds}s` : "Refresh live prices"}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-indigo-400" : ""}`} />
+                {isRefreshing ? "Refreshing..." : refreshCooldown ? `Wait ${refreshCooldownSeconds}s` : "Refresh Prices"}
+              </button>
+            </div>
+          </div>
+
+          {lastChecked && (
+            <p className="text-[11px]" style={{ color: "var(--foreground-muted)" }}>
+              Last checked: {formatLastChecked(lastChecked)}
+            </p>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {majorMarketplaceStatus.length === 0 ? (
+              // Not yet fetched — show placeholder cards
+              Array.from({ length: 7 }).map((_, i) => (
+                <div key={i} className="rounded-2xl border p-4 animate-pulse" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-8 w-8 rounded-xl bg-gray-500/20" />
+                    <div className="h-3 w-20 rounded bg-gray-500/20" />
+                  </div>
+                  <div className="h-5 w-24 rounded bg-gray-500/20" />
+                </div>
+              ))
+            ) : (
+              majorMarketplaceStatus.map((mp) => (
+                <div
+                  key={mp.slug}
+                  className={`rounded-2xl border p-4 transition-all ${
+                    mp.has_verified_price
+                      ? "border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10"
+                      : "hover:border-gray-500/40"
+                  }`}
+                  style={mp.has_verified_price ? {} : { background: "var(--background)", borderColor: "var(--border)" }}
+                >
+                  {/* Store header */}
+                  <div className="flex items-center gap-2.5 mb-3">
+                    {mp.logo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={mp.logo_url} alt={mp.name} className="h-6 w-auto max-w-[60px] object-contain" />
+                    ) : (
+                      <div className="h-6 w-6 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+                        <span className="text-[10px] font-bold text-indigo-400">{mp.name[0]}</span>
+                      </div>
+                    )}
+                    <span className="text-xs font-bold" style={{ color: "var(--foreground)" }}>{mp.name}</span>
+                  </div>
+
+                  {/* Price or status */}
+                  {mp.has_verified_price && mp.price ? (
+                    <>
+                      <p className="text-xl font-black text-emerald-400">
+                        ₹{Number(mp.price).toLocaleString("en-IN")}
+                      </p>
+                      {mp.seller_name && (
+                        <p className="text-[10px] mt-0.5" style={{ color: "var(--foreground-muted)" }}>
+                          {mp.seller_name}
+                        </p>
+                      )}
+                      {mp.delivery_estimate && (
+                        <p className="text-[10px] flex items-center gap-1 mt-1 text-indigo-400">
+                          <Clock className="h-3 w-3" /> {mp.delivery_estimate}
+                        </p>
+                      )}
+                      {mp.match_score && mp.match_score < 0.95 && (
+                        <span className="text-[10px] text-amber-400 font-semibold">Match: {Math.round(mp.match_score * 100)}%</span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs font-bold text-amber-400 mb-1">
+                        {mp.status === "not_checked" ? "Not checked yet" : "No verified listing"}
+                      </p>
+                      {mp.unavailable_reason && (
+                        <p className="text-[10px]" style={{ color: "var(--foreground-muted)" }}>
+                          {mp.unavailable_reason}
+                        </p>
+                      )}
+                    </>
+                  )}
+
+                  {/* CTA */}
+                  <a
+                    href={mp.listing_url || mp.search_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`mt-3 inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all ${
+                      mp.has_verified_price
+                        ? "gradient-bg text-white hover:opacity-90"
+                        : "bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20"
+                    }`}
+                  >
+                    {mp.has_verified_price ? (
+                      <><CheckCircle2 className="h-3 w-3" /> Buy on {mp.name}</>
+                    ) : (
+                      <><ExternalLink className="h-3 w-3" /> Search {mp.name}</>
+                    )}
+                  </a>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
 
         {/* ── MARKETPLACE PRICE COMPARISON MATRIX ───────────────────────────────── */}
         <div className="rounded-3xl border p-6 sm:p-8 space-y-6 shadow-2xl" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
