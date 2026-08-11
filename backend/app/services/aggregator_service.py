@@ -22,6 +22,7 @@ from app.adapters.rainforest_adapter import RainforestAdapter
 from app.adapters.serpapi_adapter import SerpApiAdapter
 from app.adapters.zenrows_adapter import ZenRowsAdapter
 from app.adapters.provider_status import ProviderResponse, ProviderStatus
+from app.adapters.marketplace_normalizer import MarketplaceNormalizer, CANONICAL_MARKETPLACES
 from app.core.logging import get_logger
 from app.core.redis import redis_client
 from app.services.matching_engine import ExactProductMatchEngine, SearchQueryGenerator
@@ -131,29 +132,22 @@ class MarketplaceAggregatorService:
     @classmethod
     def _build_major_marketplace_status(
         cls,
-        verified_listings: List[Dict[str, Any]],
+        canonical_offers: List[Dict[str, Any]],
         provider_statuses: Dict[str, str],
         query: str,
         last_checked: str,
     ) -> List[Dict[str, Any]]:
         """
-        Build always-visible status for every major marketplace.
-
-        Each entry shows whether a verified price was found,
-        what the price is (or why it's unavailable), and a search URL fallback.
-
-        This list is ALWAYS returned regardless of provider failures —
-        the UI must NEVER hide major marketplaces because of provider issues.
+        Build always-visible status for every major marketplace using the single source of truth
+        canonical verified offers dataset.
         """
-        # Build lookup: marketplace_slug → best verified listing
-        verified_by_slug: Dict[str, Dict[str, Any]] = {}
-        for lst in verified_listings:
-            slug = (lst.get("marketplace_slug") or "").lower()
-            if slug and slug not in verified_by_slug:
-                verified_by_slug[slug] = lst
-            # Also handle compound slugs (e.g. "reliance_digital" from "reliance")
-            if slug == "reliance" and "reliance_digital" not in verified_by_slug:
-                verified_by_slug["reliance_digital"] = lst
+        # Build lookup: marketplace_key -> canonical offer
+        verified_by_key: Dict[str, Dict[str, Any]] = {}
+        for offer in canonical_offers:
+            k = offer.get("marketplace_key") or (offer.get("marketplace_slug") or "").lower()
+            norm_key, _, _ = MarketplaceNormalizer.normalize_marketplace(k)
+            if norm_key and norm_key not in verified_by_key:
+                verified_by_key[norm_key] = offer
 
         status_list = []
         for mp in MAJOR_MARKETPLACES:
@@ -162,31 +156,34 @@ class MarketplaceAggregatorService:
                 query=query.replace(" ", "+")
             )
 
-            if slug in verified_by_slug:
-                lst = verified_by_slug[slug]
+            if slug in verified_by_key:
+                lst = verified_by_key[slug]
                 entry = {
                     "slug": slug,
+                    "marketplace_key": slug,
                     "name": mp["name"],
                     "logo_url": mp.get("logo_url", ""),
                     "priority": mp["priority"],
                     "status": "verified",
-                    "title": lst.get("title"),
+                    "title": lst.get("listing_title") or lst.get("title"),
                     "price": float(lst.get("price", 0)),
-                    "original_price": float(lst["original_price"]) if lst.get("original_price") else None,
-                    "discount_percent": float(lst["discount_percent"]) if lst.get("discount_percent") else None,
+                    "original_price": float(lst["mrp"]) if lst.get("mrp") else (float(lst["original_price"]) if lst.get("original_price") else None),
+                    "discount_percent": float(lst["discount_percentage"]) if lst.get("discount_percentage") else (float(lst["discount_percent"]) if lst.get("discount_percent") else None),
                     "currency": lst.get("currency", "INR"),
                     "listing_url": lst.get("listing_url", search_url),
                     "image_url": lst.get("image_url") or mp.get("logo_url", ""),
-                    "is_exact_url": lst.get("is_exact_url", False),
-                    "seller_name": lst.get("seller_name"),
-                    "delivery_estimate": lst.get("delivery_estimate"),
+                    "is_exact_url": lst.get("is_exact_url", True),
+                    "seller_name": lst.get("seller") or lst.get("seller_name"),
+                    "delivery_estimate": lst.get("delivery_information") or lst.get("delivery_estimate"),
                     "rating": float(lst["rating"]) if lst.get("rating") else None,
                     "review_count": int(lst["review_count"]) if lst.get("review_count") else None,
                     "is_available": lst.get("is_available", True),
-                    "match_score": float(lst.get("match_score", 1.0)),
+                    "match_score": float(lst.get("match_confidence", lst.get("match_score", 1.0))),
                     "last_checked": last_checked,
                     "search_url": search_url,
                     "has_verified_price": True,
+                    "listing_id": lst.get("listing_id"),
+                    "unique_fingerprint": lst.get("unique_fingerprint"),
                 }
             else:
                 # Determine reason
@@ -437,8 +434,8 @@ class MarketplaceAggregatorService:
             else:
                 provider_statuses[provider_name] = "UNKNOWN_ERROR"
 
-        # ── 2. Exact Attribute Matching ──────────────────────────────────────────
-        verified_listings: List[Dict[str, Any]] = []
+        # ── 2. Exact Attribute Matching & Canonical Offer Dataset ─────────────────
+        raw_verified: List[Dict[str, Any]] = []
         rejected_count = 0
 
         for candidate in raw_candidates:
@@ -455,24 +452,28 @@ class MarketplaceAggregatorService:
                 candidate["is_exact_url"] = is_exact_url
                 candidate["verification_status"] = "verified"
                 candidate["retrieved_at"] = datetime.now(timezone.utc).isoformat()
-                verified_listings.append(candidate)
+                raw_verified.append(candidate)
             else:
                 rejected_count += 1
                 logger.info(
                     "REJECTED_LISTING | title='%s' | reason='%s'", title[:80], reason
                 )
 
-        # ── 3. Price outlier detection ───────────────────────────────────────────
-        if verified_listings:
-            verified_listings = cls._detect_price_outliers(verified_listings)
+        # ── 3. Single Source of Truth Canonical Offers & Deduplication ────────────
+        canonical_offers = MarketplaceNormalizer.deduplicate_canonical_offers(
+            raw_verified, canonical_product_id=product_id
+        )
 
-        # ── 4. Sort verified listings by price ──────────────────────────────────
+        # ── 4. Price Outlier Detection & Sorting ──────────────────────────────────
+        if canonical_offers:
+            canonical_offers = cls._detect_price_outliers(canonical_offers)
+
         if sort_by in ("price", "lowest_price"):
-            verified_listings.sort(key=lambda x: float(x.get("price", 0)))
+            canonical_offers.sort(key=lambda x: float(x.get("price", 0)))
 
         # Only use non-outlier, available listings for price stats
         stat_listings = [
-            x for x in verified_listings
+            x for x in canonical_offers
             if x.get("is_available", True) and x.get("price") and not x.get("is_outlier", False)
         ]
         avail_prices = [float(x["price"]) for x in stat_listings]
@@ -483,9 +484,9 @@ class MarketplaceAggregatorService:
 
         last_checked = datetime.now(timezone.utc).isoformat()
 
-        # ── 5. Major Marketplace Status Layer ────────────────────────────────────
+        # ── 5. Major Marketplace Status Layer (from canonical_offers) ─────────────
         major_status = cls._build_major_marketplace_status(
-            verified_listings, provider_statuses, clean_search_term, last_checked
+            canonical_offers, provider_statuses, clean_search_term, last_checked
         )
         verified_major_count = sum(1 for m in major_status if m["has_verified_price"])
 
@@ -508,7 +509,7 @@ class MarketplaceAggregatorService:
             "major_verified=%d/%d | lowest=%s | quality=%s",
             clean_search_term,
             len(raw_candidates),
-            len(verified_listings),
+            len(canonical_offers),
             rejected_count,
             verified_major_count,
             len(MAJOR_MARKETPLACES),
@@ -519,31 +520,32 @@ class MarketplaceAggregatorService:
         response_payload = {
             "query": clean_search_term,
             "product_id": product_id,
-            "total_listings": len(verified_listings),
+            "total_listings": len(canonical_offers),
             "marketplaces_queried": [m["slug"] for m in MAJOR_MARKETPLACES],
             "provider_statuses": provider_statuses,
             # Always-visible major marketplace status (never hidden on failure)
             "major_marketplace_status": major_status,
             "verified_marketplace_count": verified_major_count,
             "total_major_marketplaces": len(MAJOR_MARKETPLACES),
-            # Price statistics — ONLY from non-outlier verified prices
+            # Price statistics — ONLY from non-outlier verified canonical offers
             "lowest_price": lowest,
             "highest_price": highest,
             "average_price": avg,
             "verified_offer_count": len(stat_listings),
             # Verification
-            "verification_status": "verified" if verified_listings else "unavailable",
+            "verification_status": "verified" if canonical_offers else "unavailable",
             "verification_message": (
-                f"Verified {len(verified_listings)} listing(s) from live providers."
-                if verified_listings
+                f"Verified {len(canonical_offers)} listing(s) from live providers."
+                if canonical_offers
                 else (
                     "Live marketplace prices are temporarily unavailable. "
                     "Providers could not verify current listings. "
                     "Major marketplace search links are provided below."
                 )
             ),
-            # Listings (for backward compat)
-            "listings": verified_listings,
+            # Single Source of Truth Canonical Verified Offers Dataset
+            "listings": canonical_offers,
+            "canonical_offers": canonical_offers,
             # Data quality
             "data_quality": data_quality,
             "data_quality_message": quality_message,
