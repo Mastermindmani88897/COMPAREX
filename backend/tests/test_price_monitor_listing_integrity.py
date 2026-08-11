@@ -22,9 +22,8 @@ from app.services.price_monitor_service import PriceMonitorService
 
 @pytest.fixture(autouse=True)
 async def cleanup_db_engine():
-    """Dispose DB engine pool after each test to prevent closed event loop errors."""
+    """DB session fixture."""
     yield
-    await engine.dispose()
 
 
 async def clear_existing_alerts():
