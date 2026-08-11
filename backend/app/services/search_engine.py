@@ -366,11 +366,11 @@ class SearchEngineService:
 
         # 5. Strict Variant Suffix Isolation (e.g. Pro vs standard, Ultra vs Plus, Air vs Pro)
         q_var = intent.variant_suffix
-        has_p_pro = "pro" in p_name_norm
-        has_p_max = "max" in p_name_norm
-        has_p_ultra = "ultra" in p_name_norm
-        has_p_plus = "plus" in p_name_norm
-        has_p_air = "air" in p_name_norm
+        has_p_pro = bool(re.search(r"\bpro\b", p_name_norm))
+        has_p_max = bool(re.search(r"\bmax\b", p_name_norm))
+        has_p_ultra = bool(re.search(r"\bultra\b", p_name_norm))
+        has_p_plus = bool(re.search(r"\bplus\b", p_name_norm))
+        has_p_air = bool(re.search(r"\bair\b", p_name_norm))
 
         if q_var is None and (intent.family or intent.model_number):
             # Query specified standard base model of a specific family/model (no "pro", "ultra", "plus", "max")
