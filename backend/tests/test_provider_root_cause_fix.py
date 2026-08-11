@@ -160,7 +160,7 @@ def test_major_marketplace_status_reasons():
     ]
 
     status_list = MarketplaceAggregatorService._build_major_marketplace_status(
-        verified_listings=verified_listings,
+        canonical_offers=verified_listings,
         provider_statuses=provider_statuses,
         query="Apple iPhone 15",
         last_checked=datetime.now(timezone.utc).isoformat(),

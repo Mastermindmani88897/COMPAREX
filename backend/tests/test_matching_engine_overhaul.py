@@ -256,7 +256,7 @@ def test_provider_failure_resilience_and_status_states():
     }
 
     status_list = MarketplaceAggregatorService._build_major_marketplace_status(
-        verified_listings=verified_listings,
+        canonical_offers=verified_listings,
         provider_statuses=provider_statuses,
         query="Samsung Galaxy S25 Ultra",
         last_checked="2026-08-11T12:00:00Z",
