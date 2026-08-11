@@ -38,9 +38,9 @@ jobs:
           NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
           NEXT_PUBLIC_APP_URL: http://localhost:3000
 
-  # ── Backend CI ──────────────────────────────────────────────
-  backend-ci:
-    name: Backend – Lint & Startup Check
+  # ── Backend Lint (no DB required, fast) ──────────────────────
+  backend-lint:
+    name: Backend – Flake8 Lint
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -60,27 +60,88 @@ jobs:
       - name: Install production dependencies
         run: pip install -r requirements.txt
 
-      - name: Install dev dependencies (linting)
+      - name: Install dev dependencies
         run: pip install -r requirements-dev.txt
 
       - name: Run flake8 lint check
         run: flake8 app/
 
-      - name: Verify application imports and startup
-        run: |
-          python -c "from app.main import app; print('✓ FastAPI app created successfully')"
-        env:
-          ENVIRONMENT: development
-          DEBUG: "True"
-          DATABASE_URL: "postgresql+asyncpg://postgres:password@localhost:5432/comparex"
-          SECRET_KEY: "ci-test-secret-key"
-          LOG_LEVEL: "INFO"
+  # ── Backend Integration Tests (real isolated PostgreSQL) ──────
+  backend-test:
+    name: Backend – Integration Tests (PostgreSQL)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
 
-      - name: Run unit tests (no database required)
-        run: pytest tests/test_phase3.py tests/test_phase4.py tests/test_phase5.py tests/test_phase6.py -v --tb=short
+    services:
+      postgres:
+        image: postgres:15
         env:
-          ENVIRONMENT: development
-          DEBUG: "True"
-          DATABASE_URL: "postgresql+asyncpg://postgres:password@localhost:5432/comparex"
-          SECRET_KEY: "ci-test-secret-key"
-          LOG_LEVEL: "INFO"
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: comparex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d comparex_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # CI-only isolated database — NOT the production Neon/Render database
+      DATABASE_URL: "postgresql+asyncpg://postgres:postgres@localhost:5432/comparex_test"
+      ENVIRONMENT: development
+      DEBUG: "True"
+      SECRET_KEY: "ci-test-secret-key-not-for-production"
+      LOG_LEVEL: "WARNING"
+      # AI provider set to mock in CI — no real Gemini key required
+      AI_PROVIDER: mock
+      # Marketplace providers stubbed — no production API keys exposed
+      SERPAPI_API_KEY: ""
+      RAINFOREST_API_KEY: ""
+      BRIGHTDATA_API_KEY: ""
+      ZENROWS_API_KEY: ""
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Install production dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Verify application imports
+        run: python -c "from app.main import app; print('FastAPI app import OK')"
+
+      - name: Wait for PostgreSQL to accept connections
+        run: |
+          for i in $(seq 1 30); do
+            if pg_isready -h localhost -p 5432 -U postgres -d comparex_test; then
+              echo "PostgreSQL is ready"
+              break
+            fi
+            echo "Waiting for PostgreSQL... attempt $i/30"
+            sleep 2
+          done
+
+      - name: Run Alembic migrations against CI database
+        run: alembic upgrade head
+
+      - name: Verify migration state
+        run: |
+          alembic current
+          alembic heads
+
+      - name: Run full backend test suite
+        run: pytest -v --tb=short
