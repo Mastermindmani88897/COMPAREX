@@ -8,7 +8,8 @@ Validates that:
 4. Price History Observations
 5. Price Drop Alert Evaluations
 
-ALL consume the exact same single source of truth canonical verified marketplace offer dataset without a single discrepancy.
+ALL consume the exact same single source of truth canonical verified marketplace offer dataset
+without a single discrepancy.
 """
 
 from datetime import datetime, timezone
@@ -16,7 +17,6 @@ import pytest
 
 from app.adapters.marketplace_normalizer import MarketplaceNormalizer, MAJOR_MARKETPLACE_ORDER
 from app.services.aggregator_service import MarketplaceAggregatorService
-from app.services.price_history_service import PriceHistoryService
 
 
 @pytest.mark.asyncio
@@ -101,14 +101,27 @@ async def test_single_source_of_truth_pipeline_consistency():
 
         if cov_card["status"] == "verified":
             # If Coverage says VERIFIED:
-            assert mat_offer is not None, f"Coverage says VERIFIED for {mp_key} but Matrix is missing offer"
-            assert cov_card["price"] == mat_offer["price"], f"Price mismatch for {mp_key}: Coverage {cov_card['price']} vs Matrix {mat_offer['price']}"
-            assert cov_card["listing_url"] == mat_offer["listing_url"], f"URL mismatch for {mp_key}"
-            assert cov_card["listing_id"] == mat_offer["listing_id"], f"Listing ID mismatch for {mp_key}"
-            assert cov_card["unique_fingerprint"] == mat_offer["unique_fingerprint"], f"Fingerprint mismatch for {mp_key}"
+            assert mat_offer is not None, (
+                f"Coverage says VERIFIED for {mp_key} but Matrix is missing offer"
+            )
+            assert cov_card["price"] == mat_offer["price"], (
+                f"Price mismatch for {mp_key}: "
+                f"Coverage {cov_card['price']} vs Matrix {mat_offer['price']}"
+            )
+            assert cov_card["listing_url"] == mat_offer["listing_url"], (
+                f"URL mismatch for {mp_key}"
+            )
+            assert cov_card["listing_id"] == mat_offer["listing_id"], (
+                f"Listing ID mismatch for {mp_key}"
+            )
+            assert cov_card["unique_fingerprint"] == mat_offer["unique_fingerprint"], (
+                f"Fingerprint mismatch for {mp_key}"
+            )
         else:
             # If Coverage says UNAVAILABLE:
-            assert mat_offer is None, f"Coverage says UNAVAILABLE for {mp_key} but Matrix contains offer"
+            assert mat_offer is None, (
+                f"Coverage says UNAVAILABLE for {mp_key} but Matrix contains offer"
+            )
 
     # 4. Step 4: Current Best Price & Stats Assertion
     avail_prices = [o["price"] for o in canonical_offers if o["is_available"]]
@@ -141,4 +154,6 @@ def test_marketplace_key_normalization():
 
     for raw, expected_key in variations:
         key, name, logo = MarketplaceNormalizer.normalize_marketplace(raw)
-        assert key == expected_key, f"Failed for raw='{raw}': got '{key}', expected '{expected_key}'"
+        assert key == expected_key, (
+            f"Failed for raw='{raw}': got '{key}', expected '{expected_key}'"
+        )

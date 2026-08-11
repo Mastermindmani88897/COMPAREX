@@ -191,5 +191,13 @@ command.heads(cfg)
 print('Migration state: OK')
 "
 
+      - name: Run targeted AI endpoint tests
+        run: |
+          pytest tests/test_phase6.py::test_ai_chat_endpoint -q
+          pytest tests/test_phase6.py::test_ai_recommendations_endpoint -q
+
       - name: Run full backend test suite
-        run: pytest -v --tb=short
+        run: pytest -q
+
+      - name: Run flake8 lint check
+        run: flake8 app tests

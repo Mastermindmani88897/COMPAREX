@@ -18,11 +18,9 @@ Verifies:
 
 import uuid
 from datetime import datetime, timezone
-import pytest
 from app.adapters.provider_status import ProviderHealthTracker, ProviderResponse, ProviderStatus
 from app.services.aggregator_service import MarketplaceAggregatorService
 from app.services.matching_engine import ExactProductMatchEngine
-from app.services.price_history_service import PriceHistoryService
 
 
 class DummyProduct:
@@ -61,7 +59,7 @@ def test_serpapi_provider_status_classification():
 
 
 def test_rainforest_http_402_classification():
-    """Verify Rainforest HTTP 402 Payment Required is classified as QUOTA_EXHAUSTED / PAYMENT_REQUIRED."""
+    """Verify Rainforest HTTP 402 is classified as QUOTA_EXHAUSTED / PAYMENT_REQUIRED."""
     resp_402 = ProviderResponse(
         provider_name="Rainforest",
         status=ProviderStatus.PAYMENT_REQUIRED,
@@ -174,5 +172,10 @@ def test_major_marketplace_status_reasons():
 
     fk = next(s for s in status_list if s["slug"] == "flipkart")
     assert fk["status"] == "unavailable"
-    assert "credits exhausted" in fk["unavailable_reason"].lower() or "configuration error" in fk["unavailable_reason"].lower() or "no verified listing" in fk["unavailable_reason"].lower()
+    reason = fk["unavailable_reason"].lower()
+    assert (
+        "credits exhausted" in reason
+        or "configuration error" in reason
+        or "no verified listing" in reason
+    )
     assert "flipkart.com/search" in fk["search_url"]
