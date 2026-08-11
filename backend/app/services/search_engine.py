@@ -317,7 +317,8 @@ class SearchEngineService:
         is_bundled_case = any(
             c in p_name_lower for c in ["magsafe case", "charging case", "case with"]
         )
-        is_earbud_prod = any(e in p_name_lower for e in ["airpods", "earbuds", "galaxy buds", "earphones"])
+        earbud_terms = ["airpods", "earbuds", "galaxy buds", "earphones"]
+        is_earbud_prod = any(e in p_name_lower for e in earbud_terms)
 
         if is_bundled_case and is_earbud_prod:
             return False
