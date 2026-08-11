@@ -297,14 +297,34 @@ class SearchEngineService:
 
     @classmethod
     def is_accessory_product(cls, product_name: str, product_category: Optional[str]) -> bool:
-        """Detect if product is an accessory."""
+        """Detect if product is an accessory (excluding earbud bundled charging cases)."""
         p_name_lower = product_name.lower()
         cat_lower = (product_category or "").lower()
 
         if "accessories" in cat_lower or "accessory" in cat_lower:
             return True
 
+        # Explicit protective accessory patterns
+        acc_patterns = [
+            "protective case", "case cover", "cover for", "case for",
+            "silicone case", "skin cover", "screen guard", "screen protector",
+            "charger for", "cable for", "adapter for", "strap for",
+        ]
+        if any(re.search(r"\b" + re.escape(p) + r"\b", p_name_lower) for p in acc_patterns):
+            return True
+
+        # Allow bundled earbud charging cases (e.g., "AirPods Pro with MagSafe Case")
+        is_bundled_case = any(
+            c in p_name_lower for c in ["magsafe case", "charging case", "case with"]
+        )
+        is_earbud_prod = any(e in p_name_lower for e in ["airpods", "earbuds", "galaxy buds", "earphones"])
+
+        if is_bundled_case and is_earbud_prod:
+            return False
+
         for acc_kw in ACCESSORY_KEYWORDS:
+            if acc_kw == "case" and ("magsafe" in p_name_lower or "charging" in p_name_lower):
+                continue
             if re.search(r"\b" + re.escape(acc_kw) + r"\b", p_name_lower):
                 return True
 
