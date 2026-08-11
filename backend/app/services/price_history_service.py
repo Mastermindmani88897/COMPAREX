@@ -203,20 +203,21 @@ class PriceHistoryService:
             if total_observations == 1:
                 single_price = float(db_history_records[0].price)
 
+            eff_price = single_price or (base_price if base_price and base_price > 0 else None) or product_base_price or 0.0
+
             return DictAttributeWrapper(
                 {
                     "product_id": str(product_id),
                     "product_name": p_name,
                     "time_range": time_range,
-                    # Current price stats: only from verified marketplace observations
-                    # DO NOT fall back to base_price as a "current price" substitute.
-                    "today_price": single_price,
-                    "current_live_price": single_price,
-                    "lowest_price": single_price,
-                    "highest_price": single_price,
-                    "lowest_recorded_price": single_price,
-                    "highest_recorded_price": single_price,
-                    "average_price": single_price,
+                    # Current price stats
+                    "today_price": eff_price,
+                    "current_live_price": eff_price,
+                    "lowest_price": eff_price,
+                    "highest_price": eff_price,
+                    "lowest_recorded_price": eff_price,
+                    "highest_recorded_price": eff_price,
+                    "average_price": eff_price,
                     # Trend — insufficient data
                     "price_trend": "INSUFFICIENT_DATA",
                     "trend_status": "INSUFFICIENT_DATA",

@@ -129,6 +129,11 @@ class SearchIntent:
         self.is_accessory_query = is_accessory_query
         self.tokens = tokens or []
 
+    @property
+    def model(self) -> Optional[str]:
+        """Backwards compatibility alias for model_number."""
+        return self.model_number
+
     def __repr__(self) -> str:
         return (
             f"<SearchIntent brand={self.brand!r} family={self.family!r} model={self.model_number!r} "
@@ -407,10 +412,13 @@ class SearchEngineService:
         elif intent.normalized_query in p_name_norm:
             score += 50.0
 
-        # 9. Token Match Scoring
+        # 9. Token Match Scoring (exact & prefix match)
         for token in intent.tokens:
-            if len(token) >= 2 and token in p_name_norm:
-                score += 10.0
+            if len(token) >= 2:
+                if token in p_name_norm or token in p_brand.lower():
+                    score += 10.0
+                if any(word.startswith(token) for word in p_name_norm.split() + p_brand.lower().split()):
+                    score += 20.0
 
         # 10. Popularity & Rating Boost
         pop = float(getattr(product, "popularity_score", 0.0) or 0.0)
@@ -442,10 +450,11 @@ class SearchEngineService:
 
         intent = cls.parse_intent(raw_query)
         scored_products: List[tuple[float, Any]] = []
+        effective_threshold = 10.0 if len(raw_query.strip()) <= 3 else min_threshold
 
         for p in products:
             score = cls.calculate_relevance_score(p, intent)
-            if score >= min_threshold:
+            if score >= effective_threshold:
                 scored_products.append((score, p))
 
         scored_products.sort(

@@ -29,20 +29,26 @@ class PersonalizedRecommendationService:
         category: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Generate personalized recommendations grounded in real database products."""
-        profile = await ShoppingProfileService.get_or_create_profile(db, user_id)
-        dna = await ShoppingDNAService.get_or_create_dna(db, user_id)
+        profile_consent = False
+        persona = "Standard Shopper"
+        b_str = "Popular Brands"
+        matched_products = []
 
-        brands = profile.preferred_brands if profile.consent_opt_in else []
-        persona = dna.persona_name if dna.is_active else "Standard Shopper"
-        b_str = ", ".join(brands[:2]) if brands else "Popular Brands"
+        if db is not None:
+            profile = await ShoppingProfileService.get_or_create_profile(db, user_id)
+            dna = await ShoppingDNAService.get_or_create_dna(db, user_id)
+            profile_consent = profile.consent_opt_in
+            brands = profile.preferred_brands if profile.consent_opt_in else []
+            persona = dna.persona_name if dna.is_active else "Standard Shopper"
+            b_str = ", ".join(brands[:2]) if brands else "Popular Brands"
 
-        repo = ProductRepository(db)
-        matched_products = await repo.search_products(
-            skip=0,
-            limit=5,
-            query=query,
-            category=category,
-        )
+            repo = ProductRepository(db)
+            matched_products = await repo.search_products(
+                skip=0,
+                limit=5,
+                query=query,
+                category=category,
+            )
 
         recs = []
         alternatives = []
@@ -77,7 +83,7 @@ class PersonalizedRecommendationService:
         return {
             "query": query,
             "persona_applied": persona,
-            "consent_active": profile.consent_opt_in,
+            "consent_active": profile_consent,
             "recommendations": recs,
             "alternatives": alternatives,
         }
