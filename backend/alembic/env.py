@@ -6,6 +6,7 @@ and read the database URL from our settings module.
 """
 
 import asyncio
+import re
 from logging.config import fileConfig
 
 from alembic import context
@@ -27,8 +28,31 @@ from app.models import user, product, marketplace, category  # noqa: F401
 
 config = context.config
 
+
+def _make_sync_url(url: str) -> str:
+    """
+    Convert an async database URL to a synchronous psycopg2 URL for
+    Alembic CLI migrations.  The asyncpg driver cannot be used in
+    Alembic's synchronous migration context.
+
+    Examples:
+        postgresql+asyncpg://... → postgresql+psycopg2://...
+        postgres://...           → postgresql+psycopg2://...
+    """
+    url = url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+    url = url.replace("postgres://", "postgresql+psycopg2://")
+    # Strip asyncpg-only SSL params that psycopg2 does not understand
+    url = re.sub(r"\?ssl=require$", "?sslmode=require", url)
+    url = re.sub(r"\?ssl=prefer$", "?sslmode=prefer", url)
+    url = re.sub(r"&?channel_binding=[^&]+", "", url)
+    return url
+
+
 # Override alembic.ini sqlalchemy.url with our settings
-config.set_main_option("sqlalchemy.url", settings.ASYNC_DATABASE_URL)
+# Use the sync (psycopg2) URL for Alembic CLI; async engines are used only
+# inside the running FastAPI application, not during migrations.
+sync_db_url = _make_sync_url(settings.ASYNC_DATABASE_URL)
+config.set_main_option("sqlalchemy.url", sync_db_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -57,8 +81,12 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     """Run migrations in 'online' mode using async engine."""
+    # Restore the asyncpg URL for the async engine (overrides sync_db_url
+    # that was set for the Alembic config main option above)
+    async_section = dict(config.get_section(config.config_ini_section, {}))
+    async_section["sqlalchemy.url"] = settings.ASYNC_DATABASE_URL
     connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        async_section,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
