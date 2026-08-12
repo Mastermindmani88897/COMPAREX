@@ -224,7 +224,7 @@ class PriceAlertService:
 
         product = await db.get(Product, payload.product_id)
         p_name = product.name if product else "Watchlist Item"
-        p_price = float(product.base_price) if (product and product.base_price) else 4999.0
+        p_price = float(product.base_price) if (product and product.base_price) else None
 
         return WatchlistResponse(
             id=item.id,
@@ -249,7 +249,7 @@ class PriceAlertService:
         for w in items:
             product = await db.get(Product, w.product_id)
             p_name = product.name if product else "Saved Product"
-            p_price = float(product.base_price) if (product and product.base_price) else 4999.0
+            p_price = float(product.base_price) if (product and product.base_price) else None
             output.append(
                 WatchlistResponse(
                     id=w.id,

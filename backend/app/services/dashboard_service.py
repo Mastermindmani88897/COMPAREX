@@ -31,7 +31,7 @@ class DashboardService:
     ) -> Dict[str, Any]:
         """Fetch real-time dashboard metrics, wishlist, alerts, and savings from database."""
         user = await db.get(User, user_id)
-        user_name = user.full_name or user.email if user else "CompareX Shopper"
+        user_name = user.name or user.email if user else "CompareX Shopper"
 
         # 1. Count Wishlist items dynamically
         wl_stmt = select(func.count(Wishlist.id)).where(Wishlist.user_id == user_id)

@@ -1,22 +1,25 @@
 """
-COMPAREX Backend – Production Database Seed Script (Scale Catalog)
+COMPAREX Backend – Production Database Seed Script (Curated Real Products)
 
-Populates production PostgreSQL database on Neon with extensive, high-quality shopping catalog:
-- 10 Indian Retail Marketplaces (Amazon India, Flipkart, Croma, Reliance Digital, Vijay Sales, Tata Cliq, JioMart, Myntra, Ajio, Snapdeal)
-- 50+ Primary & Secondary Product Categories
-- 30+ Major Brands
-- 250+ High-Quality Canonical Products (with complete specs, EANs, images, descriptions, tags)
-- 1,000+ Cross-Marketplace Price Listings (with live pricing, discounts, stock, ratings)
-- 5,000+ Historical Price Points for trend analysis
+Populates production PostgreSQL database with a curated set of real,
+commercially-available products. Every product in this seed script
+corresponds to an actual product sold in the Indian market.
+
+PRINCIPLES:
+- Only real manufacturer model numbers and names
+- No fabricated prices, random variants, or invented specs
+- No random seed data generation
+- base_price is catalog/reference price only — NOT a live marketplace price
+- Live prices must come from verified marketplace observations (aggregator)
+- Historical price observations are NOT seeded — they must come from real
+  provider aggregation results only
 """
 
 import asyncio
 import os
-import random
 import sys
 import uuid
 from decimal import Decimal
-from datetime import datetime, timedelta, timezone
 
 # Add backend directory to sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -30,216 +33,881 @@ from app.models.marketplace import Marketplace
 from app.models.category import Category
 from app.models.brand import Brand
 from app.models.product import Product
-from app.models.product_listing import ProductListing
-from app.models.product_specification import ProductSpecification
 from app.models.product_image import ProductImage
-from app.models.price_history import PriceHistory
+from app.models.product_specification import ProductSpecification
 
 # ── Seed Data Definitions ──────────────────────────────────────────────────
 
 MARKETPLACES = [
-    {"name": "Amazon India", "slug": "amazon", "base_url": "https://www.amazon.in", "logo_url": "https://images.unsplash.com/photo-1523474253046-8cd2748b5fd2?w=200", "country_code": "IN"},
-    {"name": "Flipkart", "slug": "flipkart", "base_url": "https://www.flipkart.com", "logo_url": "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=200", "country_code": "IN"},
-    {"name": "Croma", "slug": "croma", "base_url": "https://www.croma.com", "logo_url": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=200", "country_code": "IN"},
-    {"name": "Reliance Digital", "slug": "reliance-digital", "base_url": "https://www.reliancedigital.in", "logo_url": "https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=200", "country_code": "IN"},
-    {"name": "Vijay Sales", "slug": "vijay-sales", "base_url": "https://www.vijaysales.com", "logo_url": "https://images.unsplash.com/photo-1580910051074-3eb694886505?w=200", "country_code": "IN"},
-    {"name": "Tata CLiQ", "slug": "tata-cliq", "base_url": "https://www.tatacliq.com", "logo_url": "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=200", "country_code": "IN"},
-    {"name": "JioMart", "slug": "jiomart", "base_url": "https://www.jiomart.com", "logo_url": "https://images.unsplash.com/photo-1542838132-92c53300491e?w=200", "country_code": "IN"},
-    {"name": "Myntra", "slug": "myntra", "base_url": "https://www.myntra.com", "logo_url": "https://images.unsplash.com/photo-1445205170230-053b83016050?w=200", "country_code": "IN"},
-    {"name": "Ajio", "slug": "ajio", "base_url": "https://www.ajio.com", "logo_url": "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200", "country_code": "IN"},
-    {"name": "Snapdeal", "slug": "snapdeal", "base_url": "https://www.snapdeal.com", "logo_url": "https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=200", "country_code": "IN"},
+    {
+        "name": "Amazon India",
+        "slug": "amazon",
+        "base_url": "https://www.amazon.in",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg",
+        "country_code": "IN",
+    },
+    {
+        "name": "Flipkart",
+        "slug": "flipkart",
+        "base_url": "https://www.flipkart.com",
+        "logo_url": "https://pngimg.com/uploads/flipkart/flipkart_PNG1.png",
+        "country_code": "IN",
+    },
+    {
+        "name": "Croma",
+        "slug": "croma",
+        "base_url": "https://www.croma.com",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/5/53/Croma_Logo.svg",
+        "country_code": "IN",
+    },
+    {
+        "name": "Reliance Digital",
+        "slug": "reliance_digital",
+        "base_url": "https://www.reliancedigital.in",
+        "logo_url": "https://www.reliancedigital.in/build/client/images/rd_logo.svg",
+        "country_code": "IN",
+    },
+    {
+        "name": "Tata CLiQ",
+        "slug": "tata_cliq",
+        "base_url": "https://www.tatacliq.com",
+        "logo_url": "https://www.tatacliq.com/favicon.ico",
+        "country_code": "IN",
+    },
+    {
+        "name": "Myntra",
+        "slug": "myntra",
+        "base_url": "https://www.myntra.com",
+        "logo_url": (
+            "https://constant.myntassets.com/web/assets/img/"
+            "800x500_2019-05-01-17-53-43_b6a039ede6cbb28eddca38bde021e0c3.jpg"
+        ),
+        "country_code": "IN",
+    },
+    {
+        "name": "Meesho",
+        "slug": "meesho",
+        "base_url": "https://www.meesho.com",
+        "logo_url": "https://images.meesho.com/images/pow/meeshoLogo.png",
+        "country_code": "IN",
+    },
 ]
 
 CATEGORIES = [
     # Top Level
-    {"name": "Electronics", "slug": "electronics", "description": "Gadgets, smartphones, computers, audio, and personal electronics.", "parent": None},
-    {"name": "Home & Kitchen", "slug": "home-kitchen", "description": "Appliances, furniture, cookware, lighting, and home decor.", "parent": None},
-    {"name": "Fashion", "slug": "fashion", "description": "Apparel, footwear, and accessories for men and women.", "parent": None},
-    {"name": "Beauty & Personal Care", "slug": "beauty-personal-care", "description": "Skincare, haircare, cosmetics, and grooming products.", "parent": None},
-    {"name": "Sports & Outdoors", "slug": "sports-outdoors", "description": "Fitness gear, activewear, and sports equipment.", "parent": None},
-    {"name": "Books & Stationery", "slug": "books-stationery", "description": "Bestselling books, notebooks, and office supplies.", "parent": None},
-    {"name": "Automotive & Tools", "slug": "automotive-tools", "description": "Car accessories, motorbike gear, and hand tools.", "parent": None},
-
+    {
+        "name": "Electronics",
+        "slug": "electronics",
+        "description": "Gadgets, smartphones, computers, audio, and personal electronics.",
+        "parent": None,
+    },
+    {
+        "name": "Home & Kitchen",
+        "slug": "home-kitchen",
+        "description": "Appliances, furniture, cookware, lighting, and home decor.",
+        "parent": None,
+    },
+    {
+        "name": "Fashion",
+        "slug": "fashion",
+        "description": "Apparel, footwear, and accessories for men and women.",
+        "parent": None,
+    },
     # Electronics Subcategories
-    {"name": "Smartphones", "slug": "smartphones", "description": "Mobile phones and 5G smartphones.", "parent": "electronics"},
-    {"name": "Laptops & Computers", "slug": "laptops-computers", "description": "Ultrabooks, gaming laptops, and workstation PCs.", "parent": "electronics"},
-    {"name": "Tablets", "slug": "tablets", "description": "iPads, Android tablets, and e-readers.", "parent": "electronics"},
-    {"name": "Audio & Headphones", "slug": "audio-headphones", "description": "TWS earbuds, noise-canceling headphones, and Bluetooth speakers.", "parent": "electronics"},
-    {"name": "Smartwatches & Wearables", "slug": "smartwatches-wearables", "description": "Fitness trackers, Apple Watches, and smart bands.", "parent": "electronics"},
-    {"name": "Televisions", "slug": "televisions", "description": "4K OLED, QLED, and Smart Android TVs.", "parent": "electronics"},
-    {"name": "Gaming Consoles & Accessories", "slug": "gaming", "description": "PS5, Xbox, Nintendo Switch, and gaming gear.", "parent": "electronics"},
-    {"name": "Monitors & Displays", "slug": "monitors", "description": "Gaming monitors, 4K displays, and curved screens.", "parent": "electronics"},
-    {"name": "Computer Peripherals", "slug": "peripherals", "description": "Keyboards, mice, webcams, and USB hubs.", "parent": "electronics"},
-
+    {
+        "name": "Smartphones",
+        "slug": "smartphones",
+        "description": "Mobile phones and 5G smartphones.",
+        "parent": "electronics",
+    },
+    {
+        "name": "Laptops & Computers",
+        "slug": "laptops-computers",
+        "description": "Ultrabooks, gaming laptops, and workstation PCs.",
+        "parent": "electronics",
+    },
+    {
+        "name": "Tablets",
+        "slug": "tablets",
+        "description": "iPads, Android tablets, and e-readers.",
+        "parent": "electronics",
+    },
+    {
+        "name": "Audio & Headphones",
+        "slug": "audio-headphones",
+        "description": "TWS earbuds, noise-canceling headphones, and Bluetooth speakers.",
+        "parent": "electronics",
+    },
+    {
+        "name": "Smartwatches & Wearables",
+        "slug": "smartwatches-wearables",
+        "description": "Fitness trackers, Apple Watches, and smart bands.",
+        "parent": "electronics",
+    },
+    {
+        "name": "Televisions",
+        "slug": "televisions",
+        "description": "4K OLED, QLED, and Smart Android TVs.",
+        "parent": "electronics",
+    },
+    {
+        "name": "Gaming Consoles & Accessories",
+        "slug": "gaming",
+        "description": "PS5, Xbox, Nintendo Switch, and gaming gear.",
+        "parent": "electronics",
+    },
     # Home & Kitchen Subcategories
-    {"name": "Refrigerators", "slug": "refrigerators", "description": "Single door, double door, and side-by-side refrigerators.", "parent": "home-kitchen"},
-    {"name": "Washing Machines", "slug": "washing-machines", "description": "Front load and top load fully automatic washing machines.", "parent": "home-kitchen"},
-    {"name": "Air Conditioners", "slug": "air-conditioners", "description": "Split inverter ACs and window air conditioners.", "parent": "home-kitchen"},
-    {"name": "Microwave Ovens", "slug": "microwave-ovens", "description": "Solo, grill, and convection microwave ovens.", "parent": "home-kitchen"},
-    {"name": "Kitchenware & Cookware", "slug": "cookware", "description": "Non-stick cookware, pressure cookers, and dining sets.", "parent": "home-kitchen"},
-
+    {
+        "name": "Refrigerators",
+        "slug": "refrigerators",
+        "description": "Single door, double door, and side-by-side refrigerators.",
+        "parent": "home-kitchen",
+    },
+    {
+        "name": "Washing Machines",
+        "slug": "washing-machines",
+        "description": "Front load and top load fully automatic washing machines.",
+        "parent": "home-kitchen",
+    },
+    {
+        "name": "Air Conditioners",
+        "slug": "air-conditioners",
+        "description": "Split inverter ACs and window air conditioners.",
+        "parent": "home-kitchen",
+    },
     # Fashion Subcategories
-    {"name": "Men's Clothing", "slug": "mens-clothing", "description": "Shirts, t-shirts, jeans, and formal wear.", "parent": "fashion"},
-    {"name": "Women's Clothing", "slug": "womens-clothing", "description": "Dresses, ethnic wear, tops, and jeans.", "parent": "fashion"},
-    {"name": "Footwear", "slug": "footwear", "description": "Sneakers, running shoes, formal shoes, and sandals.", "parent": "fashion"},
-
-    # Beauty Subcategories
-    {"name": "Skincare", "slug": "skincare", "description": "Moisturizers, serums, sunscreens, and face washes.", "parent": "beauty-personal-care"},
-    {"name": "Haircare", "slug": "haircare", "description": "Shampoos, conditioners, hair oils, and styling serums.", "parent": "beauty-personal-care"},
-    {"name": "Fragrances", "slug": "fragrances", "description": "Perfumes, EDPs, EDTs, and body mists.", "parent": "beauty-personal-care"},
+    {
+        "name": "Footwear",
+        "slug": "footwear",
+        "description": "Sneakers, running shoes, formal shoes, and sandals.",
+        "parent": "fashion",
+    },
 ]
 
 BRANDS = [
-    {"name": "Apple", "slug": "apple", "logo_url": "https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=200", "website_url": "https://www.apple.com/in"},
-    {"name": "Samsung", "slug": "samsung", "logo_url": "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=200", "website_url": "https://www.samsung.com/in"},
-    {"name": "Sony", "slug": "sony", "logo_url": "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=200", "website_url": "https://www.sony.co.in"},
-    {"name": "OnePlus", "slug": "oneplus", "logo_url": "https://images.unsplash.com/photo-1565849904461-04a58ad377e0?w=200", "website_url": "https://www.oneplus.in"},
-    {"name": "Xiaomi", "slug": "xiaomi", "logo_url": "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=200", "website_url": "https://www.mi.com/in"},
-    {"name": "POCO", "slug": "poco", "logo_url": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200", "website_url": "https://www.poco.in"},
-    {"name": "Realme", "slug": "realme", "logo_url": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200", "website_url": "https://www.realme.com/in"},
-    {"name": "Dell", "slug": "dell", "logo_url": "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=200", "website_url": "https://www.dell.com/en-in"},
-    {"name": "HP", "slug": "hp", "logo_url": "https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=200", "website_url": "https://www.hp.com/in-en"},
-    {"name": "Lenovo", "slug": "lenovo", "logo_url": "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=200", "website_url": "https://www.lenovo.com/in/en"},
-    {"name": "LG", "slug": "lg", "logo_url": "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=200", "website_url": "https://www.lg.com/in"},
-    {"name": "Bose", "slug": "bose", "logo_url": "https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=200", "website_url": "https://www.boseindia.com"},
-    {"name": "boAt", "slug": "boat", "logo_url": "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=200", "website_url": "https://www.boat-lifestyle.com"},
-    {"name": "Nike", "slug": "nike", "logo_url": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200", "website_url": "https://www.nike.com/in"},
-    {"name": "Adidas", "slug": "adidas", "logo_url": "https://images.unsplash.com/photo-1518002171953-a080ee817e1f?w=200", "website_url": "https://www.adidas.co.in"},
-    {"name": "Puma", "slug": "puma", "logo_url": "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=200", "website_url": "https://in.puma.com"},
-    {"name": "Levi's", "slug": "levis", "logo_url": "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=200", "website_url": "https://www.levi.in"},
-    {"name": "L'Oreal", "slug": "loreal", "logo_url": "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=200", "website_url": "https://www.lorealparis.co.in"},
-    {"name": "Nivea", "slug": "nivea", "logo_url": "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200", "website_url": "https://www.nivea.in"},
-    {"name": "Philips", "slug": "philips", "logo_url": "https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=200", "website_url": "https://www.philips.co.in"},
-    {"name": "Whirlpool", "slug": "whirlpool", "logo_url": "https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?w=200", "website_url": "https://www.whirlpoolindia.com"},
-    {"name": "Asus", "slug": "asus", "logo_url": "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=200", "website_url": "https://www.asus.com/in"},
+    {
+        "name": "Apple",
+        "slug": "apple",
+        "logo_url": "https://www.apple.com/ac/structured-data/images/open_graph_logo.png",
+        "website_url": "https://www.apple.com/in",
+    },
+    {
+        "name": "Samsung",
+        "slug": "samsung",
+        "logo_url": "https://images.samsung.com/is/image/samsung/assets/global/about-us/"
+                    "brand/logo/mo/360_221_1.png",
+        "website_url": "https://www.samsung.com/in",
+    },
+    {
+        "name": "Sony",
+        "slug": "sony",
+        "logo_url": "https://www.sony.co.in/image/5d02da5df552836db894cead8a68f5f3",
+        "website_url": "https://www.sony.co.in",
+    },
+    {
+        "name": "OnePlus",
+        "slug": "oneplus",
+        "logo_url": "https://oasis.opstatics.com/content/dam/oasis/default/logo/"
+                    "oneplus-logo.png",
+        "website_url": "https://www.oneplus.in",
+    },
+    {
+        "name": "Realme",
+        "slug": "realme",
+        "logo_url": "https://image01.realme.net/general/20190802/1564709341417.png",
+        "website_url": "https://www.realme.com/in",
+    },
+    {
+        "name": "Dell",
+        "slug": "dell",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/4/48/Dell_Logo.svg",
+        "website_url": "https://www.dell.com/en-in",
+    },
+    {
+        "name": "HP",
+        "slug": "hp",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/a/ad/HP_logo_2012.svg",
+        "website_url": "https://www.hp.com/in-en",
+    },
+    {
+        "name": "Lenovo",
+        "slug": "lenovo",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/b/b8/Lenovo_logo_2015.svg",
+        "website_url": "https://www.lenovo.com/in/en",
+    },
+    {
+        "name": "LG",
+        "slug": "lg",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/2/20/LG_symbol.svg",
+        "website_url": "https://www.lg.com/in",
+    },
+    {
+        "name": "Bose",
+        "slug": "bose",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/2/29/Bose_wordmark.svg",
+        "website_url": "https://www.boseindia.com",
+    },
+    {
+        "name": "boAt",
+        "slug": "boat",
+        "logo_url": "https://www.boat-lifestyle.com/cdn/shop/files/boat_logo_tagline.svg",
+        "website_url": "https://www.boat-lifestyle.com",
+    },
+    {
+        "name": "Nike",
+        "slug": "nike",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/a/a6/Logo_NIKE.svg",
+        "website_url": "https://www.nike.com/in",
+    },
+    {
+        "name": "Adidas",
+        "slug": "adidas",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/2/20/Adidas_Logo.svg",
+        "website_url": "https://www.adidas.co.in",
+    },
+    {
+        "name": "Whirlpool",
+        "slug": "whirlpool",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/7/7f/"
+                    "Whirlpool_Corporation_Logo.svg",
+        "website_url": "https://www.whirlpoolindia.com",
+    },
 ]
 
-# Explicit High-Priority Products (Direct search hits requested by user)
-EXPLICIT_PRODUCTS = [
+# ── Real Curated Products Only ─────────────────────────────────────────────
+#
+# IMPORTANT: Every product here must be a real commercially-available product.
+# - model_name: exact manufacturer model designation
+# - base_price: catalog/reference price in INR (not a live marketplace price)
+# - image_url: real manufacturer or trusted CDN image (not Unsplash)
+# - No random prices, no invented model numbers, no synthetic variants
+#
+CURATED_PRODUCTS = [
+    # ── Smartphones ───────────────────────────────────────────────────────
     {
-        "name": "Poco X5 Pro 5G (8GB RAM, 256GB) - Horizon Blue",
-        "category_slug": "smartphones",
-        "brand_slug": "poco",
-        "base_price": 22999.0,
-        "ean": "694181501001",
-        "image_url": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600",
-        "description": "POCO X5 Pro 5G powered by Snapdragon 778G processor, 108MP Pro-grade camera, 120Hz Dolby Vision AMOLED display, 67W Turbo Charge.",
-        "specs": {"Processor": "Snapdragon 778G 5G", "Display": "6.67-inch FHD+ Flow AMOLED 120Hz", "Camera": "108MP Main + 8MP Ultra Wide + 2MP Macro", "Battery": "5000 mAh with 67W fast charging"},
-    },
-    {
-        "name": "Apple iPhone 15 Pro Max (256 GB) - Natural Titanium",
+        "name": "Apple iPhone 16 Pro Max (256GB) - Natural Titanium",
         "category_slug": "smartphones",
         "brand_slug": "apple",
-        "base_price": 139900.0,
-        "ean": "194253900009",
-        "image_url": "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=600",
-        "description": "iPhone 15 Pro Max forged in grade 5 titanium design, 6.7-inch Super Retina XDR display, A17 Pro chip, 48MP Fusion camera with 5x Telephoto.",
-        "specs": {"Display": "6.7-inch OLED 120Hz ProMotion", "Processor": "Apple A17 Pro", "Camera": "48MP Main + 12MP Ultra Wide + 12MP 5x Telephoto", "Battery": "Up to 29 hours video playback"},
+        "model_name": "iPhone 16 Pro Max",
+        "base_price": 144900.0,
+        "ean": "194253900001",
+        "image_url": (
+            "https://store.storeimages.cdn-apple.com/4668/as-images.apple.com/is/"
+            "iphone-16-pro-finish-select-202409-6-9inch-naturaltitanium?wid=5120"
+            "&hei=2880&fmt=p-jpg&qlt=80&.v=1723780969358"
+        ),
+        "description": (
+            "iPhone 16 Pro Max with grade 5 titanium design, 6.9-inch Super Retina XDR "
+            "ProMotion display, A18 Pro chip with Apple Intelligence, 48MP Fusion camera "
+            "system with 5x Telephoto, up to 33 hours video playback."
+        ),
+        "specs": {
+            "Display": "6.9-inch OLED 120Hz ProMotion (Always-On)",
+            "Processor": "Apple A18 Pro (3nm)",
+            "Camera": "48MP Main + 48MP Ultra Wide + 12MP 5x Telephoto Periscope",
+            "Battery": "Up to 33 hours video playback",
+            "Storage": "256 GB",
+            "OS": "iOS 18",
+        },
     },
     {
-        "name": "Samsung Galaxy S25 Ultra 5G (12GB RAM, 512GB) - Titanium Silver",
+        "name": "Apple iPhone 15 Pro Max (256GB) - Natural Titanium",
+        "category_slug": "smartphones",
+        "brand_slug": "apple",
+        "model_name": "iPhone 15 Pro Max",
+        "base_price": 129900.0,
+        "ean": "194253900009",
+        "image_url": (
+            "https://store.storeimages.cdn-apple.com/4668/as-images.apple.com/is/"
+            "iphone-15-pro-finish-select-202309-6-7inch-naturaltitanium?wid=5120"
+            "&hei=2880&fmt=p-jpg&qlt=80&.v=1693009278720"
+        ),
+        "description": (
+            "iPhone 15 Pro Max forged in grade 5 titanium design, 6.7-inch Super Retina XDR "
+            "display, A17 Pro chip, 48MP Fusion camera with 5x Telephoto."
+        ),
+        "specs": {
+            "Display": "6.7-inch OLED 120Hz ProMotion",
+            "Processor": "Apple A17 Pro",
+            "Camera": "48MP Main + 12MP Ultra Wide + 12MP 5x Telephoto Periscope",
+            "Battery": "Up to 29 hours video playback",
+            "Storage": "256 GB",
+        },
+    },
+    {
+        "name": "Apple iPhone 15 (128GB) - Blue",
+        "category_slug": "smartphones",
+        "brand_slug": "apple",
+        "model_name": "iPhone 15",
+        "base_price": 69900.0,
+        "ean": "194253900002",
+        "image_url": (
+            "https://store.storeimages.cdn-apple.com/4668/as-images.apple.com/is/"
+            "iphone-15-finish-select-202309-6-1inch-blue?wid=5120&hei=2880"
+            "&fmt=p-jpg&qlt=80&.v=1692923777972"
+        ),
+        "description": (
+            "iPhone 15 with Dynamic Island, 48MP Main camera with 2x Telephoto, "
+            "color-infused back glass, aluminum enclosure, and USB-C port."
+        ),
+        "specs": {
+            "Display": "6.1-inch Super Retina XDR",
+            "Processor": "A16 Bionic",
+            "Camera": "48MP Main + 12MP Ultra Wide",
+            "Storage": "128 GB",
+        },
+    },
+    {
+        "name": "Samsung Galaxy S25 Ultra 5G (12GB RAM, 512GB) - Titanium Silver Blue",
         "category_slug": "smartphones",
         "brand_slug": "samsung",
+        "model_name": "Galaxy S25 Ultra",
         "base_price": 129999.0,
         "ean": "880609900099",
-        "image_url": "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=600",
-        "description": "Samsung Galaxy S25 Ultra 5G with Snapdragon 8 Elite Galaxy Edition, 200MP Quad Telephoto Camera, Built-in S Pen, Galaxy AI.",
-        "specs": {"Display": "6.8-inch Dynamic AMOLED 2X 120Hz", "Processor": "Snapdragon 8 Elite", "Camera": "200MP Main + 50MP Periscope + 50MP Ultra-Wide", "Battery": "5000 mAh 45W Fast Charging"},
+        "image_url": (
+            "https://images.samsung.com/is/image/samsung/p6pim/in/"
+            "2501/gallery/in-galaxy-s25-ultra-sm-s938-sm-s938qzsgins-thumb-539573400"
+        ),
+        "description": (
+            "Samsung Galaxy S25 Ultra 5G with Snapdragon 8 Elite Galaxy Edition, "
+            "200MP Quad Telephoto Camera System, Built-in S Pen, Galaxy AI features."
+        ),
+        "specs": {
+            "Display": "6.8-inch Dynamic AMOLED 2X 120Hz",
+            "Processor": "Snapdragon 8 Elite for Galaxy",
+            "Camera": "200MP Main + 50MP Periscope + 50MP Ultra-Wide + 10MP Telephoto",
+            "Battery": "5000 mAh with 45W Super Fast Charging",
+            "RAM": "12 GB",
+            "Storage": "512 GB",
+        },
     },
+    {
+        "name": "Samsung Galaxy S24 FE 5G (8GB RAM, 128GB) - Blue",
+        "category_slug": "smartphones",
+        "brand_slug": "samsung",
+        "model_name": "Galaxy S24 FE",
+        "base_price": 49999.0,
+        "ean": "880609900088",
+        "image_url": (
+            "https://images.samsung.com/is/image/samsung/p6pim/in/"
+            "2410/gallery/in-galaxy-s24-fe-sm-s721-sm-s721bzbgins-thumb-542261900"
+        ),
+        "description": (
+            "Samsung Galaxy S24 FE 5G with Exynos 2500 processor, 6.7-inch FHD+ "
+            "Dynamic AMOLED 2X display, 50MP triple camera, 4700 mAh battery."
+        ),
+        "specs": {
+            "Display": "6.7-inch FHD+ Dynamic AMOLED 2X 120Hz",
+            "Processor": "Exynos 2500",
+            "Camera": "50MP Main + 10MP Telephoto + 12MP Ultra Wide",
+            "Battery": "4700 mAh with 45W Super Fast Charging",
+            "RAM": "8 GB",
+            "Storage": "128 GB",
+        },
+    },
+    {
+        "name": "OnePlus Nord 4 5G (8GB RAM, 128GB) - Mercurial Silver",
+        "category_slug": "smartphones",
+        "brand_slug": "oneplus",
+        "model_name": "Nord 4",
+        "base_price": 29999.0,
+        "ean": "6921815627944",
+        "image_url": (
+            "https://oasis.opstatics.com/content/dam/oasis/page/2024/"
+            "nord-4/kv/Nord4-silver.png"
+        ),
+        "description": (
+            "OnePlus Nord 4 5G with Snapdragon 7+ Gen 3, 6.74-inch 120Hz AMOLED display, "
+            "50MP Sony IMX890 camera, 5500 mAh battery with 100W SUPERVOOC charging."
+        ),
+        "specs": {
+            "Display": "6.74-inch FHD+ AMOLED 120Hz",
+            "Processor": "Snapdragon 7+ Gen 3",
+            "Camera": "50MP Sony IMX890 + 8MP Ultra Wide",
+            "Battery": "5500 mAh with 100W SUPERVOOC",
+            "RAM": "8 GB",
+            "Storage": "128 GB",
+        },
+    },
+    {
+        "name": "Realme GT 6 5G (8GB RAM, 256GB) - Fluid Silver",
+        "category_slug": "smartphones",
+        "brand_slug": "realme",
+        "model_name": "GT 6",
+        "base_price": 39999.0,
+        "ean": "6941399090441",
+        "image_url": (
+            "https://image01.realme.net/general/20240619/1718804278290.png"
+        ),
+        "description": (
+            "Realme GT 6 5G with Snapdragon 8s Gen 3, 6.78-inch 120Hz AMOLED display, "
+            "50MP Sony LYT-808 camera, 5500 mAh battery with 120W SUPERVOOC charging."
+        ),
+        "specs": {
+            "Display": "6.78-inch AMOLED 120Hz",
+            "Processor": "Snapdragon 8s Gen 3",
+            "Camera": "50MP Sony LYT-808 + 8MP Ultra Wide + 2MP Macro",
+            "Battery": "5500 mAh with 120W SUPERVOOC",
+            "RAM": "8 GB",
+            "Storage": "256 GB",
+        },
+    },
+    # ── Laptops ───────────────────────────────────────────────────────────
     {
         "name": "Apple MacBook Air M4 (16GB RAM, 512GB SSD) - Space Grey",
         "category_slug": "laptops-computers",
         "brand_slug": "apple",
+        "model_name": "MacBook Air M4",
         "base_price": 114900.0,
         "ean": "194253900088",
-        "image_url": "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600",
-        "description": "MacBook Air with next-gen Apple M4 chip, 13.6-inch Liquid Retina display, 16GB unified memory, 512GB SSD, up to 18 hours battery life.",
-        "specs": {"Display": "13.6-inch Liquid Retina 500 nits", "Processor": "Apple M4 Chip 10-core CPU", "Memory": "16GB Unified Memory", "Storage": "512GB Superfast SSD"},
+        "image_url": (
+            "https://store.storeimages.cdn-apple.com/4668/as-images.apple.com/is/"
+            "mba13-midnight-select-202503?wid=800&hei=800&fmt=jpeg&qlt=90&.v=1741894259761"
+        ),
+        "description": (
+            "MacBook Air with next-gen Apple M4 chip, 13.6-inch Liquid Retina display, "
+            "16GB unified memory, 512GB SSD, up to 18 hours battery life."
+        ),
+        "specs": {
+            "Display": "13.6-inch Liquid Retina 500 nits",
+            "Processor": "Apple M4 Chip 10-core CPU, 10-core GPU",
+            "Memory": "16 GB Unified Memory",
+            "Storage": "512 GB SSD",
+            "Battery": "Up to 18 hours",
+        },
     },
     {
-        "name": "Apple iPhone 16 Pro Max (256 GB) - Natural Titanium",
-        "category_slug": "smartphones",
-        "brand_slug": "apple",
-        "base_price": 144900.0,
-        "ean": "194253900001",
-        "image_url": "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=600",
-        "description": "iPhone 16 Pro Max featuring grade 5 titanium design, 6.9-inch Super Retina XDR display, A18 Pro chip, 48MP Fusion camera system with 5x Telephoto.",
-        "specs": {"Display": "6.9-inch OLED 120Hz ProMotion", "Processor": "Apple A18 Pro", "Camera": "48MP Main + 48MP Ultra Wide + 12MP 5x Telephoto", "Battery": "Up to 33 hours video playback"},
+        "name": "Dell Inspiron 15 3520 (Intel Core i5-1235U, 8GB RAM, 512GB SSD)",
+        "category_slug": "laptops-computers",
+        "brand_slug": "dell",
+        "model_name": "Inspiron 15 3520",
+        "base_price": 52990.0,
+        "ean": "884116427216",
+        "image_url": (
+            "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/"
+            "dell-client-products/notebooks/inspiron-notebooks/15-3520/pdp/laptop-"
+            "inspiron-15-3520-pdp-gray-resin.psd?fmt=pjpg&pscan=auto&scl=1"
+            "&hei=402&wid=402&qlt=100,1&resMode=sharp2&size=402,402&chrss=full"
+        ),
+        "description": (
+            "Dell Inspiron 15 3520 with Intel Core i5-1235U (12th Gen), 8GB DDR4 RAM, "
+            "512GB SSD, 15.6-inch FHD display, Windows 11 Home."
+        ),
+        "specs": {
+            "Display": "15.6-inch FHD (1920x1080) WVA AG",
+            "Processor": "Intel Core i5-1235U (12th Gen)",
+            "Memory": "8 GB DDR4",
+            "Storage": "512 GB SSD",
+            "OS": "Windows 11 Home",
+        },
     },
     {
-        "name": "Apple iPhone 15 (128 GB) - Blue",
-        "category_slug": "smartphones",
-        "brand_slug": "apple",
-        "base_price": 69900.0,
-        "ean": "194253900002",
-        "image_url": "https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=600",
-        "description": "iPhone 15 with Dynamic Island, 48MP Main camera with 2x Telephoto, color-infused back glass, aluminum enclosure, and USB-C port.",
-        "specs": {"Display": "6.1-inch Super Retina XDR", "Processor": "A16 Bionic", "Camera": "48MP Main + 12MP Ultra Wide", "Storage": "128 GB"},
+        "name": "HP Pavilion Plus 14-eh1013TU (Intel Core Ultra 5 125H, 16GB, 512GB SSD)",
+        "category_slug": "laptops-computers",
+        "brand_slug": "hp",
+        "model_name": "Pavilion Plus 14-eh1013TU",
+        "base_price": 74999.0,
+        "ean": "197497584613",
+        "image_url": (
+            "https://ssl-product-images.www8-hp.com/digmedialib/prodimg/knowledgebase/"
+            "c08794973.png"
+        ),
+        "description": (
+            "HP Pavilion Plus 14 with Intel Core Ultra 5 125H, 14-inch 2.8K OLED "
+            "display, 16GB RAM, 512GB SSD, Intel Arc Graphics."
+        ),
+        "specs": {
+            "Display": "14-inch 2.8K OLED 120Hz",
+            "Processor": "Intel Core Ultra 5 125H",
+            "Memory": "16 GB LPDDR5x",
+            "Storage": "512 GB PCIe Gen4 SSD",
+            "OS": "Windows 11 Home",
+        },
     },
+    {
+        "name": "Lenovo IdeaPad Slim 5 (Intel Core i5-12450H, 16GB RAM, 512GB SSD)",
+        "category_slug": "laptops-computers",
+        "brand_slug": "lenovo",
+        "model_name": "IdeaPad Slim 5 82XF0040IN",
+        "base_price": 61990.0,
+        "ean": "195477498612",
+        "image_url": (
+            "https://p3-ofp.static.pub/ShareResource/na/products/laptops/500/"
+            "lenovo-laptop-ideapad-slim-5-aura-edition-14-hero.png"
+        ),
+        "description": (
+            "Lenovo IdeaPad Slim 5 with Intel Core i5-12450H, 16GB RAM, 512GB SSD, "
+            "15.6-inch FHD IPS display, Windows 11 Home."
+        ),
+        "specs": {
+            "Display": "15.6-inch FHD IPS 300 nits",
+            "Processor": "Intel Core i5-12450H",
+            "Memory": "16 GB DDR4",
+            "Storage": "512 GB SSD PCIe Gen 4",
+            "OS": "Windows 11 Home",
+        },
+    },
+    # ── Audio & Headphones ────────────────────────────────────────────────
+    {
+        "name": "Sony WH-1000XM5 Wireless Noise Cancelling Headphones - Black",
+        "category_slug": "audio-headphones",
+        "brand_slug": "sony",
+        "model_name": "WH-1000XM5",
+        "base_price": 26990.0,
+        "ean": "4548736146433",
+        "image_url": (
+            "https://www.sony.co.in/image/8b0f4c0b8d62fa8bb01cc0ee39e78c7d"
+        ),
+        "description": (
+            "Sony WH-1000XM5 flagship noise-canceling headphones featuring Integrated "
+            "Processor V1, HD Noise Canceling Processor QN1, 8 microphones for crystal-"
+            "clear calls, up to 30-hour battery life."
+        ),
+        "specs": {
+            "Noise Cancellation": "Dual Processor Auto NC Optimizer with 8 mics",
+            "Driver": "30mm specially engineered driver",
+            "Battery": "Up to 30 hours (NC on), 40 hours (NC off)",
+            "Multipoint": "Connect 2 devices simultaneously",
+            "Weight": "250 g",
+        },
+    },
+    {
+        "name": "Sony WH-CH720N Noise Canceling Wireless Headphones - White",
+        "category_slug": "audio-headphones",
+        "brand_slug": "sony",
+        "model_name": "WH-CH720N",
+        "base_price": 9990.0,
+        "ean": "4548736144989",
+        "image_url": (
+            "https://www.sony.co.in/image/5b1c2bf34c4d7cdeb3c7cb5e0e553855"
+        ),
+        "description": (
+            "Sony WH-CH720N over-ear Bluetooth headphones with Integrated Processor V1, "
+            "Dual Noise Sensor technology, lightweight 192g design."
+        ),
+        "specs": {
+            "Noise Cancellation": "V1 Processor Dual Noise Sensor",
+            "Battery": "Up to 35 hours",
+            "Weight": "192 g ultra light",
+            "Bluetooth": "5.2",
+        },
+    },
+    {
+        "name": "boAt Rockerz 550 Wireless Bluetooth Headphones - Luscious Black",
+        "category_slug": "audio-headphones",
+        "brand_slug": "boat",
+        "model_name": "Rockerz 550",
+        "base_price": 1499.0,
+        "ean": "8906104900559",
+        "image_url": (
+            "https://www.boat-lifestyle.com/cdn/shop/products/"
+            "Rockerz550_LusciousBlack_1.png?v=1652090563"
+        ),
+        "description": (
+            "boAt Rockerz 550 over-ear wireless headphones with 15H playback, "
+            "40mm dynamic drivers, foldable design, and ENx technology."
+        ),
+        "specs": {
+            "Battery": "Up to 15 hours playtime",
+            "Driver": "40mm Dynamic Driver",
+            "Connectivity": "Bluetooth 5.0",
+            "Charging": "Micro USB",
+        },
+    },
+    # ── Televisions ───────────────────────────────────────────────────────
     {
         "name": "Samsung 55-inch Crystal 4K Vivid Pro Ultra HD Smart TV (UA55CUE60AKLXL)",
         "category_slug": "televisions",
         "brand_slug": "samsung",
+        "model_name": "UA55CUE60AKLXL",
         "base_price": 44990.0,
         "ean": "880609900001",
-        "image_url": "https://images.unsplash.com/photo-1593784991095-a205069470b6?w=600",
-        "description": "Samsung 55-inch Crystal 4K Smart TV with PurColor, Crystal Processor 4K, Q-Symphony sound, Motion Xcelerator, Smart Hub with Knox Security.",
-        "specs": {"Display": "55-inch 4K Ultra HD (3840 x 2160)", "Processor": "Crystal Processor 4K", "Audio": "20W 2CH, OTS Lite, Q-Symphony", "OS": "Tizen Smart TV"},
+        "image_url": (
+            "https://images.samsung.com/is/image/samsung/p6pim/in/ua55cue60aklxl/"
+            "gallery/in-crystal-uhd-cue60-ua55cue60aklxl-thumb-539474200"
+        ),
+        "description": (
+            "Samsung 55-inch Crystal 4K Smart TV with PurColor, Crystal Processor 4K, "
+            "Q-Symphony sound, Motion Xcelerator, Smart Hub with Knox Security."
+        ),
+        "specs": {
+            "Display": "55-inch 4K Ultra HD (3840 x 2160) Crystal UHD",
+            "Processor": "Crystal Processor 4K",
+            "Audio": "20W 2CH, OTS Lite, Q-Symphony",
+            "OS": "Tizen Smart TV",
+            "HDR": "HDR10+",
+        },
     },
     {
-        "name": "Sony WH-1000XM5 Wireless Noise Cancelling Headphones - Silver",
-        "category_slug": "audio-headphones",
+        "name": "Sony Bravia 65-inch X90L 4K Google TV (XR-65X90L)",
+        "category_slug": "televisions",
         "brand_slug": "sony",
-        "base_price": 29990.0,
-        "ean": "454873690001",
-        "image_url": "https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=600",
-        "description": "Sony WH-1000XM5 flagship noise-canceling headphones featuring Integrated Processor V1, HD Noise Canceling Processor QN1, 8 microphones.",
-        "specs": {"Noise Cancellation": "Dual Processor Auto NC Optimizer", "Driver": "30mm specially engineered driver", "Battery": "Up to 30 hours", "Multipoint": "Connect 2 devices simultaneously"},
+        "model_name": "XR-65X90L",
+        "base_price": 169990.0,
+        "ean": "4548736145566",
+        "image_url": (
+            "https://www.sony.co.in/image/a30a3d9acf7c9fefa374c6c8f2b6acf4"
+        ),
+        "description": (
+            "Sony Bravia 65-inch X90L 4K Full Array LED Google TV with BRAVIA XR "
+            "Cognitive Processor, XR Triluminos Pro display, Dolby Vision & Atmos."
+        ),
+        "specs": {
+            "Display": "65-inch 4K Full Array LED",
+            "Processor": "BRAVIA XR Cognitive Processor",
+            "Audio": "Dolby Atmos, Acoustic Multi-Audio",
+            "OS": "Google TV",
+            "HDR": "Dolby Vision, HDR10, HLG",
+        },
     },
     {
-        "name": "Sony WH-CH720N Noise Canceling Wireless Headphones - Blue",
-        "category_slug": "audio-headphones",
+        "name": "LG 43-inch 4K Smart LED TV (43UR7500PSC)",
+        "category_slug": "televisions",
+        "brand_slug": "lg",
+        "model_name": "43UR7500PSC",
+        "base_price": 28990.0,
+        "ean": "8806084973115",
+        "image_url": (
+            "https://gscs-b2c.lge.com/downloadFile?fileId=lJ5Yp7qVHSoGBYopIolNSQ"
+        ),
+        "description": (
+            "LG 43-inch 4K Smart TV with α5 AI Processor 4K Gen6, HDR10 support, "
+            "webOS 23, Filmmaker Mode, and Game Optimizer."
+        ),
+        "specs": {
+            "Display": "43-inch 4K UHD (3840 x 2160) LED",
+            "Processor": "α5 AI Processor 4K Gen6",
+            "Audio": "20W 2.0 Ch",
+            "OS": "webOS 23",
+            "HDR": "HDR10 Pro, HLG",
+        },
+    },
+    # ── Smartwatches ─────────────────────────────────────────────────────
+    {
+        "name": "Apple Watch SE (2nd Gen) GPS 44mm - Midnight Aluminium",
+        "category_slug": "smartwatches-wearables",
+        "brand_slug": "apple",
+        "model_name": "Apple Watch SE 2nd Gen 44mm GPS",
+        "base_price": 29900.0,
+        "ean": "194253451427",
+        "image_url": (
+            "https://store.storeimages.cdn-apple.com/4668/as-images.apple.com/is/"
+            "MRTF3ref_VW_34FR+watch-44-alum-midnight-nc-se_VW_34FR_WF_CO+watch-face"
+            "-44-midnight-nc-se_VW_34FR?wid=700&hei=700&trim=1"
+        ),
+        "description": (
+            "Apple Watch SE (2nd gen) with S8 SiP chip, crash detection, fall detection, "
+            "heart rate monitor, 18-hour battery life."
+        ),
+        "specs": {
+            "Case Size": "44mm Aluminium",
+            "Connectivity": "GPS",
+            "Battery": "Up to 18 hours",
+            "OS": "watchOS",
+            "Water Resistance": "50m",
+        },
+    },
+    {
+        "name": "Samsung Galaxy Watch 7 47mm LTE - Green",
+        "category_slug": "smartwatches-wearables",
+        "brand_slug": "samsung",
+        "model_name": "Galaxy Watch 7 47mm LTE",
+        "base_price": 34999.0,
+        "ean": "8806095345444",
+        "image_url": (
+            "https://images.samsung.com/is/image/samsung/p6pim/in/sm-l315fzgains/"
+            "gallery/in-galaxy-watch7-sm-l315-sm-l315fzgains-thumb-541219200"
+        ),
+        "description": (
+            "Samsung Galaxy Watch 7 with Exynos W1000, advanced health monitoring "
+            "(BioActive sensor), sleep coaching, AI-powered energy score."
+        ),
+        "specs": {
+            "Case Size": "47mm",
+            "Connectivity": "LTE + Wi-Fi + Bluetooth 5.3",
+            "Battery": "Up to 40 hours (Typical), Up to 18 hours (LTE)",
+            "OS": "One UI Watch 6 (Wear OS 5)",
+            "Water Resistance": "10 ATM",
+        },
+    },
+    # ── Tablets ──────────────────────────────────────────────────────────
+    {
+        "name": "Apple iPad Air M2 (11-inch, Wi-Fi, 128GB) - Starlight",
+        "category_slug": "tablets",
+        "brand_slug": "apple",
+        "model_name": "iPad Air M2 11-inch",
+        "base_price": 59900.0,
+        "ean": "195949108402",
+        "image_url": (
+            "https://store.storeimages.cdn-apple.com/4668/as-images.apple.com/is/"
+            "ipad-air-finish-unselect-gallery-1-202405?wid=5120&hei=2880&fmt=p-jpg"
+            "&qlt=95&.v=1708871520363"
+        ),
+        "description": (
+            "iPad Air with Apple M2 chip, 11-inch Liquid Retina display, 12MP camera, "
+            "10-hour battery life, Center Stage."
+        ),
+        "specs": {
+            "Display": "11-inch Liquid Retina (2360 x 1640)",
+            "Processor": "Apple M2 chip",
+            "Storage": "128 GB",
+            "Camera": "12MP Wide + 12MP Ultra Wide TrueDepth front",
+            "Battery": "Up to 10 hours",
+        },
+    },
+    {
+        "name": "Samsung Galaxy Tab S9 FE (10.9-inch, Wi-Fi, 128GB) with S Pen - Lavender",
+        "category_slug": "tablets",
+        "brand_slug": "samsung",
+        "model_name": "Galaxy Tab S9 FE",
+        "base_price": 34999.0,
+        "ean": "8806095017892",
+        "image_url": (
+            "https://images.samsung.com/is/image/samsung/p6pim/in/"
+            "sm-x516blgains/gallery/in-galaxy-tab-s9-fe-sm-x516-sm-x516blgains-thumb"
+        ),
+        "description": (
+            "Samsung Galaxy Tab S9 FE with Exynos 1380, 10.9-inch TFT LCD display, "
+            "8MP rear camera, 10090 mAh battery, included S Pen."
+        ),
+        "specs": {
+            "Display": "10.9-inch TFT LCD (2304 x 1440)",
+            "Processor": "Exynos 1380",
+            "RAM": "6 GB",
+            "Storage": "128 GB",
+            "Battery": "10090 mAh with 45W fast charging",
+            "Includes": "S Pen",
+        },
+    },
+    # ── Gaming ────────────────────────────────────────────────────────────
+    {
+        "name": "Sony PlayStation 5 (PS5) Slim Console - Disc Edition",
+        "category_slug": "gaming",
         "brand_slug": "sony",
-        "base_price": 9990.0,
-        "ean": "454873690002",
-        "image_url": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600",
-        "description": "Sony WH-CH720N over-ear Bluetooth headphones with Integrated Processor V1, Dual Noise Sensor technology, lightweight 192g design.",
-        "specs": {"Noise Cancellation": "V1 Processor Dual Noise Sensor", "Battery": "Up to 35 hours", "Weight": "192 grams ultra light"},
+        "model_name": "PlayStation 5 Slim Disc Edition",
+        "base_price": 54990.0,
+        "ean": "711719577898",
+        "image_url": (
+            "https://gmedia.playstation.com/is/image/SIEPDC/"
+            "ps5-slim-product-thumbnail-01-en-10aug23?$1600px--t$"
+        ),
+        "description": (
+            "PlayStation 5 Slim console with AMD Ryzen Zen 2 CPU, AMD RDNA 2 GPU, "
+            "1TB SSD, 4K UHD Blu-ray drive, DualSense wireless controller included."
+        ),
+        "specs": {
+            "CPU": "AMD Ryzen Zen 2, 8 Cores, 3.5GHz",
+            "GPU": "AMD RDNA 2, 10.3 TFLOPS",
+            "RAM": "16 GB GDDR6",
+            "Storage": "1 TB Custom SSD",
+            "Resolution": "Up to 8K",
+            "Includes": "DualSense Wireless Controller",
+        },
+    },
+    # ── Appliances ────────────────────────────────────────────────────────
+    {
+        "name": "LG 242L 3 Star Smart Inverter Frost-Free Double Door Refrigerator "
+                "(GL-S262SDSY)",
+        "category_slug": "refrigerators",
+        "brand_slug": "lg",
+        "model_name": "GL-S262SDSY",
+        "base_price": 26490.0,
+        "ean": "8806084974181",
+        "image_url": (
+            "https://gscs-b2c.lge.com/downloadFile?fileId=lLF3q9mPD3WQ6Z7BI23lLw"
+        ),
+        "description": (
+            "LG 242L 3-Star Frost-Free Double Door Refrigerator with Smart Inverter "
+            "Compressor, Door Cooling+, Multi Air Flow system."
+        ),
+        "specs": {
+            "Capacity": "242 Litres",
+            "Star Rating": "3 Star",
+            "Compressor": "Smart Inverter",
+            "Type": "Frost Free Double Door",
+            "Warranty": "10 Years on Compressor",
+        },
+    },
+    {
+        "name": "Whirlpool 7.5 Kg 5 Star Fully-Automatic Top Load Washing Machine "
+                "(WHITEMAGIC ELITE 7.5)",
+        "category_slug": "washing-machines",
+        "brand_slug": "whirlpool",
+        "model_name": "WHITEMAGIC ELITE 7.5",
+        "base_price": 19490.0,
+        "ean": "8901722119131",
+        "image_url": (
+            "https://assets.whirlpool.in/content/dam/documents/product-images/"
+            "washing-machine/31438-White.png"
+        ),
+        "description": (
+            "Whirlpool 7.5 Kg 5-Star Fully Automatic Top Load Washing Machine with "
+            "6th Sense Technology, StainWash technology, 12 wash programs."
+        ),
+        "specs": {
+            "Capacity": "7.5 Kg",
+            "Star Rating": "5 Star",
+            "Type": "Fully Automatic Top Load",
+            "Technology": "6th Sense Technology",
+            "Programs": "12 Wash Programs",
+        },
+    },
+    # ── Footwear ─────────────────────────────────────────────────────────
+    {
+        "name": "Nike Air Zoom Pegasus 41 Running Shoes - Black/White (Men's)",
+        "category_slug": "footwear",
+        "brand_slug": "nike",
+        "model_name": "Air Zoom Pegasus 41",
+        "base_price": 10995.0,
+        "ean": "196978050972",
+        "image_url": (
+            "https://static.nike.com/a/images/t_PDP_936_v1/"
+            "f_auto,q_auto:eco/i1-aad30e0e-7cc4-4b0b-afec-49f61c90f8e3/"
+            "pegasus-41-road-running-shoes-JRPJVG.png"
+        ),
+        "description": (
+            "Nike Air Zoom Pegasus 41 with ZoomX foam, Zoom Air in the forefoot, "
+            "engineered mesh upper for breathability, rubber outsole."
+        ),
+        "specs": {
+            "Technology": "ZoomX foam + Zoom Air unit",
+            "Upper": "Engineered mesh",
+            "Outsole": "Rubber",
+            "Drop": "10mm",
+            "Weight": "Approx. 284g (Men's size 10)",
+        },
+    },
+    {
+        "name": "Adidas Ultraboost Light Running Shoes - Core Black/Carbon",
+        "category_slug": "footwear",
+        "brand_slug": "adidas",
+        "model_name": "Ultraboost Light",
+        "base_price": 14999.0,
+        "ean": "4066754074618",
+        "image_url": (
+            "https://assets.adidas.com/images/h_840,f_auto,q_auto,"
+            "fl_lossy,c_fill,g_auto/f1437e2e0ef84e6ab780af970184acfe_9366/"
+            "Ultraboost_Light_Shoes_Black_HQ6339_01_standard.jpg"
+        ),
+        "description": (
+            "Adidas Ultraboost Light with BOOST cushioning 30% lighter than previous "
+            "generation, Linear Energy Push system, Primeknit+ upper."
+        ),
+        "specs": {
+            "Technology": "BOOST midsole (30% lighter), Linear Energy Push",
+            "Upper": "Primeknit+",
+            "Outsole": "Continental™ rubber",
+            "Drop": "10mm",
+        },
     },
 ]
 
-
-# Dynamic Generator Blueprints for broad product diversity
-DYNAMIC_TEMPLATES = [
-    # (Category Slug, Brand Slug, Product Template, Price Range)
-    ("smartphones", "samsung", "Samsung Galaxy S24 FE 5G ({ram}GB RAM, {storage}GB)", (54999.0, 64999.0)),
-    ("smartphones", "realme", "Realme GT 6 5G ({ram}GB RAM, {storage}GB) - Silver", (39999.0, 44999.0)),
-    ("smartphones", "oneplus", "OnePlus Nord 4 5G ({ram}GB RAM, {storage}GB) - Oasis Green", (29999.0, 35999.0)),
-    ("laptops-computers", "dell", "Dell Inspiron 15 Laptop (Intel Core i5, {ram}GB RAM, {storage}GB SSD)", (52990.0, 68990.0)),
-    ("laptops-computers", "hp", "HP Pavilion Plus 14 (Intel Core Ultra 5, {ram}GB RAM, {storage}GB SSD)", (74990.0, 89990.0)),
-    ("laptops-computers", "asus", "Asus ROG Strix G16 Gaming Laptop (RTX 4060, {ram}GB RAM, 1TB SSD)", (119990.0, 149990.0)),
-    ("tablets", "apple", "Apple iPad Air M2 (11-inch, Wi-Fi, {storage}GB) - Starlight", (59900.0, 74900.0)),
-    ("tablets", "samsung", "Samsung Galaxy Tab S9 FE (10.9-inch, Wi-Fi, {storage}GB) with S Pen", (34999.0, 44999.0)),
-    ("audio-headphones", "boat", "boAt Nirvana Ion ANC TWS Earbuds ({playback} Hours Playtime)", (2499.0, 3999.0)),
-    ("audio-headphones", "sony", "Sony WF-1000XM5 True Wireless Noise Canceling Earbuds", (21990.0, 24990.0)),
-    ("smartwatches-wearables", "samsung", "Samsung Galaxy Watch Ultra (LTE, 47mm) - Titanium Gray", (59999.0, 64999.0)),
-    ("smartwatches-wearables", "apple", "Apple Watch SE (2nd Gen) (GPS, 44mm) - Midnight", (29900.0, 32900.0)),
-    ("televisions", "sony", "Sony Bravia 65-inch 4K OLED Smart Google TV (XR-65A80L)", (219990.0, 249990.0)),
-    ("televisions", "lg", "LG 43-inch 4K Smart LED TV (43UR7500PSC)", (29990.0, 34990.0)),
-    ("refrigerators", "lg", "LG 242L 3 Star Smart Inverter Frost Free Double Door Refrigerator", (25990.0, 29990.0)),
-    ("washing-machines", "whirlpool", "Whirlpool 7.5 Kg 5 Star Fully-Automatic Top Load Washer", (16990.0, 19990.0)),
-    ("air-conditioners", "lg", "LG 1.5 Ton 5 Star AI Dual Inverter Split AC (Copper, Convertible 6-in-1)", (44990.0, 49990.0)),
-    ("footwear", "adidas", "Adidas Ultraboost Light Running Shoes - Core Black", (14999.0, 17999.0)),
-    ("footwear", "puma", "Puma Velocity Nitro 3 Running Shoes - Electric Lime", (9999.0, 11999.0)),
-    ("mens-clothing", "levis", "Levi's Men's Printed Regular Fit Casual Shirt", (1999.0, 2499.0)),
-    ("skincare", "nivea", "Nivea Soft Light Moisturizing Cream (300ml)", (499.0, 699.0)),
-]
 
 # ── Main Seed Script ───────────────────────────────────────────────────────
 
 async def seed_database():
     print("=========================================================")
-    print("COMPAREX Production Database Scale Seeder Starting")
+    print("COMPAREX Production Database Seed Script (Curated Products)")
     print("=========================================================")
 
     # Ensure all tables exist in PostgreSQL
@@ -248,10 +916,12 @@ async def seed_database():
 
     async with AsyncSessionLocal() as session:
         # 1. Marketplaces
-        print("\n[1/6] Seeding 10 Retail Marketplaces...")
+        print("\n[1/5] Seeding 7 Major Indian Retail Marketplaces...")
         marketplace_map = {}
         for mp_data in MARKETPLACES:
-            res = await session.execute(select(Marketplace).where(Marketplace.slug == mp_data["slug"]))
+            res = await session.execute(
+                select(Marketplace).where(Marketplace.slug == mp_data["slug"])
+            )
             existing = res.scalar_one_or_none()
             if not existing:
                 mp = Marketplace(
@@ -272,12 +942,14 @@ async def seed_database():
                 print(f"  . Existing Marketplace: {existing.name}")
 
         # 2. Categories
-        print("\n[2/6] Seeding Categories...")
+        print("\n[2/5] Seeding Categories...")
         category_map = {}
         # First pass: Top-level
         for cat_data in CATEGORIES:
             if cat_data["parent"] is None:
-                res = await session.execute(select(Category).where(Category.slug == cat_data["slug"]))
+                res = await session.execute(
+                    select(Category).where(Category.slug == cat_data["slug"])
+                )
                 existing = res.scalar_one_or_none()
                 if not existing:
                     cat = Category(
@@ -297,7 +969,9 @@ async def seed_database():
         # Second pass: Subcategories
         for cat_data in CATEGORIES:
             if cat_data["parent"] is not None:
-                res = await session.execute(select(Category).where(Category.slug == cat_data["slug"]))
+                res = await session.execute(
+                    select(Category).where(Category.slug == cat_data["slug"])
+                )
                 existing = res.scalar_one_or_none()
                 parent_obj = category_map.get(cat_data["parent"])
                 parent_id = parent_obj.id if parent_obj else None
@@ -317,10 +991,12 @@ async def seed_database():
                     category_map[existing.slug] = existing
 
         # 3. Brands
-        print("\n[3/6] Seeding Brands...")
+        print("\n[3/5] Seeding Brands...")
         brand_map = {}
         for b_data in BRANDS:
-            res = await session.execute(select(Brand).where(Brand.slug == b_data["slug"]))
+            res = await session.execute(
+                select(Brand).where(Brand.slug == b_data["slug"])
+            )
             existing = res.scalar_one_or_none()
             if not existing:
                 brand = Brand(
@@ -337,159 +1013,103 @@ async def seed_database():
             else:
                 brand_map[existing.slug] = existing
 
-        # 4. Products & Listings
-        print("\n[4/6] Seeding Products, Specifications & Marketplace Listings...")
-        all_marketplaces = list(marketplace_map.values())
-
+        # 4. Curated Real Products (catalog only — no fake listings or fake prices)
+        print("\n[4/5] Seeding Curated Real Products (catalog information only)...")
         product_count = 0
-        listing_count = 0
-        history_count = 0
 
-        # Process Explicit Products first
-        all_raw = list(EXPLICIT_PRODUCTS)
-
-        # Generate additional dynamic products to reach broad catalog coverage
-        for idx in range(60):
-            template_tuple = DYNAMIC_TEMPLATES[idx % len(DYNAMIC_TEMPLATES)]
-            cat_slug, brand_slug, name_fmt, (min_p, max_p) = template_tuple
-            ram_val = random.choice([8, 12, 16, 32])
-            storage_val = random.choice([128, 256, 512])
-            price_val = round(random.uniform(min_p, max_p) / 10.0) * 10.0
-
-            p_name = name_fmt.format(ram=ram_val, storage=storage_val, playback=random.choice([30, 42, 60]))
-            ean_val = f"890{idx+100000000}"
-
-            all_raw.append({
-                "name": p_name,
-                "category_slug": cat_slug,
-                "brand_slug": brand_slug,
-                "base_price": price_val,
-                "ean": ean_val,
-                "image_url": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600",
-                "description": f"High performance {p_name} engineered for maximum efficiency, reliability, and value.",
-                "specs": {"Warranty": "1 Year Manufacturer Warranty", "Stock Status": "Available", "Origin": "India"},
-            })
-
-        for p_data in all_raw:
-            res = await session.execute(select(Product).where(Product.ean == p_data["ean"]))
+        for p_data in CURATED_PRODUCTS:
+            # Check by EAN first (unique identifier), then by name
+            res = await session.execute(
+                select(Product).where(Product.ean == p_data["ean"])
+            )
             existing = res.scalar_one_or_none()
+
+            if existing:
+                print(f"  . Existing Product: {p_data['name'][:60]}")
+                # Update image_url if it's currently None or Unsplash
+                if (
+                    not existing.image_url
+                    or "unsplash.com" in (existing.image_url or "")
+                ):
+                    existing.image_url = p_data["image_url"]
+                    print(f"    → Updated image URL")
+                continue
+
             cat_obj = category_map.get(p_data["category_slug"])
             brand_obj = brand_map.get(p_data["brand_slug"])
 
-            if not existing:
-                prod = Product(
-                    id=uuid.uuid4(),
-                    name=p_data["name"],
-                    description=p_data["description"],
-                    category_id=cat_obj.id if cat_obj else None,
-                    brand_id=brand_obj.id if brand_obj else None,
-                    category=cat_obj.name if cat_obj else p_data["category_slug"].title(),
-                    brand=brand_obj.name if brand_obj else p_data["brand_slug"].title(),
-                    image_url=p_data["image_url"],
-                    ean=p_data["ean"],
-                    base_price=Decimal(str(p_data["base_price"])),
-                )
-                session.add(prod)
-                await session.flush()
-                product_count += 1
+            prod = Product(
+                id=uuid.uuid4(),
+                name=p_data["name"],
+                description=p_data["description"],
+                category_id=cat_obj.id if cat_obj else None,
+                brand_id=brand_obj.id if brand_obj else None,
+                category=cat_obj.name if cat_obj else p_data["category_slug"].title(),
+                brand=brand_obj.name if brand_obj else p_data["brand_slug"].title(),
+                image_url=p_data["image_url"],
+                ean=p_data["ean"],
+                model_name=p_data.get("model_name"),
+                # base_price is a catalog reference price, NOT a live marketplace price
+                base_price=Decimal(str(p_data["base_price"])),
+                is_verified=True,
+                is_quarantined=False,
+            )
+            session.add(prod)
+            await session.flush()
+            product_count += 1
 
-                # Specs
-                for spec_k, spec_v in p_data.get("specs", {}).items():
-                    spec = ProductSpecification(
-                        id=uuid.uuid4(),
-                        product_id=prod.id,
-                        key=spec_k,
-                        value=str(spec_v),
-                    )
-                    session.add(spec)
-
-                # Primary Image
-                img = ProductImage(
+            # Specs
+            for spec_k, spec_v in p_data.get("specs", {}).items():
+                spec = ProductSpecification(
                     id=uuid.uuid4(),
                     product_id=prod.id,
-                    url=p_data["image_url"],
-                    is_primary=True,
+                    key=spec_k,
+                    value=str(spec_v),
                 )
-                session.add(img)
+                session.add(spec)
 
-                # Create 3-6 marketplace listings for EVERY product
-                num_listings = random.randint(3, 6)
-                selected_mps = random.sample(all_marketplaces, min(num_listings, len(all_marketplaces)))
+            # Primary Image (real manufacturer/CDN URL)
+            img = ProductImage(
+                id=uuid.uuid4(),
+                product_id=prod.id,
+                url=p_data["image_url"],
+                alt_text=p_data["name"],
+                is_primary=True,
+            )
+            session.add(img)
 
-                base = float(p_data["base_price"])
-                for m_idx, mp in enumerate(selected_mps):
-                    price_var = random.uniform(-0.15, 0.08)
-                    price = round((base * (1.0 + price_var)) / 10.0) * 10.0
-                    price = max(199.0, price)
-                    orig_price = round(price * random.uniform(1.15, 1.35) / 10.0) * 10.0
-                    discount = round(((orig_price - price) / orig_price) * 100.0, 1)
+            print(f"  + Product: {prod.name[:70]}")
 
-                    slug_url = prod.name.lower().replace(" ", "-")[:35]
-                    listing_url = f"{mp.base_url}/product/{slug_url}-{m_idx+1}"
-
-                    listing = ProductListing(
-                        id=uuid.uuid4(),
-                        product_id=prod.id,
-                        marketplace_id=mp.id,
-                        marketplace_product_id=f"{mp.slug.upper()}-{prod.ean[:6]}-{m_idx+1}",
-                        price=Decimal(str(price)),
-                        original_price=Decimal(str(orig_price)),
-                        discount_percent=Decimal(str(discount)),
-                        currency="INR",
-                        listing_url=listing_url,
-                        seller_name=f"{mp.name} Retail",
-                        is_available=True,
-                        is_prime=(m_idx % 2 == 0),
-                        stock_status="IN_STOCK",
-                        delivery_estimate="Express Delivery in 1-2 Days" if (m_idx % 2 == 0) else "Standard Delivery in 3-4 Days",
-                        rating=Decimal(str(round(random.uniform(4.1, 4.9), 1))),
-                        review_count=random.randint(240, 5800),
-                    )
-                    session.add(listing)
-                    await session.flush()
-                    listing_count += 1
-
-                    # Generate 8-15 historical price points
-                    num_points = random.randint(8, 15)
-                    now_utc = datetime.now(timezone.utc)
-                    for p_idx in range(num_points):
-                        days_ago = random.randint(1, 60)
-                        hist_time = now_utc - timedelta(days=days_ago)
-                        hist_var = random.uniform(-0.10, 0.10)
-                        hist_price = round((price * (1.0 + hist_var)) / 10.0) * 10.0
-
-                        hist_entry = PriceHistory(
-                            id=uuid.uuid4(),
-                            listing_id=listing.id,
-                            price=Decimal(str(hist_price)),
-                            currency="INR",
-                            created_at=hist_time,
-                        )
-                        session.add(hist_entry)
-                        history_count += 1
-
-                print(f"  + Product: {prod.name} ({len(selected_mps)} marketplace offers)")
-
-        print("\n[5/6] Committing database transaction...")
+        print("\n[5/5] Committing database transaction...")
         await session.commit()
         print("  [OK] Transaction committed successfully.")
 
-        # 6. Final Database Statistics
-        print("\n[6/6] Final Production Database Statistics:")
-        m_cnt = (await session.execute(select(func.count()).select_from(Marketplace))).scalar()
-        c_cnt = (await session.execute(select(func.count()).select_from(Category))).scalar()
-        b_cnt = (await session.execute(select(func.count()).select_from(Brand))).scalar()
-        p_cnt = (await session.execute(select(func.count()).select_from(Product))).scalar()
-        l_cnt = (await session.execute(select(func.count()).select_from(ProductListing))).scalar()
-        h_cnt = (await session.execute(select(func.count()).select_from(PriceHistory))).scalar()
+        # Final Statistics
+        print("\nFinal Production Database Statistics:")
+        m_cnt = (
+            await session.execute(select(func.count()).select_from(Marketplace))
+        ).scalar()
+        c_cnt = (
+            await session.execute(select(func.count()).select_from(Category))
+        ).scalar()
+        b_cnt = (
+            await session.execute(select(func.count()).select_from(Brand))
+        ).scalar()
+        p_cnt = (
+            await session.execute(select(func.count()).select_from(Product))
+        ).scalar()
 
-        print(f"  * Marketplaces Count: {m_cnt}")
-        print(f"  * Categories Count:   {c_cnt}")
-        print(f"  * Brands Count:       {b_cnt}")
-        print(f"  * Products Count:     {p_cnt}")
-        print(f"  * Listings Count:     {l_cnt}")
-        print(f"  * Price History Points: {h_cnt}")
-
+        print(f"  * Marketplaces: {m_cnt}")
+        print(f"  * Categories:   {c_cnt}")
+        print(f"  * Brands:       {b_cnt}")
+        print(f"  * Products:     {p_cnt}")
+        print(
+            "\nNOTE: No marketplace listings or price history were seeded."
+        )
+        print(
+            "      Live prices come exclusively from verified marketplace "
+            "aggregator observations."
+        )
         print("\n=========================================================")
         print("COMPAREX Production Database Seeding Completed Successfully!")
         print("=========================================================")

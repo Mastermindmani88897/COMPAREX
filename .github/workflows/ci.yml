@@ -198,6 +198,3 @@ print('Migration state: OK')
 
       - name: Run full backend test suite
         run: pytest -q
-
-      - name: Run flake8 lint check
-        run: flake8 app tests

@@ -82,7 +82,6 @@ class PriceMonitorService:
                             continue
 
                         product_name = product.name
-                        product_base_price = product.base_price
 
                         # 1. Fetch live marketplace aggregation safely
                         try:
@@ -98,9 +97,10 @@ class PriceMonitorService:
                             )
                             continue
 
-                        lowest_price = agg_data.get("lowest_price") or float(
-                            product_base_price or 0
-                        )
+                        # lowest_price MUST be a real verified price — never fall
+                        # back to product.base_price (which is a catalog/seed price).
+                        lowest_price = agg_data.get("lowest_price")  # None if no verified
+                        verified_offer_count = agg_data.get("verified_offer_count", 0)
                         listings = agg_data.get("listings", [])
 
                         # 2. Safely resolve/create ProductListing & append PriceHistory per store
@@ -278,8 +278,19 @@ class PriceMonitorService:
 
                         await session.commit()
 
-                        # 3. Check if target price threshold reached for notification
-                        if lowest_price > 0 and Decimal(str(lowest_price)) <= target_price:
+                        # 3. Check if target price threshold reached for notification.
+                        # CRITICAL: Only trigger alert when:
+                        #   - A real verified marketplace price exists (not None)
+                        #   - verified_offer_count > 0 (at least one verified listing)
+                        #   - Price is positive and below target
+                        # NEVER trigger from product.base_price or seed prices.
+                        if (
+                            lowest_price is not None
+                            and lowest_price > 0
+                            and verified_offer_count > 0
+                            and Decimal(str(lowest_price)) <= target_price
+                        ):
+
                             notifications_triggered += 1
                             logger.info(
                                 "ALERT TRIGGERED! Product '%s' price dropped to ₹%.2f "
@@ -317,6 +328,24 @@ class PriceMonitorService:
                             if cur_alert:
                                 cur_alert.triggered = True
                                 await session.commit()
+                        else:
+                            # No verified price available — log clearly, never fabricate
+                            logger.info(
+                                "ALERT_SKIPPED — NO_VERIFIED_CURRENT_MARKETPLACE_PRICE | "
+                                "product='%s' | lowest_price=%s | verified_offers=%d | "
+                                "target=₹%.2f | reason=%s",
+                                product_name,
+                                f"₹{lowest_price:,.2f}" if lowest_price else "None",
+                                verified_offer_count,
+                                float(target_price),
+                                (
+                                    "No verified price from any provider"
+                                    if lowest_price is None
+                                    else "verified_offer_count=0"
+                                    if verified_offer_count == 0
+                                    else "Price above target"
+                                ),
+                            )
 
                     except Exception as alert_exc:
                         await session.rollback()
