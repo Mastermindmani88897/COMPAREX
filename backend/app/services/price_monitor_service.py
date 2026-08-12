@@ -215,7 +215,10 @@ class PriceMonitorService:
 
                                 # Guard 2: Skip only if explicitly marked unverified or quarantined
                                 verif_status = lst.get("verification_status")
-                                if verif_status is not None and verif_status not in ("verified", True):
+                                if (
+                                    verif_status is not None
+                                    and verif_status not in ("verified", True)
+                                ):
                                     skipped_listings += 1
                                     logger.info(
                                         "PRICE_HISTORY_SKIP | reason=unverified | "

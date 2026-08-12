@@ -137,59 +137,71 @@ jobs:
 
       - name: Verify database connectivity
         run: |
-          python -c "
-import psycopg2, sys
-try:
-    conn = psycopg2.connect(
-        host='localhost', port=5432, user='postgres',
-        password='postgres', dbname='comparex_test'
-    )
-    conn.close()
-    print('psycopg2 connectivity OK')
-except Exception as e:
-    print(f'psycopg2 connectivity FAILED: {e}', file=sys.stderr)
-    sys.exit(1)
-"
+          python - <<'PY'
+          import psycopg2
+          import sys
+
+          try:
+              conn = psycopg2.connect(
+                  host="localhost",
+                  port=5432,
+                  user="postgres",
+                  password="postgres",
+                  dbname="comparex_test",
+              )
+              conn.close()
+              print("psycopg2 connectivity OK")
+          except Exception as e:
+              print(f"psycopg2 connectivity FAILED: {e}", file=sys.stderr)
+              sys.exit(1)
+          PY
 
       - name: Run Alembic migrations against CI database
         run: |
-          python -c "
-import sys, os
-sys.path.insert(0, '.')
-os.environ['DATABASE_URL'] = 'postgresql+asyncpg://postgres:postgres@localhost:5432/comparex_test'
-from alembic.config import Config
-from alembic import command
-cfg = Config('alembic.ini')
-# Use psycopg2 sync driver for CLI migration
-cfg.set_main_option(
-    'sqlalchemy.url',
-    'postgresql+psycopg2://postgres:postgres@localhost:5432/comparex_test'
-)
-try:
-    command.upgrade(cfg, 'head')
-    print('Alembic upgrade head: OK')
-except Exception as e:
-    print(f'Alembic upgrade head FAILED: {e}', file=sys.stderr)
-    import traceback; traceback.print_exc()
-    sys.exit(1)
-"
+          python - <<'PY'
+          import os
+          import sys
+          import traceback
+          from alembic import command
+          from alembic.config import Config
+
+          sys.path.insert(0, ".")
+          os.environ["DATABASE_URL"] = (
+              "postgresql+asyncpg://postgres:postgres@localhost:5432/comparex_test"
+          )
+
+          cfg = Config("alembic.ini")
+          cfg.set_main_option(
+              "sqlalchemy.url",
+              "postgresql+psycopg2://postgres:postgres@localhost:5432/comparex_test",
+          )
+          try:
+              command.upgrade(cfg, "head")
+              print("Alembic upgrade head: OK")
+          except Exception as e:
+              print(f"Alembic upgrade head FAILED: {e}", file=sys.stderr)
+              traceback.print_exc()
+              sys.exit(1)
+          PY
 
       - name: Verify migration state
         run: |
-          python -c "
-import sys, os
-sys.path.insert(0, '.')
-from alembic.config import Config
-from alembic import command
-cfg = Config('alembic.ini')
-cfg.set_main_option(
-    'sqlalchemy.url',
-    'postgresql+psycopg2://postgres:postgres@localhost:5432/comparex_test'
-)
-command.current(cfg)
-command.heads(cfg)
-print('Migration state: OK')
-"
+          python - <<'PY'
+          import os
+          import sys
+          from alembic import command
+          from alembic.config import Config
+
+          sys.path.insert(0, ".")
+          cfg = Config("alembic.ini")
+          cfg.set_main_option(
+              "sqlalchemy.url",
+              "postgresql+psycopg2://postgres:postgres@localhost:5432/comparex_test",
+          )
+          command.current(cfg)
+          command.heads(cfg)
+          print("Migration state: OK")
+          PY
 
       - name: Run targeted AI endpoint tests
         run: |
