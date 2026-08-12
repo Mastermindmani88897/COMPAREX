@@ -439,6 +439,22 @@ class ProductMatchingEngine:
                 "match_reason": "EAN_EXACT_MATCH",
             }
 
+        # 1. Exact attribute mismatch check (rejects model/variant/size/family mismatches)
+        has_ean = bool(ean1 and ean2 and ean1 == ean2)
+        is_exact, match_score, rejection_reason = ExactProductMatchEngine.evaluate_marketplace_match(
+            title1, title2, ean_match=has_ean
+        )
+        if not is_exact and "MISMATCH" in rejection_reason:
+            specs_a = product1.get("specifications", {})
+            specs_b = product2.get("specifications", {})
+            return {
+                "is_duplicate": False,
+                "confidence_score": 0.0,
+                "title_similarity": cls.calculate_title_similarity(title1, title2),
+                "spec_similarity": cls.match_specifications(specs_a, specs_b),
+                "match_reason": rejection_reason,
+            }
+
         title_sim = cls.calculate_title_similarity(title1, title2)
         specs1 = product1.get("specifications", {})
         specs2 = product2.get("specifications", {})

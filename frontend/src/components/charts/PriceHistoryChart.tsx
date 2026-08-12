@@ -86,26 +86,70 @@ export function PriceHistoryChart({
     historyData.points.length < 2
   ) {
     const obsCount: number = historyData?.verified_observation_count ?? historyData?.total_points ?? 0;
+    const curPrice = historyData?.today_price || historyData?.current_live_price || basePrice || 0;
+    const lowPrice = historyData?.lowest_price || curPrice;
+    const highPrice = historyData?.highest_price || curPrice;
+    const avgPrice = historyData?.average_price || curPrice;
+
     return (
       <div
-        className="rounded-3xl border p-8 text-center space-y-3 shadow-xl"
+        className="rounded-3xl border p-6 sm:p-8 space-y-6 shadow-xl"
         style={{ background: "var(--card)", borderColor: "var(--border)" }}
       >
-        <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-400 w-12 h-12 mx-auto flex items-center justify-center border border-indigo-500/20">
-          <Calendar className="h-6 w-6" />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-4" style={{ borderColor: "var(--border)" }}>
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <Calendar className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
+                Price History & Market Trend
+              </h3>
+              <p className="text-xs" style={{ color: "var(--foreground-muted)" }}>
+                Persistent verified price snapshot tracking.
+              </p>
+            </div>
+          </div>
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 w-fit">
+            Collecting verified price history
+          </span>
         </div>
-        <h3 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
-          Price History & Market Trend
-        </h3>
-        <p className="text-xs max-w-md mx-auto leading-relaxed text-amber-400 font-semibold">
-          {historyData?.message ||
-            "No verified price history yet. CompareX will build price history as real marketplace prices are verified."}
-        </p>
-        {obsCount > 0 && (
-          <p className="text-[11px]" style={{ color: "var(--foreground-muted)" }}>
-            {obsCount} verified observation{obsCount === 1 ? "" : "s"} collected so far.
-          </p>
-        )}
+
+        {/* Live Market Stats Metrics Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-4 rounded-2xl border bg-emerald-500/5 border-emerald-500/20">
+            <span className="text-[11px] font-semibold text-emerald-400 block">Lowest Verified</span>
+            <p className="text-xl font-black text-emerald-300 mt-1">
+              {lowPrice > 0 ? `₹${Number(lowPrice).toLocaleString("en-IN")}` : "Collecting"}
+            </p>
+          </div>
+          <div className="p-4 rounded-2xl border bg-indigo-500/5 border-indigo-500/20">
+            <span className="text-[11px] font-semibold text-indigo-400 block">Market Average</span>
+            <p className="text-xl font-black text-indigo-300 mt-1">
+              {avgPrice > 0 ? `₹${Number(avgPrice).toLocaleString("en-IN")}` : "Collecting"}
+            </p>
+          </div>
+          <div className="p-4 rounded-2xl border bg-rose-500/5 border-rose-500/20">
+            <span className="text-[11px] font-semibold text-rose-400 block">Highest Price</span>
+            <p className="text-xl font-black text-rose-300 mt-1">
+              {highPrice > 0 ? `₹${Number(highPrice).toLocaleString("en-IN")}` : "Collecting"}
+            </p>
+          </div>
+          <div className="p-4 rounded-2xl border bg-purple-500/5 border-purple-500/20">
+            <span className="text-[11px] font-semibold text-purple-400 block">Verified Snapshots</span>
+            <p className="text-xl font-black text-purple-300 mt-1">
+              {obsCount} observation{obsCount === 1 ? "" : "s"}
+            </p>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl border bg-amber-500/10 border-amber-500/20 text-xs leading-relaxed text-amber-300 flex items-start gap-2.5">
+          <Sparkles className="h-4 w-4 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold block">History & Trend Snapshot System Active</span>
+            CompareX automatically records persistent price snapshots when verified marketplace prices are observed. The interactive line chart will render automatically as snapshots accumulate.
+          </div>
+        </div>
       </div>
     );
   }

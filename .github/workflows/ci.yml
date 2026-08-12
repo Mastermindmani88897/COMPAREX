@@ -203,6 +203,62 @@ jobs:
           print("Migration state: OK")
           PY
 
+      - name: Verify database schema tables exist
+        run: |
+          python - <<'PY'
+          import psycopg2
+          import sys
+
+          conn = psycopg2.connect(
+              host="localhost",
+              port=5432,
+              user="postgres",
+              password="postgres",
+              dbname="comparex_test",
+          )
+          cursor = conn.cursor()
+
+          required_tables = [
+              "users",
+              "products",
+              "categories",
+              "marketplaces",
+              "product_listings",
+              "brands",
+              "price_history",
+              "shopping_profiles",
+              "user_preferences",
+              "shopping_memories",
+              "recommendation_histories",
+              "shopping_analytics",
+              "preference_events",
+              "price_alerts",
+              "wishlist_items",
+              "product_specifications",
+              "product_images",
+              "coupons",
+              "watchlists",
+              "ai_conversations",
+              "ai_feedbacks",
+              "notifications",
+              "product_views",
+          ]
+
+          cursor.execute(
+              "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
+          )
+          existing_tables = set(row[0] for row in cursor.fetchall())
+
+          missing = [t for t in required_tables if t not in existing_tables]
+          conn.close()
+
+          if missing:
+              print(f"SCHEMA VERIFICATION FAILED! Missing tables: {missing}", file=sys.stderr)
+              sys.exit(1)
+
+          print(f"SCHEMA VERIFICATION OK! All {len(required_tables)} required tables exist in PostgreSQL.")
+          PY
+
       - name: Run targeted AI endpoint tests
         run: |
           pytest tests/test_phase6.py::test_ai_chat_endpoint -q

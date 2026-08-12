@@ -114,3 +114,52 @@ class ProductIdentityValidator:
                 n_cat = "Headphones"
 
         return n_name, n_brand, n_cat
+
+    @classmethod
+    def validate_product_image(
+        cls,
+        image_url: Optional[str],
+        product_name: str,
+        category: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        Validates product image URL against product model and category.
+        Rejects generic mobile photos, placeholders, or mismatched category images.
+
+        Returns:
+            Validated image_url string or None if unverified/generic.
+        """
+        if not image_url or not isinstance(image_url, str):
+            return None
+
+        u = image_url.strip().lower()
+        if not u.startswith("http://") and not u.startswith("https://"):
+            return None
+
+        # Generic smartphone / unsplash images banned
+        banned_substrings = [
+            "unsplash.com",
+            "photo-1511707171634-5f897ff02aa9",
+            "generic-smartphone",
+            "default-mobile",
+            "category-mobile",
+            "placeholder",
+            "stock-photo",
+        ]
+        if any(b in u for b in banned_substrings):
+            return None
+
+        # Category mismatch check: if product is TV or Laptop, reject generic mobile image
+        p_lower = product_name.lower()
+        cat_lower = (category or "").lower()
+
+        tv_kw = ["tv", "television", "bravia", "qled", "oled"]
+        is_tv = "tv" in cat_lower or any(k in p_lower for k in tv_kw)
+
+        lap_kw = ["laptop", "macbook", "thinkpad", "inspiron", "pavilion"]
+        is_laptop = "laptop" in cat_lower or any(k in p_lower for k in lap_kw)
+
+        if (is_tv or is_laptop) and ("mobile" in u or "phone" in u):
+            return None
+
+        return image_url.strip()

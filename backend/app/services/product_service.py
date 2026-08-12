@@ -103,7 +103,7 @@ class ProductService:
             query,
         )
 
-        # If DB returned 0 products AND query provided, trigger live aggregation & auto-cache in DB
+        # If DB returned 0 products AND query provided, trigger live aggregation & auto-cache exact models in DB
         if not products and query and query.strip():
             try:
                 agg = await MarketplaceAggregatorService.aggregate_search(
@@ -111,54 +111,67 @@ class ProductService:
                 )
                 listings_list = agg.get("listings", [])
                 if listings_list:
-                    p_title = agg.get("product_title") or query.title()
-                    p_cat = agg.get("category") or category or "Electronics"
-                    p_brand = agg.get("specifications", {}).get("brand") or brand or "Brand"
-                    raw_lowest = agg.get("lowest_price") or listings_list[0].get("price") or 0.0
-                    lowest_price = float(raw_lowest)
-
-                    primary_img = (
-                        agg.get("primary_image")
-                        or "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600"
-                    )
-
-                    desc_str = (
-                        f"{p_title} - Price comparison across Amazon, Flipkart, Croma, "
-                        "Reliance Digital, Tata Cliq, Meesho, Myntra & Vijay Sales."
-                    )
-                    b_price = Decimal(str(lowest_price)) if lowest_price > 0 else Decimal("0.0")
-                    new_product = Product(
-                        id=uuid.uuid4(),
-                        name=p_title,
-                        brand=p_brand,
-                        category=p_cat,
-                        base_price=b_price,
-                        description=desc_str,
-                        image_url=primary_img,
-                        stock_status="in_stock",
-                        rating=Decimal("4.6"),
-                        review_count=1840,
-                        popularity_score=88.0,
-                        search_keywords=f"{query.lower()} {p_brand.lower()} {p_cat.lower()}",
-                    )
-                    self.db.add(new_product)
-                    await self.db.flush()
-
+                    # Ingest individual verified listings under their exact model names
                     for lst_data in listings_list:
+                        title_str = lst_data.get("title") or lst_data.get("listing_title") or ""
                         l_price = float(lst_data.get("price") or 0.0)
-                        if l_price <= 0:
+                        if not title_str or l_price <= 0:
                             continue
+
+                        # Extract identity attributes for exact model
+                        from app.services.matching_engine import ExactProductMatchEngine
+                        attrs = ExactProductMatchEngine.extract_attributes(title_str)
+                        if attrs.get("is_accessory"):
+                            continue
+
+                        model_num = attrs.get("model_number") or ""
+                        brand_name = attrs.get("brand") or brand or query.title()
+
+                        # Ensure we do not create brand-only generic names like "Oppo" or "Samsung"
+                        if title_str.strip().lower() in {"oppo", "samsung", "poco", "brand", "unknown product"}:
+                            continue
+
+                        # Check if product with exact model already exists in DB
+                        existing_p = await self.repo.search_products(query=title_str, limit=1)
+                        target_p = existing_p[0] if existing_p else None
+
+                        if not target_p:
+                            raw_img = lst_data.get("image_url") or ""
+                            has_unsplash = "unsplash.com" in raw_img
+                            valid_img = raw_img if raw_img and not has_unsplash else None
+
+                            target_p = Product(
+                                id=uuid.uuid4(),
+                                name=title_str,
+                                brand=brand_name.title() if brand_name else "Generic",
+                                category=category or "Electronics",
+                                base_price=Decimal(str(l_price)),
+                                description=f"{title_str} - Verified marketplace price comparison.",
+                                image_url=valid_img,
+                                stock_status="in_stock",
+                                rating=Decimal("4.5"),
+                                review_count=100,
+                                popularity_score=85.0,
+                                search_keywords=f"{title_str.lower()} {query.lower()}",
+                            )
+                            self.db.add(target_p)
+                            await self.db.flush()
+
+                        # Add product listing
                         l_orig = float(lst_data.get("original_price") or l_price)
                         l_disc = float(lst_data.get("discount_percent") or 0.0)
-                        default_url = f"https://www.google.com/search?q={query}"
+                        default_url = (
+                            lst_data.get("listing_url")
+                            or f"https://www.google.com/search?q={query}"
+                        )
 
                         lst = ProductListing(
                             id=uuid.uuid4(),
-                            product_id=new_product.id,
+                            product_id=target_p.id,
                             price=Decimal(str(l_price)),
                             original_price=Decimal(str(l_orig)),
                             discount_percentage=Decimal(str(l_disc)),
-                            listing_url=lst_data.get("listing_url") or default_url,
+                            listing_url=default_url,
                             seller_name=lst_data.get("seller_name") or "Verified Seller",
                             is_available=True,
                             stock_status="IN_STOCK",
@@ -167,12 +180,8 @@ class ProductService:
                         self.db.add(lst)
 
                     await self.db.commit()
-                    try:
-                        await self.db.refresh(new_product)
-                    except Exception:
-                        pass
 
-                    # Re-query DB after caching
+                    # Re-query DB after caching exact models
                     products = await self.repo.search_products(
                         skip=skip,
                         limit=limit,
@@ -181,8 +190,6 @@ class ProductService:
                         brand=brand,
                         synonyms=synonyms,
                     )
-                    if not products:
-                        products = [new_product]
             except Exception as exc:
                 logger.error(
                     "Failed to dynamically aggregate and cache search '%s': %s", query, exc

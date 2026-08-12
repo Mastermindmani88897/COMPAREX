@@ -99,21 +99,25 @@ class ProviderHealthTracker:
         """Return diagnostic health status for all registered providers (secrets never exposed)."""
         from app.core.config import settings
 
+        bd_has_zone = bool(getattr(settings, "BRIGHTDATA_ZONE", None))
+        bd_configured = bool(settings.BRIGHTDATA_API_KEY and bd_has_zone)
         providers = [
             ("SerpAPI", bool(settings.SERPAPI_API_KEY)),
             ("Rainforest", bool(settings.RAINFOREST_API_KEY)),
-            ("Bright Data", bool(settings.BRIGHTDATA_API_KEY)),
+            ("Bright Data", bd_configured),
             ("ZenRows", bool(settings.ZENROWS_API_KEY)),
         ]
 
         result = []
         for p_name, is_cfg in providers:
-            p_key = p_name.lower()
-            if p_key in cls._health_data:
-                entry = dict(cls._health_data[p_key])
+            p_key = p_name.lower().replace(" ", "")
+            stored_key = "bright data" if p_key == "brightdata" else p_key
+            if stored_key in cls._health_data:
+                entry = dict(cls._health_data[stored_key])
                 entry["configured"] = is_cfg
                 result.append(entry)
             else:
+                err_msg = "No requests logged yet" if is_cfg else "API credentials not configured"
                 result.append(
                     {
                         "provider": p_name,
@@ -121,12 +125,35 @@ class ProviderHealthTracker:
                         "status": ProviderStatus.NOT_CONFIGURED.value if not is_cfg else "UNKNOWN",
                         "last_checked": None,
                         "last_http_status": None,
-                        "last_error": (
-                            "No requests logged yet" if is_cfg else "API Key not configured"
-                        ),
+                        "last_error": err_msg,
                         "last_result_count": 0,
                         "quota_state": "NOT_CONFIGURED" if not is_cfg else "HEALTHY",
                         "response_time_ms": 0.0,
                     }
                 )
         return result
+
+    @classmethod
+    def get_provider_status_map(cls) -> Dict[str, Dict[str, Any]]:
+        """Return provider status map keyed by provider slug (secrets never exposed)."""
+        list_status = cls.get_health_status()
+        status_map = {}
+        for item in list_status:
+            p_name = item["provider"].lower().replace(" ", "")
+            raw_st = item.get("status", "UNKNOWN")
+            # Map raw status enum string to concise user-friendly summary status
+            if raw_st in ("SUCCESS_WITH_RESULTS", "SUCCESS_NO_RESULTS", "HEALTHY", "UNKNOWN"):
+                summary_status = "AVAILABLE" if item.get("configured") else "NOT_CONFIGURED"
+            else:
+                summary_status = raw_st
+
+            status_map[p_name] = {
+                "provider": item["provider"],
+                "status": summary_status,
+                "raw_status": raw_st,
+                "configured": item.get("configured", False),
+                "quota_state": item.get("quota_state", "UNKNOWN"),
+                "last_checked": item.get("last_checked"),
+                "last_error": item.get("last_error"),
+            }
+        return status_map

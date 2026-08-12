@@ -21,6 +21,8 @@ logger = get_logger(__name__)
 class ZenRowsAdapter(BaseMarketplaceAdapter):
     """Adapter for ZenRows proxy web scraper acting as Priority 4 fallback."""
 
+    _cooldown_until: float = 0.0
+
     def __init__(
         self, marketplace_slug: str = "zenrows", base_url: str = "https://zenrows.com"
     ) -> None:
@@ -47,6 +49,15 @@ class ZenRowsAdapter(BaseMarketplaceAdapter):
                 error_message="API Key not configured",
             )
 
+        if time.time() < ZenRowsAdapter._cooldown_until:
+            rem = int(ZenRowsAdapter._cooldown_until - time.time())
+            logger.info("ZENROWS: Cooldown active for next %ds due to previous timeout.", rem)
+            return ProviderResponse(
+                provider_name="ZenRows",
+                status=ProviderStatus.TIMEOUT,
+                error_message=f"ZenRows timeout (cooldown active for {rem}s)",
+            )
+
         target_url = f"https://www.google.com/search?q={query}+price+in+india+buy+online"
         params = {
             "apikey": self.api_key,
@@ -56,7 +67,7 @@ class ZenRowsAdapter(BaseMarketplaceAdapter):
         }
 
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=6.0) as client:
                 response = await client.get(self.api_url, params=params)
                 elapsed_ms = (time.time() - start_t) * 1000.0
 
@@ -112,6 +123,7 @@ class ZenRowsAdapter(BaseMarketplaceAdapter):
                     )
 
         except httpx.TimeoutException:
+            ZenRowsAdapter._cooldown_until = time.time() + 300.0  # 5 minute cooldown
             elapsed_ms = (time.time() - start_t) * 1000.0
             logger.error("ZENROWS: TIMEOUT query='%s'", query)
             ProviderHealthTracker.record_call(

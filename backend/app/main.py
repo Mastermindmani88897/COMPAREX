@@ -344,6 +344,7 @@ def create_application() -> FastAPI:
 
     # ── Root & Utility Endpoints ─────────────────────────────────
     @app.get("/", include_in_schema=False)
+    @app.head("/", include_in_schema=False)
     async def root():
         return JSONResponse(
             {
@@ -358,6 +359,7 @@ def create_application() -> FastAPI:
         )
 
     @app.get("/health", include_in_schema=False)
+    @app.head("/health", include_in_schema=False)
     async def health_root():
         return JSONResponse(
             {
@@ -366,6 +368,19 @@ def create_application() -> FastAPI:
                 "environment": settings.ENVIRONMENT,
             }
         )
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    @app.head("/favicon.ico", include_in_schema=False)
+    async def favicon_root():
+        from fastapi.responses import Response
+        # Smallest 1x1 transparent ICO byte sequence
+        ico_bytes = (
+            b"\x00\x00\x01\x00\x01\x00\x01\x01\x00\x00\x01\x00\x18\x00\x30\x00"
+            b"\x00\x00\x16\x00\x00\x00\x28\x00\x00\x00\x01\x00\x00\x00\x02\x00"
+            b"\x00\x00\x01\x00\x18\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+            b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+        )
+        return Response(content=ico_bytes, media_type="image/x-icon")
 
     @app.get("/openapi.json", include_in_schema=False)
     async def openapi_root():

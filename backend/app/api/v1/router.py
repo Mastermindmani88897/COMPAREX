@@ -35,6 +35,7 @@ from app.api.v1.endpoints import (
     privacy,
     products,
     profile,
+    providers,
     recommendations,
     users,
     wishlist,
@@ -45,6 +46,7 @@ v1_router = APIRouter()
 # Health & Metrics
 v1_router.include_router(health.router)
 v1_router.include_router(metrics.router)
+v1_router.include_router(providers.router)
 
 # AI Shopping Intelligence Platform & Advanced Modes
 v1_router.include_router(ai.router)

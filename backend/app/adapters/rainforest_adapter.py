@@ -20,6 +20,8 @@ logger = get_logger(__name__)
 class RainforestAdapter(BaseMarketplaceAdapter):
     """Adapter for Rainforest API providing Amazon India marketplace listings."""
 
+    _cooldown_until: float = 0.0
+
     def __init__(
         self, marketplace_slug: str = "amazon", base_url: str = "https://www.amazon.in"
     ) -> None:
@@ -44,6 +46,17 @@ class RainforestAdapter(BaseMarketplaceAdapter):
                 provider_name="Rainforest",
                 status=ProviderStatus.NOT_CONFIGURED,
                 error_message="API Key not configured",
+            )
+
+        # Check provider cooldown (if HTTP 402 previously hit)
+        if time.time() < RainforestAdapter._cooldown_until:
+            rem = int(RainforestAdapter._cooldown_until - time.time())
+            logger.info("RAINFOREST: Cooldown active for next %ds.", rem)
+            return ProviderResponse(
+                provider_name="Rainforest",
+                status=ProviderStatus.QUOTA_EXHAUSTED,
+                http_status=402,
+                error_message=f"Rainforest credits exhausted (cooldown active for {rem}s)",
             )
 
         params = {
@@ -149,7 +162,8 @@ class RainforestAdapter(BaseMarketplaceAdapter):
                     )
                 elif response.status_code in (402, 429):
                     if response.status_code == 402:
-                        status = ProviderStatus.PAYMENT_REQUIRED
+                        RainforestAdapter._cooldown_until = time.time() + 600.0
+                        status = ProviderStatus.QUOTA_EXHAUSTED
                         err_msg = "HTTP 402 Payment Required - Rainforest API credits exhausted"
                     else:
                         status = ProviderStatus.RATE_LIMITED

@@ -1,12 +1,12 @@
 """
-COMPAREX Backend – Data Integrity & Critical Bug Regression Tests
+COMPAREX Backend - Data Integrity & Critical Bug Regression Tests
 
 Tests for:
-1. Dashboard: User.name (not full_name) — no AttributeError
+1. Dashboard: User.name (not full_name) - no AttributeError
 2. Price monitor: no false alert when verified_offer_count=0
 3. Price history: no SQL error from created_at
 4. Marketplace normalizer: no hardcoded delivery fallback
-5. Price alert service: no hardcoded ₹4999 fallback
+5. Price alert service: no hardcoded INR 4999 fallback
 6. Product data: fabricated products rejected
 7. Price alert: alert not triggered from stale/catalog prices
 """
@@ -32,7 +32,7 @@ class TestDashboardUserName:
 
         assert hasattr(User, "name"), "User model must have 'name' attribute"
         assert not hasattr(User, "full_name"), (
-            "User model must NOT have a 'full_name' attribute — use 'name' instead. "
+            "User model must NOT have a 'full_name' attribute - use 'name' instead. "
             "dashboard_service.py was fixed to use user.name"
         )
 
@@ -49,7 +49,7 @@ class TestDashboardUserName:
             "dashboard_service.get_user_dashboard must use user.name"
         )
         assert "user.full_name" not in source, (
-            "dashboard_service.get_user_dashboard must NOT use user.full_name — "
+            "dashboard_service.get_user_dashboard must NOT use user.full_name - "
             "User model has .name not .full_name"
         )
 
@@ -99,8 +99,6 @@ class TestPriceAlertNoFabricatedTrigger:
         no notification must be triggered. This is the root cause of the
         'ALERT TRIGGERED from stale price' bug.
         """
-        from app.services.price_monitor_service import PriceMonitorService
-
         trigger_count = 0
 
         # Simulate aggregation with 0 verified results (all providers failed)
@@ -139,7 +137,7 @@ class TestPriceAlertNoFabricatedTrigger:
 
     async def test_alert_skipped_when_providers_return_zero(self):
         """
-        When lowest_price=0 (not None, but zero — invalid price),
+        When lowest_price=0 (not None, but zero -- invalid price),
         alert must NOT trigger.
         """
         lowest_price = 0
@@ -169,8 +167,8 @@ class TestPriceAlertNoFabricatedTrigger:
         )
 
         assert should_trigger, (
-            "Alert SHOULD trigger when a real verified price (₹42,990) "
-            "is below target (₹45,000)"
+            "Alert SHOULD trigger when a real verified price (42,990) "
+            "is below target (45,000)"
         )
 
     async def test_alert_not_triggered_by_catalog_price(self):
@@ -238,7 +236,7 @@ class TestMarketplaceNormalizerNoFakeDelivery:
 
 @pytest.mark.anyio
 class TestPriceAlertServiceNoFakePrice:
-    """Bug 5: Price alert service must not use hardcoded ₹4999 fallback."""
+    """Bug 5: Price alert service must not use hardcoded INR 4999 fallback."""
 
     async def test_watchlist_price_is_none_when_no_base_price(
         self, db_session
@@ -251,9 +249,6 @@ class TestPriceAlertServiceNoFakePrice:
         from app.schemas.price_alert import WatchlistCreate
 
         # Create a product with no base_price
-        from app.models.product import Product
-        from app.models.watchlist import Watchlist
-
         product_id = uuid.uuid4()
         user_id = uuid.uuid4()
 
@@ -405,7 +400,7 @@ class TestProductDataIntegrity:
 
     def test_fabricated_poco_names_match_synthetic_patterns(self):
         """
-        The cleanup script's synthetic patterns must catch fabricated POCO names.
+        The cleanup script synthetic patterns must catch fabricated POCO names.
         """
         import fnmatch
 
@@ -460,13 +455,10 @@ class TestProductDataIntegrity:
 
 @pytest.mark.anyio
 class TestPriceHistoryService:
-    """Price history service must not throw SQL errors."""
+    # Price history service tests
 
     async def test_price_history_returns_without_error_for_unknown_product(self):
-        """
-        get_price_history must gracefully handle a product with no history.
-        Must NOT raise AttributeError or SQL column errors.
-        """
+        # get_price_history must gracefully handle a product with no history
         from app.services.price_history_service import PriceHistoryService
 
         mock_db = AsyncMock()
@@ -488,10 +480,7 @@ class TestPriceHistoryService:
         assert result["price_change"] is None
 
     async def test_price_history_insufficient_data_message(self):
-        """
-        When 0 history records exist, message must clearly state
-        'No verified price history yet' — not a SQL error.
-        """
+        # When 0 history records exist message states no verified price history
         from app.services.price_history_service import PriceHistoryService
 
         mock_db = AsyncMock()
@@ -506,5 +495,5 @@ class TestPriceHistoryService:
             db=mock_db, product_id=uuid.uuid4()
         )
 
-        assert "No verified price history" in result["message"] or \
-               "verified price" in result["message"].lower()
+        msg_lower = result["message"].lower()
+        assert "no verified price history" in msg_lower or "verified price" in msg_lower

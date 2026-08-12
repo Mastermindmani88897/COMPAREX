@@ -24,7 +24,7 @@ from decimal import Decimal
 # Add backend directory to sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from app.db.base import Base
 from app.db.session import AsyncSessionLocal, engine
 import app.models  # noqa: F401
@@ -272,6 +272,18 @@ BRANDS = [
                     "Whirlpool_Corporation_Logo.svg",
         "website_url": "https://www.whirlpoolindia.com",
     },
+    {
+        "name": "OPPO",
+        "slug": "oppo",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/b/b8/OPPO_Logo.svg",
+        "website_url": "https://www.oppo.com/in",
+    },
+    {
+        "name": "POCO",
+        "slug": "poco",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/a/a2/POCO_Logo.png",
+        "website_url": "https://www.poco.in",
+    },
 ]
 
 # ── Real Curated Products Only ─────────────────────────────────────────────
@@ -448,6 +460,132 @@ CURATED_PRODUCTS = [
             "Processor": "Snapdragon 8s Gen 3",
             "Camera": "50MP Sony LYT-808 + 8MP Ultra Wide + 2MP Macro",
             "Battery": "5500 mAh with 120W SUPERVOOC",
+            "RAM": "8 GB",
+            "Storage": "256 GB",
+        },
+    },
+    {
+        "name": "OPPO A6x 5G (6GB RAM, 128GB) - Starry Purple",
+        "category_slug": "smartphones",
+        "brand_slug": "oppo",
+        "model_name": "OPPO A6x 5G",
+        "base_price": 13999.0,
+        "ean": "693672000001",
+        "image_url": "https://www.oppo.com/content/dam/oppo/product-asset-new/a/a6x-5g/v1/assets/a6x-purple.png",
+        "description": (
+            "OPPO A6x 5G with MediaTek Dimensity 6300 processor, 90Hz Eye-Care Punch-Hole "
+            "display, 5000mAh battery with 45W SUPERVOOC flash charge, 50MP AI Dual Camera."
+        ),
+        "specs": {
+            "Display": "6.67-inch HD+ 90Hz LCD",
+            "Processor": "MediaTek Dimensity 6300 5G",
+            "Camera": "50MP Main + 2MP Portrait",
+            "Battery": "5000 mAh with 45W SUPERVOOC",
+            "RAM": "6 GB",
+            "Storage": "128 GB",
+        },
+    },
+    {
+        "name": "OPPO K14x 5G (8GB RAM, 128GB) - Midnight Blue",
+        "category_slug": "smartphones",
+        "brand_slug": "oppo",
+        "model_name": "OPPO K14x 5G",
+        "base_price": 16999.0,
+        "ean": "693672000002",
+        "image_url": "https://www.oppo.com/content/dam/oppo/product-asset-new/k/k14x-5g/v1/assets/k14x-blue.png",
+        "description": (
+            "OPPO K14x 5G powered by MediaTek Dimensity 7050, 120Hz Full HD+ AMOLED screen, "
+            "67W SUPERVOOC charging, and 64MP Ultra-Clear Dual Camera system."
+        ),
+        "specs": {
+            "Display": "6.72-inch FHD+ 120Hz AMOLED",
+            "Processor": "MediaTek Dimensity 7050 5G",
+            "Camera": "64MP Main + 2MP Depth",
+            "Battery": "5000 mAh with 67W SUPERVOOC",
+            "RAM": "8 GB",
+            "Storage": "128 GB",
+        },
+    },
+    {
+        "name": "OPPO Reno 12 Pro 5G (12GB RAM, 512GB) - Sunset Gold",
+        "category_slug": "smartphones",
+        "brand_slug": "oppo",
+        "model_name": "OPPO Reno 12 Pro 5G",
+        "base_price": 36999.0,
+        "ean": "693672000003",
+        "image_url": "https://www.oppo.com/content/dam/oppo/product-asset-new/reno/reno12-pro-5g/v1/assets/reno12pro-gold.png",
+        "description": (
+            "OPPO Reno 12 Pro 5G featuring GenAI Eraser 2.0, MediaTek Dimensity 7300-Energy, "
+            "50MP Sony LYT-600 main camera with OIS, 50MP Telephoto, and 80W SUPERVOOC."
+        ),
+        "specs": {
+            "Display": "6.7-inch 1.5K 120Hz Quad-Curved AMOLED",
+            "Processor": "MediaTek Dimensity 7300-Energy (4nm)",
+            "Camera": "50MP Sony LYT-600 OIS + 50MP 2x Telephoto + 8MP UW",
+            "Battery": "5000 mAh with 80W SUPERVOOC",
+            "RAM": "12 GB",
+            "Storage": "512 GB",
+        },
+    },
+    {
+        "name": "POCO X6 Pro 5G (12GB RAM, 512GB) - Racing Yellow",
+        "category_slug": "smartphones",
+        "brand_slug": "poco",
+        "model_name": "POCO X6 Pro 5G",
+        "base_price": 26999.0,
+        "ean": "694181270001",
+        "image_url": "https://i02.appmifile.com/832_operator_in/11/01/2024/2f80164c489d81d2df0dd9965a397c11.png",
+        "description": (
+            "POCO X6 Pro 5G powered by flagship MediaTek Dimensity 8300-Ultra (4nm), "
+            "1.5K 120Hz Flow AMOLED display, 64MP OIS Triple Camera, 67W Turbo Charge."
+        ),
+        "specs": {
+            "Display": "6.67-inch 1.5K 120Hz Flow AMOLED",
+            "Processor": "MediaTek Dimensity 8300-Ultra (4nm)",
+            "Camera": "64MP OIS + 8MP UW + 2MP Macro",
+            "Battery": "5000 mAh with 67W Turbo Charge",
+            "RAM": "12 GB",
+            "Storage": "512 GB",
+        },
+    },
+    {
+        "name": "POCO M6 Pro 5G (6GB RAM, 128GB) - Power Black",
+        "category_slug": "smartphones",
+        "brand_slug": "poco",
+        "model_name": "POCO M6 Pro 5G",
+        "base_price": 10999.0,
+        "ean": "694181270002",
+        "image_url": "https://i02.appmifile.com/479_operator_in/05/08/2023/15c15fbddf3a47fb82f6fbf82103f191.png",
+        "description": (
+            "POCO M6 Pro 5G with Snapdragon 4 Gen 2 5G processor, 6.79-inch 90Hz FHD+ "
+            "display with Corning Gorilla Glass, Premium Glass Back Design, 5000mAh battery."
+        ),
+        "specs": {
+            "Display": "6.79-inch FHD+ 90Hz LCD",
+            "Processor": "Snapdragon 4 Gen 2 (4nm)",
+            "Camera": "50MP AI Dual Camera",
+            "Battery": "5000 mAh with 18W Fast Charging",
+            "RAM": "6 GB",
+            "Storage": "128 GB",
+        },
+    },
+    {
+        "name": "POCO F6 5G (8GB RAM, 256GB) - Titanium Gray",
+        "category_slug": "smartphones",
+        "brand_slug": "poco",
+        "model_name": "POCO F6 5G",
+        "base_price": 29999.0,
+        "ean": "694181270003",
+        "image_url": "https://i02.appmifile.com/152_operator_in/23/05/2024/ee3241d725667e51c140df9ce5b24479.png",
+        "description": (
+            "POCO F6 5G equipped with Snapdragon 8s Gen 3 processor, WildBoost Optimization 3.0, "
+            "1.5K 120Hz AMOLED display, 50MP Sony IMX882 camera with OIS, 90W Turbo Charge."
+        ),
+        "specs": {
+            "Display": "6.67-inch 1.5K 120Hz CrystalRes AMOLED",
+            "Processor": "Snapdragon 8s Gen 3 (4nm)",
+            "Camera": "50MP Sony IMX882 OIS + 8MP UW",
+            "Battery": "5000 mAh with 90W Turbo Charge",
             "RAM": "8 GB",
             "Storage": "256 GB",
         },
@@ -920,9 +1058,11 @@ async def seed_database():
         marketplace_map = {}
         for mp_data in MARKETPLACES:
             res = await session.execute(
-                select(Marketplace).where(Marketplace.slug == mp_data["slug"])
+                select(Marketplace).where(
+                    or_(Marketplace.slug == mp_data["slug"], Marketplace.name == mp_data["name"])
+                )
             )
-            existing = res.scalar_one_or_none()
+            existing = res.scalars().first()
             if not existing:
                 mp = Marketplace(
                     id=uuid.uuid4(),
@@ -1032,7 +1172,7 @@ async def seed_database():
                     or "unsplash.com" in (existing.image_url or "")
                 ):
                     existing.image_url = p_data["image_url"]
-                    print(f"    → Updated image URL")
+                    print(f"    -> Updated image URL")
                 continue
 
             cat_obj = category_map.get(p_data["category_slug"])

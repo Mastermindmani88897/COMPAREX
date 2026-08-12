@@ -403,6 +403,42 @@ async def refresh_product_prices(
         use_cache=False,  # Force fresh provider call
     )
 
+    # Automatically persist verified price snapshots to build real price history
+    listings = result.get("listings", [])
+    if listings:
+        try:
+            import uuid
+            from datetime import datetime, timezone, timedelta
+            from decimal import Decimal
+            from sqlalchemy import select
+            from app.models.price_history import PriceHistory
+
+            four_hrs_ago = datetime.now(timezone.utc) - timedelta(hours=4)
+            for lst in listings:
+                p_val = float(lst.get("price") or 0.0)
+                if p_val <= 0:
+                    continue
+
+                m_slug = (lst.get("marketplace_slug") or "amazon").lower()
+                check_stmt = select(PriceHistory).where(
+                    PriceHistory.product_id == product_id,
+                    PriceHistory.marketplace_slug == m_slug,
+                    PriceHistory.created_at >= four_hrs_ago,
+                )
+                existing_snap = (await db.execute(check_stmt)).scalars().first()
+                if not existing_snap:
+                    snap = PriceHistory(
+                        id=uuid.uuid4(),
+                        product_id=product_id,
+                        marketplace_slug=m_slug,
+                        price=Decimal(str(p_val)),
+                        currency=lst.get("currency") or "INR",
+                    )
+                    db.add(snap)
+            await db.commit()
+        except Exception as snap_exc:
+            endpoint_logger.warning("Snapshot save notice: %s", snap_exc)
+
     return SuccessResponse(
         message=f"Live marketplace prices refreshed for '{product_name}'",
         data={

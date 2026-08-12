@@ -128,6 +128,8 @@ class Settings(BaseSettings):
     THIRD_PARTY_SHOPPING_PROVIDER: Optional[str] = "shopping_api"
     RAINFOREST_API_KEY: Optional[str] = None
     BRIGHTDATA_API_KEY: Optional[str] = None
+    BRIGHTDATA_ZONE: Optional[str] = None
+    BRIGHTDATA_COOLDOWN_SECONDS: int = 1800
     SERPAPI_API_KEY: Optional[str] = None
     ZENROWS_API_KEY: Optional[str] = None
 

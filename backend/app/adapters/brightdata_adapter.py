@@ -70,11 +70,14 @@ INDIAN_MARKETPLACES = [
 class BrightDataAdapter(BaseMarketplaceAdapter):
     """Adapter for Bright Data API delivering Indian marketplace listings."""
 
+    _cooldown_until: float = 0.0
+
     def __init__(
         self, marketplace_slug: str = "brightdata", base_url: str = "https://brightdata.com"
     ) -> None:
         super().__init__(marketplace_slug=marketplace_slug, base_url=base_url)
         self.api_key = settings.BRIGHTDATA_API_KEY or ""
+        self.zone = getattr(settings, "BRIGHTDATA_ZONE", None) or ""
         self.endpoint = "https://api.brightdata.com/serp/req"
 
     async def search_products_detailed(self, query: str, limit: int = 10) -> ProviderResponse:
@@ -96,14 +99,36 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
                 error_message="API Key not configured",
             )
 
+        if not self.zone:
+            logger.warning("Bright Data zone not configured. Set BRIGHTDATA_ZONE env var.")
+            ProviderHealthTracker.record_call(
+                provider="Bright Data",
+                configured=False,
+                status=ProviderStatus.NOT_CONFIGURED,
+                error_message="Bright Data Zone not configured",
+            )
+            return ProviderResponse(
+                provider_name="Bright Data",
+                status=ProviderStatus.NOT_CONFIGURED,
+                error_message="Bright Data Zone not configured (set BRIGHTDATA_ZONE in Render)",
+            )
+
+        if time.time() < BrightDataAdapter._cooldown_until:
+            rem = int(BrightDataAdapter._cooldown_until - time.time())
+            logger.info("BRIGHTDATA: Cooldown active for next %ds due to previous failure.", rem)
+            return ProviderResponse(
+                provider_name="Bright Data",
+                status=ProviderStatus.CONFIGURATION_ERROR,
+                error_message=f"Bright Data cooldown active ({rem}s remaining due to zone error)",
+            )
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
 
-        zone = getattr(settings, "BRIGHTDATA_ZONE", None) or "serp"
         payload = {
-            "zone": zone,
+            "zone": self.zone,
             "query": f"{query} buy online India",
             "country": "IN",
             "search_engine": "google",
@@ -125,6 +150,9 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
                             if is_zone_err
                             else ProviderStatus.UNKNOWN_ERROR
                         )
+                        if is_zone_err:
+                            cooldown_sec = getattr(settings, "BRIGHTDATA_COOLDOWN_SECONDS", 1800)
+                            BrightDataAdapter._cooldown_until = time.time() + cooldown_sec
                         logger.warning(
                             "BRIGHTDATA: HTTP 200 status=%s error='%s'", status.value, err_msg
                         )
@@ -180,8 +208,8 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
                             {
                                 "title": title,
                                 "price": extracted_price,
-                                "original_price": round(extracted_price * 1.15, 2),
-                                "discount_percent": 13.0,
+                                "original_price": None,
+                                "discount_percent": None,
                                 "currency": "INR",
                                 "seller_name": f"{matched_mp['name']} Seller",
                                 "listing_url": url,
@@ -230,10 +258,15 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
                     )
 
                 elif response.status_code == 422:
-                    err_msg = f"HTTP 422 Configuration Error: {response.text[:200]}"
+                    cooldown_sec = getattr(settings, "BRIGHTDATA_COOLDOWN_SECONDS", 1800)
+                    BrightDataAdapter._cooldown_until = time.time() + cooldown_sec
+                    err_msg = f"HTTP 422 Configuration Error (Unknown zone): {response.text[:200]}"
                     status = ProviderStatus.CONFIGURATION_ERROR
                     logger.warning(
-                        "BRIGHTDATA: HTTP 422 status=%s error='%s'", status.value, err_msg
+                        "BRIGHTDATA: HTTP 422 status=%s error='%s' (cooldown %ds initiated)",
+                        status.value,
+                        err_msg,
+                        cooldown_sec,
                     )
                     ProviderHealthTracker.record_call(
                         provider="Bright Data",
@@ -256,6 +289,8 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
                         status = ProviderStatus.RATE_LIMITED
                     elif response.status_code in (401, 403):
                         status = ProviderStatus.AUTHENTICATION_ERROR
+                        cooldown_sec = getattr(settings, "BRIGHTDATA_COOLDOWN_SECONDS", 1800)
+                        BrightDataAdapter._cooldown_until = time.time() + cooldown_sec
                     else:
                         status = ProviderStatus.UNKNOWN_ERROR
 
