@@ -100,8 +100,8 @@ class PriceMonitorService:
                         # lowest_price MUST be a real verified price — never fall
                         # back to product.base_price (which is a catalog/seed price).
                         lowest_price = agg_data.get("lowest_price")  # None if no verified
-                        verified_offer_count = agg_data.get("verified_offer_count", 0)
                         listings = agg_data.get("listings", [])
+                        verified_offer_count = agg_data.get("verified_offer_count", len(listings))
 
                         # 2. Safely resolve/create ProductListing & append PriceHistory per store
                         for lst in listings:
