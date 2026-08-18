@@ -18,7 +18,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 
-@pytest.mark.asyncio
 class TestDashboardUserName:
     """Bug 1: dashboard_service must use user.name not user.full_name."""
 
@@ -53,6 +52,7 @@ class TestDashboardUserName:
             "User model has .name not .full_name"
         )
 
+    @pytest.mark.asyncio
     async def test_dashboard_returns_user_name_from_db(self, db_session):
         """
         Full integration test using in-memory SQLite: create a real User record,
@@ -190,7 +190,6 @@ class TestPriceAlertNoFabricatedTrigger:
         )
 
 
-@pytest.mark.asyncio
 class TestMarketplaceNormalizerNoFakeDelivery:
     """Bug 4: Marketplace normalizer must not fabricate delivery information."""
 
@@ -286,7 +285,6 @@ class TestPriceAlertServiceNoFakePrice:
         )
 
 
-@pytest.mark.asyncio
 class TestMarketplaceDeduplication:
     """Marketplace deduplication must prevent duplicate listings for same marketplace."""
 
@@ -359,7 +357,6 @@ class TestMarketplaceDeduplication:
         )
 
 
-@pytest.mark.asyncio
 class TestProviderStatusClassification:
     """Provider statuses must be correctly classified, not silently treated as no-result."""
 
@@ -394,7 +391,6 @@ class TestProviderStatusClassification:
         )
 
 
-@pytest.mark.asyncio
 class TestProductDataIntegrity:
     """Product data quality: fabricated products must be rejected."""
 
