@@ -17,7 +17,7 @@ def anyio_backend():
     return "asyncio"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_health_endpoint():
     """Test health check API returns status 200 and connected status."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
@@ -30,7 +30,7 @@ async def test_health_endpoint():
         assert data["data"]["redis"] == "connected"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_full_auth_and_user_flow():
     """Test register, login, profile get/update, refresh, and logout flow."""
     random_id = str(uuid.uuid4())[:8]
@@ -92,7 +92,7 @@ async def test_full_auth_and_user_flow():
         assert fail_res.status_code == 401
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_category_crud():
     """Test Category CRUD API endpoints."""
     cid = str(uuid.uuid4())[:8]
@@ -147,7 +147,7 @@ async def test_category_crud():
         assert del_res.status_code == 200
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_product_crud():
     """Test Product CRUD API endpoints."""
     pid = str(uuid.uuid4())[:8]
@@ -195,7 +195,7 @@ async def test_product_crud():
         assert del_res.status_code == 200
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_marketplace_crud():
     """Test Marketplace CRUD API endpoints."""
     mid = str(uuid.uuid4())[:8]

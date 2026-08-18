@@ -15,7 +15,7 @@ from app.services.explainable_ai_service import ExplainableAIService
 from app.services.personalized_recommendation_service import PersonalizedRecommendationService
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_multi_agent_orchestrator_execution():
     """Verify Multi-Agent AI System Orchestrator executes all 9 agents."""
     prompt = "Find best noise cancelling headphones under 25000"
@@ -28,7 +28,7 @@ async def test_multi_agent_orchestrator_execution():
     assert "PriceAgent" in res["agent_outputs"]
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_explainable_ai_comparison():
     """Verify CompareX Explain reasoning engine compares two products."""
     req = CompareExplainRequest(
@@ -44,7 +44,7 @@ async def test_explainable_ai_comparison():
     assert len(res.key_advantages_a) > 0
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_personalized_recommendation_engine():
     """Verify personalized recommendation service returns grounded recommendations."""
     dummy_user_id = uuid.uuid4()
@@ -59,7 +59,7 @@ async def test_personalized_recommendation_engine():
     assert len(res["alternatives"]) == 1
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_phase8_api_endpoints():
     """Test Phase 8 public API endpoints."""
     from httpx import ASGITransport, AsyncClient

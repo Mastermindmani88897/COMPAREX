@@ -7,7 +7,7 @@ import pytest
 from httpx import AsyncClient
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_autocomplete_and_search_filters(async_client: AsyncClient):
     """Test GET /api/v1/products/autocomplete and advanced search filters."""
     random_id = str(uuid.uuid4())[:8]

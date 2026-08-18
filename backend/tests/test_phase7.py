@@ -20,7 +20,7 @@ from app.services.coupon_service import CouponEngineService
 from app.services.price_history_service import PriceHistoryService
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_price_history_service_execution():
     """Verify PriceHistoryService generates trends, volatility, and target price."""
     product_id = uuid.uuid4()
@@ -38,7 +38,7 @@ async def test_price_history_service_execution():
     assert isinstance(res.price_points, list)
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_coupon_engine_service():
     """Test coupon discovery, validation, and auto-apply."""
     coupons = await CouponEngineService.discover_coupons(marketplace_slug="amazon")
@@ -64,7 +64,7 @@ async def test_coupon_engine_service():
     assert auto_res.max_savings > 0
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_phase7_api_endpoints():
     """Test Phase 7 API endpoints via AsyncClient."""
     transport = ASGITransport(app=app)

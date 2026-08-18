@@ -15,7 +15,7 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_extension_status_endpoint():
     """Test Extension Gateway health and status check endpoint."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
@@ -28,7 +28,7 @@ async def test_extension_status_endpoint():
         assert "flipkart" in data["supported_marketplaces"]
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_extension_version_check():
     """Test Extension client version compatibility validation."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
@@ -40,7 +40,7 @@ async def test_extension_version_check():
         assert data["update_required"] is False
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_extension_product_ingest():
     """Test product ingestion from extension content script."""
     payload = {
@@ -65,7 +65,7 @@ async def test_extension_product_ingest():
         assert data["comparison_matrix"]["total_listings"] >= 0
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_extension_quick_compare():
     """Test quick overlay comparison search API."""
     payload = {

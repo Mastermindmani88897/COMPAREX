@@ -15,7 +15,7 @@ from app.adapters.registry import CategoryCapabilityRegistry, ConnectorRegistry
 from app.services.aggregator_service import MarketplaceAggregatorService
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_connector_registry_initialization():
     """Verify all 9 connectors are registered in ConnectorRegistry with proper metadata."""
     connectors = ConnectorRegistry.list_connectors(enabled_only=True)
@@ -53,7 +53,7 @@ def test_category_capability_registry():
     assert "nykaa" in beauty_slugs
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_mock_connectors_execution():
     """Test standardized interface methods on Amazon, Flipkart, Croma, Myntra, Nykaa connectors."""
     amazon = AmazonMockConnector(marketplace_slug="amazon", base_url="https://www.amazon.in")
@@ -77,7 +77,7 @@ async def test_mock_connectors_execution():
     assert "100% Authentic Beauty" in beauty_results[0]["badges"]
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_marketplace_aggregator_service():
     """Test multi-connector aggregation, deduplication, sorting, and deal scoring."""
     res = await MarketplaceAggregatorService.aggregate_search(

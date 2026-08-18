@@ -13,7 +13,7 @@ from app.schemas.planner import GoalParseRequest, PlanGenerationRequest, PlanSim
 from app.services.planner.planner_orchestrator import PlannerOrchestrator
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_goal_parser_execution():
     """Verify GoalParser parses natural language shopping goal prompt."""
     req = GoalParseRequest(prompt="I am starting engineering next month with ₹90,000. Build setup.")
@@ -24,7 +24,7 @@ async def test_goal_parser_execution():
     assert len(res.priorities) > 0
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_generate_shopping_plan_execution():
     """Verify PlannerOrchestrator generates full multi-category shopping plan setup."""
     req = PlanGenerationRequest(
@@ -41,7 +41,7 @@ async def test_generate_shopping_plan_execution():
     assert plan.compatibility_score >= 0.90
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_simulation_engine():
     """Verify SimulationEngine recalculates setup when budget changes."""
     req = PlanGenerationRequest(
@@ -63,7 +63,7 @@ async def test_simulation_engine():
     assert all(item.marketplace_name == "Amazon India" for item in sim_res.items)
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_phase9_planner_api_endpoints():
     """Test Phase 9 public AI Marketplace Planner API endpoints."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 class TestDashboardUserName:
     """Bug 1: dashboard_service must use user.name not user.full_name."""
 
@@ -89,7 +89,7 @@ class TestDashboardUserName:
         assert "stats" in result
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 class TestPriceAlertNoFabricatedTrigger:
     """Bug 3: Price monitor must not trigger alert when no verified marketplace price."""
 
@@ -190,7 +190,7 @@ class TestPriceAlertNoFabricatedTrigger:
         )
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 class TestMarketplaceNormalizerNoFakeDelivery:
     """Bug 4: Marketplace normalizer must not fabricate delivery information."""
 
@@ -234,7 +234,7 @@ class TestMarketplaceNormalizerNoFakeDelivery:
         assert offer["delivery_estimate"] == "Free delivery by Tomorrow"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 class TestPriceAlertServiceNoFakePrice:
     """Bug 5: Price alert service must not use hardcoded INR 4999 fallback."""
 
@@ -286,7 +286,7 @@ class TestPriceAlertServiceNoFakePrice:
         )
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 class TestMarketplaceDeduplication:
     """Marketplace deduplication must prevent duplicate listings for same marketplace."""
 
@@ -359,7 +359,7 @@ class TestMarketplaceDeduplication:
         )
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 class TestProviderStatusClassification:
     """Provider statuses must be correctly classified, not silently treated as no-result."""
 
@@ -394,7 +394,7 @@ class TestProviderStatusClassification:
         )
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 class TestProductDataIntegrity:
     """Product data quality: fabricated products must be rejected."""
 
@@ -453,7 +453,7 @@ class TestProductDataIntegrity:
             )
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 class TestPriceHistoryService:
     # Price history service tests
 

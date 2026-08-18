@@ -12,7 +12,7 @@ def anyio_backend():
     return "asyncio"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_google_auth_name_resolution_full_name():
     """Test that Google OAuth authentication with full_name returns full_name and not
     'Google User'."""
@@ -34,7 +34,7 @@ async def test_google_auth_name_resolution_full_name():
         assert user["avatar_url"] == "https://lh3.googleusercontent.com/photo.jpg"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_google_auth_name_resolution_email_prefix_fallback():
     """Test that Google OAuth without name falls back to capitalized email prefix and
     NEVER 'Google User'."""

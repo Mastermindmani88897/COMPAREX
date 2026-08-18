@@ -12,7 +12,7 @@ from app.schemas.ai_modes import AIModeSelectRequest
 from app.services.ai_mode_service import AIModeService
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_ai_modes_service():
     """Verify AIModeService returns all 9 modes and supports mode switching."""
     modes = AIModeService.list_modes()
@@ -25,7 +25,7 @@ async def test_ai_modes_service():
     assert "gpu" in res.mode_definition.weights
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_phase10_enterprise_api_endpoints():
     """Test Phase 10 Metrics, AI Modes, and Security Headers."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

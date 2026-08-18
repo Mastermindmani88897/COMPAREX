@@ -10,7 +10,7 @@ from httpx import AsyncClient
 from unittest.mock import patch
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @patch("app.services.wishlist_service.MarketplaceAggregatorService.aggregate_search")
 async def test_wishlist_full_crud_flow(mock_agg, async_client: AsyncClient):
     """Test full wishlist CRUD lifecycle: add, get, patch, delete, and price alert sync."""
