@@ -150,3 +150,25 @@ async def test_ai_spec_comparison_endpoint():
         data = res.json()["data"]
         assert len(data["key_differences"]) > 0
         assert data["winner_name"] == "iPhone 15"
+
+
+@pytest.mark.asyncio
+async def test_ai_chat_endpoint_event_loop_safety():
+    """
+    Regression Test (Phase 13): Verify that AsyncClient HTTP calls to /api/v1/ai/chat
+    work across sequential event loops without 'Future attached to a different loop' errors.
+    """
+    from app.db.session import engine
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        res = await ac.post(
+            "/api/v1/ai/chat",
+            json={"message": "Best wireless headphones with noise cancellation"},
+        )
+        assert res.status_code == 200
+        data = res.json()["data"]
+        assert "response_text" in data
+        assert isinstance(data["recommendations"], list)
+
+    # Clean engine dispose per loop lifecycle
+    await engine.dispose()

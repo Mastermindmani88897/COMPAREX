@@ -5,9 +5,12 @@ Provides async SQLAlchemy engine and session factory.
 Use get_db() as a FastAPI dependency to inject DB sessions into endpoints.
 """
 
+import os
+import sys
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -19,8 +22,14 @@ engine_kwargs = {
     "echo": settings.DATABASE_ECHO,
 }
 
+is_test_env = "pytest" in sys.modules or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+
 if "sqlite" in settings.ASYNC_DATABASE_URL:
     engine_kwargs["connect_args"] = {"check_same_thread": False}
+elif is_test_env:
+    # Use NullPool during testing to prevent asyncpg connections from being held
+    # across different event loops in pytest-asyncio runs.
+    engine_kwargs["poolclass"] = NullPool
 else:
     engine_kwargs["pool_size"] = 5
     engine_kwargs["max_overflow"] = 10

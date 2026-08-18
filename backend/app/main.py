@@ -332,18 +332,31 @@ async def lifespan(app: FastAPI):
     )
     await verify_and_migrate_db_schema()
 
-    # Start background price monitor service
+    # Start background price monitor service (skip during automated pytest runs)
     import asyncio
+    import os
+    import sys
     from app.services.price_monitor_service import start_periodic_price_monitor
 
-    monitor_task = asyncio.create_task(start_periodic_price_monitor(interval_seconds=1800))
+    monitor_task = None
+    if "pytest" not in sys.modules and not os.environ.get("PYTEST_CURRENT_TEST"):
+        monitor_task = asyncio.create_task(
+            start_periodic_price_monitor(interval_seconds=1800)
+        )
 
     yield
 
     # ── Shutdown ──────────────────────────────────────────────────
     logger.info("Shutting down %s", settings.APP_NAME)
-    monitor_task.cancel()
-    # Phase 2: Close DB pool, Redis, background tasks
+    if monitor_task:
+        monitor_task.cancel()
+        try:
+            await monitor_task
+        except (asyncio.CancelledError, Exception):
+            pass
+
+    from app.db.session import engine
+    await engine.dispose()
 
 
 def create_application() -> FastAPI:
