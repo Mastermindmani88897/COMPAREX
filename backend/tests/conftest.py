@@ -68,7 +68,7 @@ async def setup_test_db():
     await test_engine.dispose()
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 async def seed_test_products():
     """
     Insert minimal deterministic test products into the real PostgreSQL
