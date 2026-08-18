@@ -28,7 +28,7 @@ def test_ai_provider_factory():
     assert default_prov is not None
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_ai_chat_endpoint():
     """Test AI Shopping Assistant conversational chat endpoint."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
@@ -43,7 +43,7 @@ async def test_ai_chat_endpoint():
         assert "response_text" in data
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_ai_recommendations_endpoint():
     """Test AI recommendation engine and Explain My Choice."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
@@ -57,7 +57,7 @@ async def test_ai_recommendations_endpoint():
         assert len(data["recommendations"][0]["reasons"]) > 0
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_ai_product_matching_endpoint():
     """Test AI multi-attribute product matching service."""
     payload = {
@@ -75,7 +75,7 @@ async def test_ai_product_matching_endpoint():
         assert data["confidence_score"] >= 0.70
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_ai_image_search_endpoint():
     """Test Visual Product Image Search pipeline endpoint."""
     payload = {
@@ -91,7 +91,7 @@ async def test_ai_image_search_endpoint():
         assert data["confidence_score"] > 0
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_ai_review_summary_endpoint():
     """Test AI Review Intelligence summarization endpoint."""
     payload = {
@@ -107,7 +107,7 @@ async def test_ai_review_summary_endpoint():
         assert data["review_confidence_score"] > 0
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_ai_deal_analysis_endpoint():
     """Test Shopping Decision Engine and 0-10 Deal Score AI."""
     payload = {
@@ -134,7 +134,7 @@ async def test_ai_deal_analysis_endpoint():
         assert len(data["alternatives_suggested"]) > 0
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_ai_spec_comparison_endpoint():
     """Test Specification Intelligence feature comparison endpoint."""
     payload = {
