@@ -260,9 +260,7 @@ jobs:
           PY
 
       - name: Run targeted AI endpoint tests
-        run: |
-          pytest tests/test_phase6.py::test_ai_chat_endpoint -q
-          pytest tests/test_phase6.py::test_ai_recommendations_endpoint -q
+        run: pytest tests/test_phase6.py -q
 
       - name: Run full backend test suite
         run: pytest -q
