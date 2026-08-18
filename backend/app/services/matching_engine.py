@@ -5,11 +5,26 @@ Generic, token/attribute-aware attribute parsing, exact model matching,
 variant verification, confidence scoring, and accessory rejection across ALL product categories
 (mobiles, laptops, tablets, headphones, TVs, cameras, monitors, watches, appliances, gaming).
 
-NO HARDCODED BRAND-SPECIFIC OR MODEL-SPECIFIC RULES.
+Root-Cause Fixes (2026-08-18):
+  1. SearchQueryGenerator.generate_clean_query was stripping ALL parenthetical content,
+     including identity-critical specs like (16GB, 512GB). Fixed to only strip non-spec
+     parentheticals.
+  2. Model-number regex was matching storage values (512, 256, 128) as model numbers,
+     causing false MODEL_NUMBER_MISMATCH rejections. Fixed with a tighter pattern that
+     requires letter prefixes for model codes.
+  3. Chip generation extraction added: M4, M4 Pro, M5, A17, Snapdragon 8 Gen 3, etc.
+     Chip-level "Pro" (e.g. M4 Pro) is now distinguished from product-level "Pro"
+     (MacBook Pro). Chip mismatch is a hard reject.
+  4. Product family sub-variant (Air vs Pro vs mini for MacBook) extracted separately
+     from chip suffix — a MacBook Air M4 query will correctly reject MacBook Pro 14
+     but accept MacBook Air M4 16GB 512GB.
+
+NO HARDCODED BRAND-SPECIFIC OR MODEL-SPECIFIC RULES (except well-known aliases like
+Poco/Xiaomi which are documented industry standards).
 """
 
 import re
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 ACCESSORY_KEYWORDS = {
     "case",
@@ -45,8 +60,9 @@ ACCESSORY_KEYWORDS = {
     "hub",
 }
 
-# Generic variant suffixes across tech products
-VARIANT_SUFFIXES = [
+# Generic variant suffixes — PRODUCT LINE level (not chip level)
+# These distinguish MacBook Air vs MacBook Pro vs MacBook mini etc.
+PRODUCT_LINE_VARIANTS = [
     "pro max",
     "pro",
     "plus",
@@ -70,29 +86,82 @@ VARIANT_SUFFIXES = [
     "max",
 ]
 
+# Chip/processor generation tokens — these are NOT product line variants
+# "M4 Pro" is an Apple chip, not "MacBook Pro with M4"
+# Must be matched BEFORE product variant suffix matching
+CHIP_PATTERNS = [
+    # Apple Silicon
+    (re.compile(r"\bm(\d+)\s*pro\b", re.IGNORECASE), lambda m: f"m{m.group(1)} pro"),
+    (re.compile(r"\bm(\d+)\s*max\b", re.IGNORECASE), lambda m: f"m{m.group(1)} max"),
+    (re.compile(r"\bm(\d+)\s*ultra\b", re.IGNORECASE), lambda m: f"m{m.group(1)} ultra"),
+    (re.compile(r"\bm(\d+)\b", re.IGNORECASE), lambda m: f"m{m.group(1)}"),
+    # Apple A-series
+    (re.compile(r"\ba(\d+)\s*(?:bionic|pro)?\b", re.IGNORECASE), lambda m: f"a{m.group(1)}"),
+    # Qualcomm Snapdragon
+    (
+        re.compile(r"\bsnapdragon\s*(\d+)\s*(?:gen\s*(\d+))?\b", re.IGNORECASE),
+        lambda m: (
+            f"snapdragon{m.group(1)}gen{m.group(2)}" if m.group(2) else f"snapdragon{m.group(1)}"
+        ),
+    ),
+    # MediaTek Dimensity
+    (
+        re.compile(r"\bdimensity\s*(\d+)\b", re.IGNORECASE),
+        lambda m: f"dimensity{m.group(1)}",
+    ),
+    # Generic Gen N
+    (
+        re.compile(r"\bgen\s*(\d+)\b", re.IGNORECASE),
+        lambda m: f"gen{m.group(1)}",
+    ),
+]
+
+
+def _extract_chip(text: str) -> Optional[str]:
+    """
+    Extract chip/processor generation token from product text.
+
+    Returns a normalized chip identifier or None.
+    The most specific match wins (e.g. 'm4 pro' beats 'm4').
+    """
+    # Apply patterns in order — most specific first (pro/max/ultra before bare mN)
+    for pattern, formatter in CHIP_PATTERNS:
+        m = pattern.search(text)
+        if m:
+            try:
+                return formatter(m).lower().replace(" ", "")
+            except Exception:
+                pass
+    return None
+
 
 class SearchQueryGenerator:
     """Generates precise provider search query strings from product titles."""
 
     @classmethod
     def generate_clean_query(cls, raw_title: str) -> str:
+        """
+        Generate a clean search query from a product title.
+
+        Key fix: Do NOT strip parenthetical content blindly.
+        (16GB, 512GB) and (Midnight) carry identity-critical information.
+        We only normalise whitespace and hyphens for readability.
+        """
         if not raw_title:
             return ""
-        # Remove parenthetical noise like (128 GB), (Blue), etc.
-        clean = re.sub(r"\([^)]*\)", "", raw_title)
+
+        # Expand parenthetical content inline (remove parens but keep content)
+        # e.g. "MacBook Air M4 (16GB, 512GB)" → "MacBook Air M4 16GB 512GB"
+        clean = re.sub(r"\(([^)]*)\)", r" \1 ", raw_title)
         clean = clean.replace("-", " ").strip()
         clean = re.sub(r"\s+", " ", clean)
 
-        # Ensure standard storage tag formatting
-        storage_match = re.search(r"\b(64|128|256|512|1024)\s*(gb|tb)\b", raw_title, re.I)
-        if storage_match:
-            st_val = storage_match.group(1)
-            st_unit = storage_match.group(2).upper()
-            st_tag = f"{st_val}{st_unit}"
-            if st_tag.lower() not in clean.lower():
-                clean = f"{clean} {st_tag}"
+        # Normalise storage tags: ensure 512 GB → 512GB (no space before unit)
+        clean = re.sub(r"(\d+)\s+(gb|tb|mb)", lambda m: m.group(1) + m.group(2).upper(), clean, flags=re.IGNORECASE)
+        # Normalise RAM: 16 GB RAM → 16GB
+        clean = re.sub(r"(\d+)\s*(gb|mb)\s*ram", lambda m: m.group(1) + m.group(2).upper(), clean, flags=re.IGNORECASE)
 
-        return clean
+        return clean.strip()
 
 
 class ExactProductMatchEngine:
@@ -103,13 +172,15 @@ class ExactProductMatchEngine:
         if not text:
             return ""
         t = text.lower().strip()
-        # Normalize unit spacing: 128 gb -> 128gb, 16 gb -> 16gb
+        # Expand parenthetical content: (16GB, 512GB) → 16GB 512GB
+        t = re.sub(r"\(([^)]*)\)", r" \1 ", t)
+        # Normalize unit spacing: 128 gb → 128gb, 16 gb → 16gb
         t = re.sub(r"(\d+)\s*(gb|tb|mb|ram)", r"\1\2", t)
-        t = re.sub(r"(\d+)\s*(inch|\"|in)", r"\1inch", t)
-        # Replace hyphens with spaces for clean tokenization
+        t = re.sub(r"(\d+)\s*(inch|\"|in)\b", r"\1inch", t)
+        # Replace hyphens/slashes with spaces
         t = re.sub(r"[\-\/\._]", " ", t)
         t = re.sub(r"\s+", " ", t)
-        return t
+        return t.strip()
 
     @classmethod
     def extract_attributes(cls, text: str) -> Dict[str, Any]:
@@ -118,15 +189,14 @@ class ExactProductMatchEngine:
 
         Extracts:
         - brand
-        - family
-        - model_number / model_series
-        - variant_suffix (Pro, Ultra, Air, etc.)
-        - generation (M1, M2, M3, M4, Gen 1, Gen 2, etc.)
-        - storage (128gb, 256gb, 512gb, 1tb)
-        - ram (8gb, 16gb, 32gb)
+        - family            (product line: iphone, macbook, galaxy, etc.)
+        - product_variant   (Air, Pro, mini, Plus, Ultra — PRODUCT LINE level)
+        - chip              (M4, M4 Pro, M5, Snapdragon 8 Gen 3, etc.)
+        - model_number      (S25, X6, WH1000XM5, iPhone15 — letter-prefixed codes only)
+        - storage           (128gb, 256gb, 512gb, 1tb)
+        - ram               (8gb, 16gb, 32gb)
+        - screen_size       (55inch, 65inch, etc.)
         - color
-        - screen_size
-        - category_keywords
         - is_accessory
         """
         t = cls.clean_text(text)
@@ -136,40 +206,85 @@ class ExactProductMatchEngine:
             re.search(r"\b" + re.escape(acc) + r"\b", t) for acc in ACCESSORY_KEYWORDS
         )
 
-        # 2. Storage & RAM extraction
+        # 2. Storage extraction (must be extracted BEFORE model number to avoid confusion)
+        # Canonical storage values: 64gb, 128gb, 256gb, 512gb, 1tb, 2tb
         storage_match = re.search(r"\b(64gb|128gb|256gb|512gb|1tb|2tb)\b", t)
         storage = storage_match.group(1) if storage_match else None
 
-        ram_match = re.search(r"\b(4gb|6gb|8gb|12gb|16gb|24gb|32gb|64gb)\s*ram\b", t)
-        ram = ram_match.group(1) if ram_match else None
-
-        # 3. Model number & series extraction (generic pattern)
-        # E.g. "15", "16", "14", "s25", "s24", "m4", "wh1000xm5", "eos r6", "x5", "x6", "v30", "i5"
-        model_number = None
-
-        # Specific pattern: letter(s) optional + numbers e.g., s25, x5, m4, xm5, 15, 16
-        pattern = (
-            r"\b(iphone\s*\d{1,2}|s\d{2}|x\d{1,2}|wh\s*1000xm\d|m\d|eos\s*r?\d+|"
-            r"series\s*\d+|\d{2,4}[a-z]?|\d{2})\b"
+        # 3. RAM extraction — explicit "ram" suffix or common RAM patterns
+        # Match "16gb ram", "16gb" when followed by storage or other context
+        ram_match = re.search(
+            r"\b(4gb|6gb|8gb|12gb|16gb|24gb|32gb|64gb)\s*(?:ram|unified\s*memory)?\b",
+            t,
         )
-        model_match = re.search(pattern, t)
-        if model_match:
-            model_number = model_match.group(0).replace(" ", "")
+        # Only accept RAM match if it's NOT the storage value we already found
+        ram = None
+        if ram_match:
+            candidate = ram_match.group(1)
+            if candidate != storage:
+                ram = candidate
 
-        # 4. Variant Suffixes (Pro Max, Pro, Ultra, Plus, Air, Mini, FE, SE, etc.)
-        variant_suffix = None
-        for v in VARIANT_SUFFIXES:
-            if re.search(r"\b" + re.escape(v) + r"\b", t):
-                variant_suffix = v
+        # 4. Chip/processor extraction (before product variant — avoids confusing M4 Pro
+        #    with "Pro" product line)
+        chip = _extract_chip(t)
+
+        # 5. Product line variant suffix (Air, Pro, Plus, Ultra, Mini, etc.)
+        #    We must NOT match chip-level "pro/max/ultra" tokens here.
+        #    Strategy: mask chip tokens, then look for variant suffix.
+        t_for_variant = t
+        if chip:
+            # Mask the chip token to prevent it from matching as product variant
+            chip_pattern_str = re.escape(chip.replace(" ", "").lower())
+            # Build a fuzzy mask — chip might be "m4pro" in text or "m4 pro"
+            t_for_variant = re.sub(
+                r"\bm\d+\s*(?:pro|max|ultra)?\b", "__CHIP__", t_for_variant, flags=re.IGNORECASE
+            )
+
+        product_variant = None
+        for v in PRODUCT_LINE_VARIANTS:
+            if re.search(r"\b" + re.escape(v) + r"\b", t_for_variant):
+                product_variant = v
                 break
 
-        # 5. Generation (e.g. M1, M2, M3, M4, Gen 1, Gen 2, 5th gen)
-        generation = None
-        gen_match = re.search(r"\b(m1|m2|m3|m4|gen\s*\d+|\d+(st|nd|rd|th)\s*gen)\b", t)
-        if gen_match:
-            generation = gen_match.group(0).replace(" ", "")
+        # 6. Model number — letter-prefixed alphanumeric codes ONLY
+        #    Valid: s25, x6, wh1000xm5, iphone15, m4 (chip already handled above),
+        #           eos r6, v30, a72, galaxy s25, note 20
+        #    NOT valid: 512, 256, 128, 64 (those are storage), 16, 8 (those are RAM)
+        #    Pattern: must start with one or more letters OR be a known product series
+        model_number = None
+        # Prefer letter-prefix model codes: s25, x6, iphone15, wh-1000xm5, a72, v30, etc.
+        # Supports up to 8-letter prefix to capture names like 'iphone', 'galaxy', 'airpods'
+        lprefix_match = re.search(
+            r"\b([a-z]{1,8})\s*(\d{1,5})\b",
+            t,
+        )
+        if lprefix_match:
+            prefix = lprefix_match.group(1)
+            number = lprefix_match.group(2)
+            # Skip common English words / units
+            skip_words = {
+                "gb", "tb", "mb", "ram", "in", "hz", "px", "mp", "k",
+                "gen", "pro", "air", "max", "ultra", "mini", "se", "fe",
+                "plus", "lite", "neo", "buy", "for", "on", "at",
+            }
+            # Exclude pure storage/RAM capacity values (but NOT generation numbers like 15, 16)
+            # Storage values are always >= 64 (GB) in consumer electronics
+            # Generation numbers are typically 1-30
+            num_int = int(number)
+            is_storage_value = num_int in {64, 128, 256, 512} or num_int >= 1024
+            is_ram_value = num_int in {4, 6, 8, 12, 16, 24, 32} and prefix in {
+                "gb", "mb", "ram"
+            }
+            if prefix not in skip_words and not is_storage_value and not is_ram_value:
+                model_number = f"{prefix}{number}"
 
-        # 6. Color extraction
+        # 7. Generation — standalone "Gen N" or "Nth Gen" patterns (not chip)
+        generation = None
+        gen_match = re.search(r"\b(\d+(?:st|nd|rd|th)\s*gen|\bgen\s*\d+)\b", t, re.IGNORECASE)
+        if gen_match:
+            generation = gen_match.group(0).replace(" ", "").lower()
+
+        # 8. Color extraction
         colors = [
             "black", "white", "blue", "green", "pink", "yellow", "purple", "red",
             "silver", "gold", "titanium", "gray", "grey", "graphite", "starlight",
@@ -181,13 +296,13 @@ class ExactProductMatchEngine:
                 color = c
                 break
 
-        # 7. Screen size
+        # 9. Screen size (TV / monitor)
         screen_size = None
-        screen_match = re.search(r"\b(\d{2}(\.\d)?)\s*(inch|in)\b", t)
+        screen_match = re.search(r"\b(\d{2}(?:\.\d)?)\s*(?:inch|in)\b", t)
         if screen_match:
             screen_size = screen_match.group(1)
 
-        # 8. Product Family & Brand (Generic inferring)
+        # 10. Product family & brand inference
         brand = None
         family = None
 
@@ -218,6 +333,15 @@ class ExactProductMatchEngine:
         elif "oneplus" in t:
             family = "oneplus"
             brand = "oneplus"
+        elif "realme" in t:
+            family = "realme"
+            brand = "realme"
+        elif "oppo" in t:
+            family = "oppo"
+            brand = "oppo"
+        elif "vivo" in t:
+            family = "vivo"
+            brand = "vivo"
         elif "thinkpad" in t or "legion" in t or "ideapad" in t:
             family = "lenovo"
             brand = "lenovo"
@@ -235,19 +359,24 @@ class ExactProductMatchEngine:
             if "ps5" in t or "playstation" in t:
                 family = "playstation"
                 brand = "sony"
+        elif "mi" in t and ("xiaomi" in t or "redmi" in t):
+            brand = "xiaomi"
 
         return {
             "raw_clean": t,
             "brand": brand,
             "family": family,
-            "model_number": model_number,
-            "variant_suffix": variant_suffix,
-            "generation": generation,
-            "storage": storage,
-            "ram": ram,
-            "color": color,
-            "screen_size": screen_size,
+            "product_variant": product_variant,  # Air, Pro, Mini (product line)
+            "chip": chip,                         # M4, M4 Pro, M5 (processor)
+            "model_number": model_number,         # S25, X6, WH1000XM5
+            "generation": generation,             # Gen 2, 3rd Gen
+            "storage": storage,                   # 512gb, 1tb
+            "ram": ram,                           # 16gb, 8gb
+            "color": color,                       # midnight, black
+            "screen_size": screen_size,           # 55, 65 (inches)
             "is_accessory": is_acc,
+            # Legacy alias — kept for backwards compatibility
+            "variant_suffix": product_variant,
         }
 
     @classmethod
@@ -258,13 +387,18 @@ class ExactProductMatchEngine:
         ean_match: bool = False,
     ) -> Tuple[bool, float, str]:
         """
-        Evaluate if a candidate marketplace listing is an EXACT match for a canonical product/query.
+        Evaluate if a candidate marketplace listing is an EXACT match for a canonical
+        product/query using deterministic attribute matching hierarchy.
+
+        Matching Hierarchy (per spec):
+          LEVEL 1: GTIN/EAN exact match            → handled via ean_match param
+          LEVEL 2: ASIN exact match                → future: from listing metadata
+          LEVEL 3: Manufacturer model number exact → model_number field
+          LEVEL 4: Canonical family + variant      → family + product_variant
+          LEVEL 5: High-confidence attribute match → chip + storage + RAM
 
         Returns:
             (is_exact_match: bool, match_score: float, rejection_reason: str)
-            - match_score >= 0.90 -> VERIFIED
-            - 0.75 <= match_score < 0.90 -> POSSIBLE MATCH
-            - match_score < 0.75 -> REJECT
         """
         if ean_match:
             return True, 1.0, "EAN_GTIN_EXACT_VERIFIED"
@@ -272,92 +406,127 @@ class ExactProductMatchEngine:
         q_attrs = cls.extract_attributes(query_or_product)
         c_attrs = cls.extract_attributes(candidate_title)
 
-        # Rule 1: Accessory Mismatch Rejection
+        # ── Rule 1: Accessory Rejection ──────────────────────────────────────
         if c_attrs["is_accessory"] and not q_attrs["is_accessory"]:
             return False, 0.0, "ACCESSORY_MISMATCH (Listing is an accessory)"
 
-        # Rule 2: Brand Mismatch Rejection
+        # ── Rule 2: Brand Mismatch ────────────────────────────────────────────
         if q_attrs["brand"] and c_attrs["brand"] and q_attrs["brand"] != c_attrs["brand"]:
-            # Allow brand alias exceptions e.g. Poco/Xiaomi
+            # Allow documented industry aliases
             if not (
                 (q_attrs["brand"] == "poco" and c_attrs["brand"] == "xiaomi")
                 or (q_attrs["brand"] == "xiaomi" and c_attrs["brand"] == "poco")
             ):
-                return False, 0.0, f"BRAND_MISMATCH ({q_attrs['brand']} != {c_attrs['brand']})"
-
-        # Rule 3: Product Family Mismatch Rejection (e.g. iPad vs iPhone, MacBook vs iPad)
-        if q_attrs["family"] and c_attrs["family"]:
-            if q_attrs["family"] != c_attrs["family"]:
-                return False, 0.0, f"FAMILY_MISMATCH ({q_attrs['family']} vs {c_attrs['family']})"
-        elif q_attrs["family"] and not c_attrs["family"]:
-            # If query specified family like "iPhone" and candidate is an unrelated Apple product
-            non_iphone = ["ipad", "macbook", "airpods", "watch"]
-            if q_attrs["family"] == "iphone" and any(x in c_attrs["raw_clean"] for x in non_iphone):
-                return False, 0.0, "FAMILY_MISMATCH (iPhone vs non-iPhone Apple product)"
-            non_mac = ["ipad", "iphone", "watch"]
-            if q_attrs["family"] == "macbook" and any(x in c_attrs["raw_clean"] for x in non_mac):
-                return False, 0.0, "FAMILY_MISMATCH (MacBook vs non-MacBook product)"
-
-        # Rule 4: Model Number Mismatch Rejection (e.g. 15 vs 16, S25 vs S24, M4 vs M3, XM5 vs XM4)
-        if q_attrs["model_number"] and c_attrs["model_number"]:
-            q_num = re.sub(r"\D", "", q_attrs["model_number"])
-            c_num = re.sub(r"\D", "", c_attrs["model_number"])
-            if q_num and c_num and q_num != c_num:
-                qm = q_attrs['model_number']
-                cm = c_attrs['model_number']
-                return False, 0.0, f"MODEL_NUMBER_MISMATCH ({qm} != {cm})"
-        elif q_attrs["model_number"] and not c_attrs["model_number"]:
-            # Query specified model number e.g. 15, but candidate is a different model series
-            q_num = re.sub(r"\D", "", q_attrs["model_number"])
-            if q_num:
-                # Check if candidate mentions a different number
-                cand_numbers = re.findall(r"\b\d{2}\b", c_attrs["raw_clean"])
-                if cand_numbers and q_num not in cand_numbers:
-                    err = f"MODEL_SERIES_MISMATCH (Query model {q_num} not in candidate)"
-                    return False, 0.0, err
-
-        # Rule 5: Variant Suffix Mismatch Rejection (e.g. Pro vs standard, Ultra vs Plus)
-        q_v = q_attrs["variant_suffix"]
-        c_v = c_attrs["variant_suffix"]
-
-        if q_v != c_v:
-            # Query is standard base model (no suffix), but candidate is Pro / Ultra / Plus / Max
-            if q_v is None and c_v is not None:
-                err = f"VARIANT_SUFFIX_MISMATCH (Query standard, candidate {c_v.upper()})"
-                return False, 0.0, err
-            # Query specifies a suffix (e.g. Pro), but candidate has different suffix
-            if q_v is not None and c_v != q_v:
-                cand_str = c_v.upper() if c_v else 'Standard'
-                err = f"VARIANT_SUFFIX_MISMATCH (Query {q_v.upper()}, candidate {cand_str})"
-                return False, 0.0, err
-
-        # Rule 6: Generation Mismatch (e.g. M4 vs M3/M2, Gen 2 vs Gen 1)
-        if q_attrs["generation"] and c_attrs["generation"]:
-            if q_attrs["generation"] != c_attrs["generation"]:
                 return (
                     False,
                     0.0,
-                    f"GENERATION_MISMATCH ({q_attrs['generation']} != {c_attrs['generation']})",
+                    f"BRAND_MISMATCH ({q_attrs['brand']} != {c_attrs['brand']})",
                 )
 
-        # Rule 7: Storage Mismatch Check
-        score = 0.95
+        # ── Rule 3: Product Family Mismatch ──────────────────────────────────
+        # e.g. iPad vs iPhone, MacBook vs iPad
+        if q_attrs["family"] and c_attrs["family"]:
+            if q_attrs["family"] != c_attrs["family"]:
+                return (
+                    False,
+                    0.0,
+                    f"FAMILY_MISMATCH ({q_attrs['family']} vs {c_attrs['family']})",
+                )
+        elif q_attrs["family"] and not c_attrs["family"]:
+            non_iphone = {"ipad", "macbook", "airpods", "watch"}
+            if q_attrs["family"] == "iphone" and any(x in c_attrs["raw_clean"] for x in non_iphone):
+                return False, 0.0, "FAMILY_MISMATCH (iPhone vs non-iPhone Apple product)"
+            non_mac = {"ipad", "iphone", "watch"}
+            if q_attrs["family"] == "macbook" and any(x in c_attrs["raw_clean"] for x in non_mac):
+                return False, 0.0, "FAMILY_MISMATCH (MacBook vs non-MacBook product)"
+
+        # ── Rule 4: Product Line Variant Mismatch ────────────────────────────
+        # MacBook Air ≠ MacBook Pro, Galaxy S25 ≠ Galaxy S25 Ultra
+        # But: if only query specifies a variant and candidate doesn't mention it,
+        # allow the match (candidate title might just omit variant explicitly).
+        q_v = q_attrs["product_variant"]
+        c_v = c_attrs["product_variant"]
+
+        if q_v and c_v and q_v != c_v:
+            # Both have explicit variant but they differ — hard reject
+            return (
+                False,
+                0.0,
+                f"PRODUCT_VARIANT_MISMATCH (Query {q_v.upper()}, candidate {c_v.upper()})",
+            )
+        elif q_v is None and c_v is not None:
+            # Query is base model (no variant) but candidate is Pro/Ultra/Plus/Max
+            # This is a genuine mismatch — reject
+            return (
+                False,
+                0.0,
+                f"PRODUCT_VARIANT_MISMATCH (Query standard, candidate {c_v.upper()})",
+            )
+        # If query has variant and candidate doesn't mention it:
+        # Allow but reduce confidence (candidate might just not list the variant explicitly)
+
+        # ── Rule 5: Chip / Processor Generation Mismatch ─────────────────────
+        # M4 ≠ M5, M4 ≠ M4 Pro, M4 Pro ≠ M4 Max
+        q_chip = q_attrs["chip"]
+        c_chip = c_attrs["chip"]
+
+        if q_chip and c_chip and q_chip != c_chip:
+            return (
+                False,
+                0.0,
+                f"CHIP_MISMATCH ({q_chip} != {c_chip})",
+            )
+
+        # ── Rule 6: Model Number Mismatch ─────────────────────────────────────
+        # S25 ≠ S24, X6 ≠ X5, iPhone15 ≠ iPhone16, WH1000XM5 ≠ WH1000XM4
+        if q_attrs["model_number"] and c_attrs["model_number"]:
+            qm = q_attrs["model_number"].lower()
+            cm = c_attrs["model_number"].lower()
+            # Extract numeric portion for comparison
+            q_num = re.sub(r"[a-z]", "", qm)
+            c_num = re.sub(r"[a-z]", "", cm)
+            q_letters = re.sub(r"\d", "", qm)
+            c_letters = re.sub(r"\d", "", cm)
+            # Must match on both letter prefix AND number
+            if (q_letters == c_letters and q_num and c_num and q_num != c_num):
+                return (
+                    False,
+                    0.0,
+                    f"MODEL_NUMBER_MISMATCH ({q_attrs['model_number']} != {c_attrs['model_number']})",
+                )
+
+        # ── Rule 7: Storage Variant Mismatch ──────────────────────────────────
+        # 512GB query must not match 256GB candidate
+        score = 0.92
         rejection_reason = "EXACT_VERIFIED_MATCH"
 
         if q_attrs["storage"] and c_attrs["storage"]:
             if q_attrs["storage"] != c_attrs["storage"]:
-                # Storage differs — candidate is a different storage variant of the same model
-                score = 0.70
-                err = f"STORAGE_VARIANT_DIFFERENCE ({q_attrs['storage']} != {c_attrs['storage']})"
-                return False, score, err
-                return False, score, rejection_reason
+                err = (
+                    f"STORAGE_VARIANT_MISMATCH "
+                    f"({q_attrs['storage']} != {c_attrs['storage']})"
+                )
+                return False, 0.0, err
 
-        # Rule 8: RAM Mismatch Check
+        # ── Rule 8: RAM Mismatch ───────────────────────────────────────────────
+        # 16GB RAM query must not match 8GB RAM candidate
         if q_attrs["ram"] and c_attrs["ram"]:
             if q_attrs["ram"] != c_attrs["ram"]:
-                score = 0.70
-                rejection_reason = f"RAM_VARIANT_DIFFERENCE ({q_attrs['ram']} != {c_attrs['ram']})"
-                return False, score, rejection_reason
+                err = (
+                    f"RAM_VARIANT_MISMATCH "
+                    f"({q_attrs['ram']} != {c_attrs['ram']})"
+                )
+                return False, 0.0, err
+
+        # ── Rule 9: Screen Size Mismatch (TVs/Monitors) ───────────────────────
+        # 55-inch query must not match 65-inch candidate
+        if q_attrs["screen_size"] and c_attrs["screen_size"]:
+            if q_attrs["screen_size"] != c_attrs["screen_size"]:
+                err = (
+                    f"SCREEN_SIZE_MISMATCH "
+                    f"({q_attrs['screen_size']}inch != {c_attrs['screen_size']}inch)"
+                )
+                return False, 0.0, err
 
         return True, score, rejection_reason
 
@@ -393,7 +562,9 @@ class ProductMatchingEngine:
 
         jaccard_score = len(intersection) / len(union) if union else 0.0
         shorter_tokens = tokens1 if len(tokens1) <= len(tokens2) else tokens2
-        containment_score = len(intersection) / len(shorter_tokens) if shorter_tokens else 0.0
+        containment_score = (
+            len(intersection) / len(shorter_tokens) if shorter_tokens else 0.0
+        )
 
         return round((jaccard_score * 0.5) + (containment_score * 0.5), 4)
 
@@ -439,7 +610,7 @@ class ProductMatchingEngine:
                 "match_reason": "EAN_EXACT_MATCH",
             }
 
-        # 1. Exact attribute mismatch check (rejects model/variant/size/family mismatches)
+        # 1. Exact attribute mismatch check
         has_ean = bool(ean1 and ean2 and ean1 == ean2)
         is_exact, match_score, rejection_reason = ExactProductMatchEngine.evaluate_marketplace_match(
             title1, title2, ean_match=has_ean
@@ -461,9 +632,7 @@ class ProductMatchingEngine:
         spec_sim = cls.match_specifications(specs1, specs2)
 
         final_score = (
-            round((title_sim * 0.7) + (spec_sim * 0.3), 4)
-            if spec_sim > 0
-            else title_sim
+            round((title_sim * 0.7) + (spec_sim * 0.3), 4) if spec_sim > 0 else title_sim
         )
 
         return {

@@ -240,6 +240,43 @@ async def verify_and_migrate_db_schema():
                     "CREATE INDEX IF NOT EXISTS ix_product_views_viewed_at ON product_views "
                     "(viewed_at DESC);"
                 ),
+                # ── Audit columns missing from product_views migration ──────
+                # Root cause of: UndefinedColumnError: column product_views.created_at
+                # Base class adds created_at/updated_at to all models but the original
+                # migration pre-dates the Base audit pattern.
+                "ALTER TABLE product_views ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ;",
+                "ALTER TABLE product_views ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;",
+                (
+                    "UPDATE product_views SET created_at = NOW() "
+                    "WHERE created_at IS NULL;"
+                ),
+                (
+                    "UPDATE product_views SET updated_at = NOW() "
+                    "WHERE updated_at IS NULL;"
+                ),
+                (
+                    "ALTER TABLE product_views ALTER COLUMN created_at SET DEFAULT NOW();"
+                ),
+                (
+                    "ALTER TABLE product_views ALTER COLUMN updated_at SET DEFAULT NOW();"
+                ),
+                # ── Audit columns missing from price_history migration ───────
+                "ALTER TABLE price_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ;",
+                "ALTER TABLE price_history ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;",
+                (
+                    "UPDATE price_history SET created_at = NOW() "
+                    "WHERE created_at IS NULL;"
+                ),
+                (
+                    "UPDATE price_history SET updated_at = NOW() "
+                    "WHERE updated_at IS NULL;"
+                ),
+                (
+                    "ALTER TABLE price_history ALTER COLUMN created_at SET DEFAULT NOW();"
+                ),
+                (
+                    "ALTER TABLE price_history ALTER COLUMN updated_at SET DEFAULT NOW();"
+                ),
             ]
 
             for col in missing_cols:

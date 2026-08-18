@@ -119,7 +119,7 @@ def test_exact_matching_iphone15_vs_pro_rejection():
         candidate_title="Apple iPhone 15 Pro 128GB Natural Titanium",
     )
     assert is_match is False
-    assert "VARIANT_SUFFIX_MISMATCH" in reason
+    assert "VARIANT" in reason  # PRODUCT_VARIANT_MISMATCH or VARIANT_SUFFIX_MISMATCH
 
 
 def test_exact_matching_s25_ultra():

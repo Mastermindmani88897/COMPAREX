@@ -175,7 +175,7 @@ def test_marketplace_verification_exact_vs_rejected():
     )
     assert is_match is False
     assert score == 0.0
-    assert "VARIANT_SUFFIX_MISMATCH" in reason
+    assert "VARIANT" in reason  # PRODUCT_VARIANT_MISMATCH or VARIANT_SUFFIX_MISMATCH
 
     # 4. Accessory rejection
     is_match, score, reason = ExactProductMatchEngine.evaluate_marketplace_match(

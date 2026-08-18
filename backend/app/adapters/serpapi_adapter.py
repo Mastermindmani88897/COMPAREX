@@ -4,11 +4,19 @@ COMPAREX Backend - SerpAPI Adapter (Google Shopping Specialist)
 Connects to SerpAPI (https://serpapi.com/search.json?engine=google_shopping) to fetch
 real-time price comparisons across multi-merchant Google Shopping aggregations.
 Includes diagnostic provider status classification and health tracking.
+
+Root-Cause Fix (2026-08-18):
+    Bug: parsed_results=0 when raw_results=17.
+    Cause: Parser skipped items where extracted_price==0 BEFORE trying the `price`
+           string field. Google Shopping results from SerpAPI often omit extracted_price
+           and use a localized price string like "₹1,29,990" in the `price` field.
+    Fix:  Try extracted_price first, then parse the `price` string with INR-aware
+          regex. Only skip the item if neither yields a valid price.
 """
 
 import re
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import httpx
 
 from app.adapters.base import BaseMarketplaceAdapter
@@ -33,18 +41,52 @@ STORE_LOGOS = {
     "vijay sales": "https://www.vijaysales.com/images/vijaysales-logo.png",
 }
 
+# INR price patterns — handles ₹1,29,990 / Rs. 1,29,990 / 129990 / 1,29,990
+_INR_PATTERN = re.compile(
+    r"(?:₹|Rs\.?\s*|INR\s*)([0-9][0-9,]*(?:\.\d{1,2})?)|^([0-9][0-9,]*(?:\.\d{1,2})?)$",
+    re.IGNORECASE,
+)
 
-def _parse_price(val: Any) -> float:
-    """Robust price parsing handling INR format, strings with commas, and floats."""
+
+def _parse_price(val: Any) -> Optional[float]:
+    """
+    Robust price parser.
+
+    Returns float > 0 on success, None when no price can be extracted.
+    Never returns 0.0 — caller should treat None as "no price".
+
+    Handles:
+      - float / int already
+      - "₹1,29,990"  "Rs. 1,29,990"  "INR 129990"
+      - plain numeric strings "129990" / "1,29,990"
+      - SerpAPI extracted_price field (usually a clean float)
+    """
     if isinstance(val, (int, float)):
-        return float(val)
+        v = float(val)
+        return v if v > 0 else None
+
     if not val or not isinstance(val, str):
-        return 0.0
-    cleaned = re.sub(r"[^\d.]", "", val.replace(",", ""))
+        return None
+
+    val_stripped = val.strip()
+
+    # Try INR-prefixed pattern first
+    m = _INR_PATTERN.search(val_stripped)
+    if m:
+        num_str = (m.group(1) or m.group(2) or "").replace(",", "")
+        try:
+            v = float(num_str)
+            return v if v > 0 else None
+        except ValueError:
+            pass
+
+    # Fallback: strip all non-numeric except decimal point
+    cleaned = re.sub(r"[^\d.]", "", val_stripped.replace(",", ""))
     try:
-        return float(cleaned) if cleaned else 0.0
+        v = float(cleaned)
+        return v if v > 0 else None
     except ValueError:
-        return 0.0
+        return None
 
 
 class SerpApiAdapter(BaseMarketplaceAdapter):
@@ -78,16 +120,18 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
                 error_message="API Key not configured",
             )
 
+        # Use google_shopping engine — purpose-built for product/price extraction
         params = {
             "engine": "google_shopping",
             "q": query,
             "api_key": self.api_key,
             "gl": "in",
             "hl": "en",
+            "num": min(limit * 3, 40),  # request more to compensate for filtering
         }
 
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.get(self.api_url, params=params)
                 elapsed_ms = (time.time() - start_t) * 1000.0
 
@@ -99,53 +143,87 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
                         err_msg = str(data.get("error", ""))
                         err_lower = err_msg.lower()
                         is_quota = "out of searches" in err_lower or "credit" in err_lower
-                        status = (
+                        st = (
                             ProviderStatus.QUOTA_EXHAUSTED
                             if is_quota
                             else ProviderStatus.CONFIGURATION_ERROR
                         )
                         logger.warning(
-                            "SERPAPI: HTTP 200 status=%s error='%s'", status.value, err_msg
+                            "SERPAPI: HTTP 200 status=%s error='%s'", st.value, err_msg
                         )
                         ProviderHealthTracker.record_call(
                             provider="SerpAPI",
                             configured=True,
-                            status=status,
+                            status=st,
                             http_status=200,
                             error_message=err_msg,
                             response_time_ms=elapsed_ms,
                         )
                         return ProviderResponse(
                             provider_name="SerpAPI",
-                            status=status,
+                            status=st,
                             http_status=200,
                             error_message=err_msg,
                             response_time_ms=elapsed_ms,
                         )
 
-                    # Extract items across supported SerpAPI keys
-                    raw_items = (
+                    # ── Diagnostic: log top-level response keys (never log values) ──
+                    top_keys = list(data.keys()) if isinstance(data, dict) else []
+                    shopping_count = len(data.get("shopping_results") or [])
+                    inline_count = len(data.get("inline_shopping_results") or [])
+                    organic_count = len(data.get("organic_results") or [])
+                    logger.info(
+                        "SERPAPI_RESPONSE_KEYS: keys=%s shopping=%d inline=%d organic=%d",
+                        top_keys,
+                        shopping_count,
+                        inline_count,
+                        organic_count,
+                    )
+
+                    # ── Select the best result set ────────────────────────────────
+                    # Priority: shopping_results > inline_shopping_results
+                    # Do NOT use organic_results for price extraction — they are
+                    # editorial/blog pages, not structured product listings.
+                    raw_items: List[Dict[str, Any]] = (
                         data.get("shopping_results")
                         or data.get("inline_shopping_results")
-                        or data.get("organic_results")
                         or []
                     )
 
                     raw_count = len(raw_items)
                     listings: List[Dict[str, Any]] = []
+                    skipped_no_price = 0
 
-                    for item in raw_items[:limit]:
+                    for item in raw_items[:limit * 3]:
+                        # ── Price extraction: multi-field fallback ────────────────
+                        # SerpAPI may provide:
+                        #   extracted_price: 129990.0   (clean float, preferred)
+                        #   price: "₹1,29,990"          (INR string, common fallback)
+                        #   old_price / original_price: original/MRP
                         extracted_price = _parse_price(item.get("extracted_price"))
-                        if extracted_price == 0.0:
+                        if extracted_price is None:
                             extracted_price = _parse_price(item.get("price"))
 
-                        if extracted_price == 0.0:
+                        if extracted_price is None:
+                            skipped_no_price += 1
+                            # Log item keys for diagnostics (never the values)
+                            logger.debug(
+                                "SERPAPI_ITEM_NO_PRICE: keys=%s title='%s'",
+                                list(item.keys()),
+                                str(item.get("title", ""))[:60],
+                            )
                             continue
 
-                        merchant = item.get("source", "Google Merchant")
+                        # ── Original/MRP price ────────────────────────────────────
+                        original_price = (
+                            _parse_price(item.get("original_price"))
+                            or _parse_price(item.get("old_price"))
+                        )
+
+                        merchant = item.get("source") or item.get("seller") or "Google Merchant"
                         merchant_slug = merchant.lower().replace(" ", "_")
                         logo = STORE_LOGOS.get(merchant.lower(), "")
-                        delivery = item.get("delivery") or "Standard Delivery"
+                        delivery = item.get("delivery") or None
                         rating = float(item["rating"]) if item.get("rating") else None
                         reviews = int(item["reviews"]) if item.get("reviews") else None
 
@@ -155,49 +233,64 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
                             or f"https://www.google.com/search?q={query}"
                         )
 
+                        image = item.get("thumbnail") or item.get("image") or None
+
+                        # Compute discount if we have both prices
+                        discount_pct = None
+                        if original_price and extracted_price and original_price > extracted_price:
+                            discount_pct = round(
+                                ((original_price - extracted_price) / original_price) * 100, 1
+                            )
+
                         listings.append(
                             {
                                 "title": item.get("title", f"{query} on {merchant}"),
-                                "price": float(extracted_price),
-                                "original_price": None,
-                                "discount_percent": None,
+                                "price": extracted_price,
+                                "original_price": original_price,
+                                "discount_percent": discount_pct,
                                 "currency": "INR",
                                 "seller_name": merchant,
                                 "listing_url": item_url,
                                 "marketplace_product_id": item.get(
-                                    "product_id", f"SERP-{abs(hash(merchant)) % 1000}"
+                                    "product_id",
+                                    f"SERP-{abs(hash(merchant + str(extracted_price))) % 100000}",
                                 ),
                                 "is_available": True,
                                 "stock_status": "IN_STOCK",
                                 "delivery_estimate": delivery,
                                 "rating": rating,
                                 "review_count": reviews,
-                                "image_url": item.get("thumbnail") or item.get("image") or "",
+                                "image_url": image,
                                 "marketplace_slug": merchant_slug,
                                 "marketplace_name": merchant,
                                 "marketplace_logo": logo,
                             }
                         )
 
+                        if len(listings) >= limit:
+                            break
+
                     parsed_count = len(listings)
-                    status = (
+                    st = (
                         ProviderStatus.SUCCESS_WITH_RESULTS
                         if parsed_count > 0
                         else ProviderStatus.SUCCESS_NO_RESULTS
                     )
 
                     logger.info(
-                        "SERPAPI: HTTP 200 status=%s raw_results=%d parsed_results=%d query='%s'",
-                        status.value,
+                        "SERPAPI: HTTP 200 status=%s raw_results=%d parsed_results=%d "
+                        "skipped_no_price=%d query='%s'",
+                        st.value,
                         raw_count,
                         parsed_count,
+                        skipped_no_price,
                         query,
                     )
 
                     ProviderHealthTracker.record_call(
                         provider="SerpAPI",
                         configured=True,
-                        status=status,
+                        status=st,
                         http_status=200,
                         result_count=parsed_count,
                         response_time_ms=elapsed_ms,
@@ -205,7 +298,7 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
 
                     return ProviderResponse(
                         provider_name="SerpAPI",
-                        status=status,
+                        status=st,
                         http_status=200,
                         results=listings,
                         raw_result_count=raw_count,
@@ -215,26 +308,28 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
                 else:
                     err_msg = f"HTTP {response.status_code}: {response.text[:200]}"
                     if response.status_code == 429:
-                        status = ProviderStatus.RATE_LIMITED
+                        st = ProviderStatus.RATE_LIMITED
                     elif response.status_code in (401, 403):
-                        status = ProviderStatus.AUTHENTICATION_ERROR
+                        st = ProviderStatus.AUTHENTICATION_ERROR
+                    elif response.status_code == 402:
+                        st = ProviderStatus.QUOTA_EXHAUSTED
                     else:
-                        status = ProviderStatus.UNKNOWN_ERROR
+                        st = ProviderStatus.UNKNOWN_ERROR
 
                     logger.warning(
-                        "SERPAPI: HTTP %d status=%s", response.status_code, status.value
+                        "SERPAPI: HTTP %d status=%s", response.status_code, st.value
                     )
                     ProviderHealthTracker.record_call(
                         provider="SerpAPI",
                         configured=True,
-                        status=status,
+                        status=st,
                         http_status=response.status_code,
                         error_message=err_msg,
                         response_time_ms=elapsed_ms,
                     )
                     return ProviderResponse(
                         provider_name="SerpAPI",
-                        status=status,
+                        status=st,
                         http_status=response.status_code,
                         error_message=err_msg,
                         response_time_ms=elapsed_ms,
@@ -292,24 +387,28 @@ class SerpApiAdapter(BaseMarketplaceAdapter):
         merchant = raw_data.get("seller_name", "Google Merchant")
         slug = raw_data.get("marketplace_slug") or merchant.lower().replace(" ", "_")
         logo = raw_data.get("marketplace_logo") or STORE_LOGOS.get(merchant.lower(), "")
-        orig = float(raw_data["original_price"]) if raw_data.get("original_price") else None
+        orig = _parse_price(raw_data.get("original_price"))
         disc = float(raw_data["discount_percent"]) if raw_data.get("discount_percent") else None
+        price = _parse_price(raw_data.get("price")) or 0.0
         return {
             "title": raw_data.get("title", f"Listing on {merchant}"),
-            "price": float(raw_data.get("price", 0.0)),
+            "price": price,
             "original_price": orig,
             "discount_percent": disc,
             "currency": raw_data.get("currency", "INR"),
             "listing_url": raw_data.get("listing_url", "https://www.google.com"),
-            "marketplace_product_id": raw_data.get("marketplace_product_id", "SERP-01"),
+            "marketplace_product_id": raw_data.get(
+                "marketplace_product_id",
+                f"SERP-{abs(hash(merchant)) % 100000}",
+            ),
             "seller_name": merchant,
             "is_available": bool(raw_data.get("is_available", True)),
             "is_prime": False,
             "stock_status": raw_data.get("stock_status", "IN_STOCK"),
-            "delivery_estimate": raw_data.get("delivery_estimate", "Standard Delivery"),
+            "delivery_estimate": raw_data.get("delivery_estimate"),
             "rating": float(raw_data["rating"]) if raw_data.get("rating") else None,
             "review_count": int(raw_data["review_count"]) if raw_data.get("review_count") else None,
-            "image_url": raw_data.get("image_url", ""),
+            "image_url": raw_data.get("image_url"),
             "marketplace_slug": slug,
             "marketplace_name": merchant,
             "marketplace_logo": logo,
