@@ -68,7 +68,7 @@ async def setup_test_db():
     await test_engine.dispose()
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 async def seed_test_products():
     """
     Insert minimal deterministic test products into the real PostgreSQL
@@ -121,7 +121,6 @@ async def seed_test_products():
         },
     ]
 
-    inserted_ids = []
     try:
         async with AsyncSessionLocal() as session:
             for prod_data in _CI_TEST_PRODUCTS:
@@ -129,22 +128,11 @@ async def seed_test_products():
                 if prod is None:
                     prod = Product(**prod_data)
                     session.add(prod)
-                inserted_ids.append(prod_data["id"])
             await session.commit()
     except Exception as exc:
         print(f"seed_test_products setup warning: {exc}")
 
     yield
-
-    try:
-        async with AsyncSessionLocal() as session:
-            for prod_id in inserted_ids:
-                prod = await session.get(Product, prod_id)
-                if prod is not None:
-                    await session.delete(prod)
-            await session.commit()
-    except Exception as exc:
-        print(f"seed_test_products teardown warning: {exc}")
 
 
 @pytest.fixture

@@ -259,8 +259,5 @@ jobs:
           print(f"SCHEMA VERIFICATION OK! All {len(required_tables)} required tables exist in PostgreSQL.")
           PY
 
-      - name: Run targeted AI endpoint tests
-        run: pytest tests/test_phase6.py -q
-
       - name: Run full backend test suite
         run: pytest -v --tb=short -rA
