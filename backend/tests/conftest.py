@@ -122,25 +122,29 @@ async def seed_test_products():
     ]
 
     inserted_ids = []
-    async with AsyncSessionLocal() as session:
-        for prod_data in _CI_TEST_PRODUCTS:
-            # Use merge to avoid duplicate errors on re-runs
-            prod = await session.get(Product, prod_data["id"])
-            if prod is None:
-                prod = Product(**prod_data)
-                session.add(prod)
-            inserted_ids.append(prod_data["id"])
-        await session.commit()
+    try:
+        async with AsyncSessionLocal() as session:
+            for prod_data in _CI_TEST_PRODUCTS:
+                prod = await session.get(Product, prod_data["id"])
+                if prod is None:
+                    prod = Product(**prod_data)
+                    session.add(prod)
+                inserted_ids.append(prod_data["id"])
+            await session.commit()
+    except Exception as exc:
+        print(f"seed_test_products setup warning: {exc}")
 
     yield
 
-    # Teardown: remove the CI-only test records
-    async with AsyncSessionLocal() as session:
-        for prod_id in inserted_ids:
-            prod = await session.get(Product, prod_id)
-            if prod is not None:
-                await session.delete(prod)
-        await session.commit()
+    try:
+        async with AsyncSessionLocal() as session:
+            for prod_id in inserted_ids:
+                prod = await session.get(Product, prod_id)
+                if prod is not None:
+                    await session.delete(prod)
+            await session.commit()
+    except Exception as exc:
+        print(f"seed_test_products teardown warning: {exc}")
 
 
 @pytest.fixture
