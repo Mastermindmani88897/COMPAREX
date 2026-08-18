@@ -263,4 +263,4 @@ jobs:
         run: pytest tests/test_phase6.py -q
 
       - name: Run full backend test suite
-        run: pytest -v --tb=short
+        run: pytest -v --tb=short -rA

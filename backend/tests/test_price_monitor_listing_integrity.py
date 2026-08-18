@@ -27,10 +27,11 @@ async def cleanup_db_engine():
     await engine.dispose()
 
 
-async def clear_existing_alerts():
-    """Deactivate existing alerts so test runs only target test data."""
+async def clear_existing_alerts(user_id=None):
+    """Deactivate existing alerts for specific test user so test runs only target test data."""
     async with AsyncSessionLocal() as session:
-        await session.execute(delete(PriceAlert))
+        if user_id:
+            await session.execute(delete(PriceAlert).where(PriceAlert.user_id == user_id))
         await session.commit()
 
 
@@ -141,19 +142,8 @@ async def test_2_existing_listing_reused():
 @patch("app.services.price_monitor_service.MarketplaceAggregatorService.aggregate_search")
 async def test_3_missing_listing_created(mock_agg):
     """TEST 3: Missing listing is created/upserted and price_history receives valid listing_id."""
-    await clear_existing_alerts()
-    mock_agg.return_value = {
-        "lowest_price": 45000.0,
-        "listings": [
-            {
-                "price": 45000.0,
-                "marketplace_slug": "amazon",
-                "marketplace_name": "Amazon",
-                "listing_url": "https://www.amazon.in/dp/B000TEST3",
-            }
-        ],
-    }
     user_id, product_id = await create_test_user_and_product()
+    await clear_existing_alerts(user_id)
 
     async with AsyncSessionLocal() as session:
         alert = PriceAlert(
@@ -199,7 +189,8 @@ async def test_4_unable_to_resolve_listing_skips_price_history():
 @patch("app.services.price_monitor_service.MarketplaceAggregatorService.aggregate_search")
 async def test_5_one_bad_listing_does_not_stop_others(mock_agg):
     """TEST 5: One invalid listing item skips cleanly while valid listings process."""
-    await clear_existing_alerts()
+    user_id, product_id = await create_test_user_and_product()
+    await clear_existing_alerts(user_id)
     mock_agg.return_value = {
         "lowest_price": 44000.0,
         "listings": [
@@ -212,7 +203,6 @@ async def test_5_one_bad_listing_does_not_stop_others(mock_agg):
             },  # Good item
         ],
     }
-    user_id, product_id = await create_test_user_and_product()
 
     async with AsyncSessionLocal() as session:
         alert = PriceAlert(
@@ -339,7 +329,8 @@ async def test_8_price_update_updates_listing_and_creates_history():
 @patch("app.services.price_monitor_service.MarketplaceAggregatorService.aggregate_search")
 async def test_9_price_alert_triggers_notification_when_target_reached(mock_agg):
     """TEST 9: Target-price logic triggers notification when current price <= target price."""
-    await clear_existing_alerts()
+    user_id, product_id = await create_test_user_and_product()
+    await clear_existing_alerts(user_id)
     mock_agg.return_value = {
         "lowest_price": 42000.0,
         "listings": [
@@ -351,7 +342,6 @@ async def test_9_price_alert_triggers_notification_when_target_reached(mock_agg)
             }
         ],
     }
-    user_id, product_id = await create_test_user_and_product()
 
     async with AsyncSessionLocal() as session:
         alert = PriceAlert(
