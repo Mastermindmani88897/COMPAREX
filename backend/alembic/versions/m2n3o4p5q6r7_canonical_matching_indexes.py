@@ -20,27 +20,17 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Ensure indexes for canonical product search and matching fields
-    op.create_index(
-        'ix_products_normalized_name',
-        'products',
-        ['normalized_name'],
-        unique=False,
-        if_not_exists=True,
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_products_normalized_name "
+        "ON products (normalized_name);"
     )
-    op.create_index(
-        'ix_products_model_name',
-        'products',
-        ['model_name'],
-        unique=False,
-        if_not_exists=True,
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_products_model_name "
+        "ON products (model_name);"
     )
-    # Ensure index on price_history listing_id for fast analytics lookup
-    op.create_index(
-        'ix_price_history_listing_id',
-        'price_history',
-        ['listing_id'],
-        unique=False,
-        if_not_exists=True,
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_price_history_listing_id "
+        "ON price_history (listing_id);"
     )
 
 

@@ -157,9 +157,19 @@ class SearchQueryGenerator:
         clean = re.sub(r"\s+", " ", clean)
 
         # Normalise storage tags: ensure 512 GB → 512GB (no space before unit)
-        clean = re.sub(r"(\d+)\s+(gb|tb|mb)", lambda m: m.group(1) + m.group(2).upper(), clean, flags=re.IGNORECASE)
+        clean = re.sub(
+            r"(\d+)\s+(gb|tb|mb)",
+            lambda m: m.group(1) + m.group(2).upper(),
+            clean,
+            flags=re.IGNORECASE,
+        )
         # Normalise RAM: 16 GB RAM → 16GB
-        clean = re.sub(r"(\d+)\s*(gb|mb)\s*ram", lambda m: m.group(1) + m.group(2).upper(), clean, flags=re.IGNORECASE)
+        clean = re.sub(
+            r"(\d+)\s*(gb|mb)\s*ram",
+            lambda m: m.group(1) + m.group(2).upper(),
+            clean,
+            flags=re.IGNORECASE,
+        )
 
         return clean.strip()
 
@@ -234,7 +244,6 @@ class ExactProductMatchEngine:
         t_for_variant = t
         if chip:
             # Mask the chip token to prevent it from matching as product variant
-            chip_pattern_str = re.escape(chip.replace(" ", "").lower())
             # Build a fuzzy mask — chip might be "m4pro" in text or "m4 pro"
             t_for_variant = re.sub(
                 r"\bm\d+\s*(?:pro|max|ultra)?\b", "__CHIP__", t_for_variant, flags=re.IGNORECASE
@@ -489,11 +498,11 @@ class ExactProductMatchEngine:
             c_letters = re.sub(r"\d", "", cm)
             # Must match on both letter prefix AND number
             if (q_letters == c_letters and q_num and c_num and q_num != c_num):
-                return (
-                    False,
-                    0.0,
-                    f"MODEL_NUMBER_MISMATCH ({q_attrs['model_number']} != {c_attrs['model_number']})",
+                mismatch = (
+                    f"MODEL_NUMBER_MISMATCH "
+                    f"({q_attrs['model_number']} != {c_attrs['model_number']})"
                 )
+                return (False, 0.0, mismatch)
 
         # ── Rule 7: Storage Variant Mismatch ──────────────────────────────────
         # 512GB query must not match 256GB candidate
@@ -612,8 +621,10 @@ class ProductMatchingEngine:
 
         # 1. Exact attribute mismatch check
         has_ean = bool(ean1 and ean2 and ean1 == ean2)
-        is_exact, match_score, rejection_reason = ExactProductMatchEngine.evaluate_marketplace_match(
-            title1, title2, ean_match=has_ean
+        is_exact, match_score, rejection_reason = (
+            ExactProductMatchEngine.evaluate_marketplace_match(
+                title1, title2, ean_match=has_ean
+            )
         )
         if not is_exact and "MISMATCH" in rejection_reason:
             specs_a = product1.get("specifications", {})

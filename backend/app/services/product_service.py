@@ -103,7 +103,8 @@ class ProductService:
             query,
         )
 
-        # If DB returned 0 products AND query provided, trigger live aggregation & auto-cache exact models in DB
+        # If DB returned 0 products AND query provided, trigger live aggregation
+        # & auto-cache exact models in DB
         if not products and query and query.strip():
             try:
                 agg = await MarketplaceAggregatorService.aggregate_search(
@@ -124,11 +125,11 @@ class ProductService:
                         if attrs.get("is_accessory"):
                             continue
 
-                        model_num = attrs.get("model_number") or ""
                         brand_name = attrs.get("brand") or brand or query.title()
 
                         # Ensure we do not create brand-only generic names like "Oppo" or "Samsung"
-                        if title_str.strip().lower() in {"oppo", "samsung", "poco", "brand", "unknown product"}:
+                        generic_names = {"oppo", "samsung", "poco", "brand", "unknown product"}
+                        if title_str.strip().lower() in generic_names:
                             continue
 
                         # Check if product with exact model already exists in DB

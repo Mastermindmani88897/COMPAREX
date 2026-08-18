@@ -19,27 +19,25 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        'product_listings',
-        sa.Column('verification_status', sa.String(length=50), nullable=False, server_default='verified')
+    op.execute(
+        "ALTER TABLE product_listings "
+        "ADD COLUMN IF NOT EXISTS verification_status VARCHAR(50) NOT NULL DEFAULT 'verified';"
     )
-    op.add_column(
-        'product_listings',
-        sa.Column('match_score', sa.Numeric(precision=5, scale=4), nullable=False, server_default='1.0000')
+    op.execute(
+        "ALTER TABLE product_listings "
+        "ADD COLUMN IF NOT EXISTS match_score NUMERIC(5, 4) NOT NULL DEFAULT 1.0000;"
     )
-    op.add_column(
-        'product_listings',
-        sa.Column('is_exact_url', sa.Boolean(), nullable=False, server_default='true')
+    op.execute(
+        "ALTER TABLE product_listings "
+        "ADD COLUMN IF NOT EXISTS is_exact_url BOOLEAN NOT NULL DEFAULT TRUE;"
     )
-    op.add_column(
-        'product_listings',
-        sa.Column('retrieved_at', sa.DateTime(timezone=True), nullable=True)
+    op.execute(
+        "ALTER TABLE product_listings "
+        "ADD COLUMN IF NOT EXISTS retrieved_at TIMESTAMPTZ;"
     )
-    op.create_index(
-        op.f('ix_product_listings_verification_status'),
-        'product_listings',
-        ['verification_status'],
-        unique=False
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_product_listings_verification_status "
+        "ON product_listings (verification_status);"
     )
 
 
