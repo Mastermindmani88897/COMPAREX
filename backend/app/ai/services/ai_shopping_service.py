@@ -94,11 +94,20 @@ class AIShoppingService:
 
         if not listings:
             async with AsyncSessionLocal() as db_session:
-                stmt = select(Product).limit(5)
+                stmt = select(Product).where(Product.is_quarantined.is_(False)).limit(5)
                 if max_budget:
                     stmt = stmt.where(Product.base_price <= Decimal(str(max_budget)))
                 db_res = await db_session.execute(stmt)
                 db_prods = list(db_res.scalars().all())
+
+                if not db_prods:
+                    stmt_fallback = (
+                        select(Product)
+                        .where(Product.is_quarantined.is_(False))
+                        .limit(5)
+                    )
+                    db_res_fb = await db_session.execute(stmt_fallback)
+                    db_prods = list(db_res_fb.scalars().all())
 
                 ranked_prods = SearchEngineService.filter_and_rank_products(
                     products=db_prods,

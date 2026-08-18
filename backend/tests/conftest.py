@@ -93,7 +93,7 @@ async def seed_test_products():
             "id": uuid.UUID("00000000-0000-0000-0000-000000000001"),
             "name": "[CI-TEST] Apple iPhone 15 128GB",
             "brand": "Apple",
-            "category": "Mobiles",
+            "category": "electronics",
             "base_price": Decimal("69999"),
             "rating": 4.7,
             "is_verified": True,
