@@ -259,6 +259,7 @@ async def test_serpapi_parses_inr_formatted_results():
         patch("app.adapters.serpapi_adapter.httpx.AsyncClient") as mock_client_class,
     ):
         mock_settings.SERPAPI_API_KEY = "test-api-key-for-unit-test"
+        adapter = SerpApiAdapter()
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -310,6 +311,7 @@ async def test_serpapi_extracted_price_takes_priority():
         patch("app.adapters.serpapi_adapter.httpx.AsyncClient") as mock_client_class,
     ):
         mock_settings.SERPAPI_API_KEY = "test-api-key-for-unit-test"
+        adapter = SerpApiAdapter()
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -626,13 +628,12 @@ class TestProviderStatusCodes:
         from app.adapters.rainforest_adapter import RainforestAdapter
         from app.adapters.provider_status import ProviderStatus
 
-        adapter = RainforestAdapter()
-
         with (
             patch("app.adapters.rainforest_adapter.settings") as mock_settings,
             patch("app.adapters.rainforest_adapter.httpx.AsyncClient") as mock_client_class,
         ):
             mock_settings.RAINFOREST_API_KEY = "test-key"
+            adapter = RainforestAdapter()
 
             mock_response = MagicMock()
             mock_response.status_code = 402
@@ -695,13 +696,12 @@ class TestProviderStatusCodes:
         from app.adapters.zenrows_adapter import ZenRowsAdapter
         from app.adapters.provider_status import ProviderStatus
 
-        adapter = ZenRowsAdapter()
-
         with (
             patch("app.adapters.zenrows_adapter.settings") as mock_settings,
             patch("app.adapters.zenrows_adapter.httpx.AsyncClient") as mock_client_class,
         ):
             mock_settings.ZENROWS_API_KEY = "test-key"
+            adapter = ZenRowsAdapter()
 
             mock_http = AsyncMock()
             mock_http.get = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
@@ -740,6 +740,7 @@ class TestProviderStatusCodes:
             patch("app.adapters.serpapi_adapter.httpx.AsyncClient") as mock_client_class,
         ):
             mock_settings.SERPAPI_API_KEY = "test-key"
+            adapter = SerpApiAdapter()
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.json.return_value = mock_data

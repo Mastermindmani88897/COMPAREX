@@ -83,18 +83,19 @@ class BrightDataAdapter(BaseMarketplaceAdapter):
     async def search_products_detailed(self, query: str, limit: int = 10) -> ProviderResponse:
         """Detailed query returning structured ProviderResponse."""
         start_t = time.time()
-        is_cfg = bool(self.api_key)
+        api_key = self.api_key or settings.BRIGHTDATA_API_KEY or ""
+        is_cfg = bool(api_key)
 
         if not is_cfg:
-            logger.warning("Bright Data API key not configured.")
+            logger.warning("BrightData API key not configured.")
             ProviderHealthTracker.record_call(
-                provider="Bright Data",
+                provider="BrightData",
                 configured=False,
                 status=ProviderStatus.NOT_CONFIGURED,
-                error_message="Bright Data Key not configured",
+                error_message="BrightData Key not configured",
             )
             return ProviderResponse(
-                provider_name="Bright Data",
+                provider_name="BrightData",
                 status=ProviderStatus.NOT_CONFIGURED,
                 error_message="API Key not configured",
             )

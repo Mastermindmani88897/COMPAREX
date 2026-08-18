@@ -144,6 +144,17 @@ async def test_3_missing_listing_created(mock_agg):
     """TEST 3: Missing listing is created/upserted and price_history receives valid listing_id."""
     user_id, product_id = await create_test_user_and_product()
     await clear_existing_alerts(user_id)
+    mock_agg.return_value = {
+        "lowest_price": 45000.0,
+        "listings": [
+            {
+                "price": 45000.0,
+                "marketplace_slug": "amazon",
+                "marketplace_name": "Amazon",
+                "listing_url": "https://www.amazon.in/dp/B000TEST3",
+            }
+        ],
+    }
 
     async with AsyncSessionLocal() as session:
         alert = PriceAlert(

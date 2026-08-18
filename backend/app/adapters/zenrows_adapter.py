@@ -33,7 +33,8 @@ class ZenRowsAdapter(BaseMarketplaceAdapter):
     async def search_products_detailed(self, query: str, limit: int = 10) -> ProviderResponse:
         """Detailed query returning structured ProviderResponse."""
         start_t = time.time()
-        is_cfg = bool(self.api_key)
+        api_key = self.api_key or settings.ZENROWS_API_KEY or ""
+        is_cfg = bool(api_key)
 
         if not is_cfg:
             logger.warning("ZenRows API key not configured.")
